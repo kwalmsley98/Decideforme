@@ -40,8 +40,7 @@ function parseAllowedOrigins() {
 function getAnthropicKey() {
   const candidates = [
     ["ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY],
-    ["CLAUDE_API_KEY", process.env.CLAUDE_API_KEY],
-    ["VITE_ANTHROPIC_API_KEY", process.env.VITE_ANTHROPIC_API_KEY]
+    ["CLAUDE_API_KEY", process.env.CLAUDE_API_KEY]
   ];
 
   for (const [source, rawValue] of candidates) {
