@@ -114,6 +114,112 @@ const anthropic = new Anthropic({
 });
 
 const stripe = new Stripe(config.stripeSecretKey);
+const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY);
+const unsplashAccessKey = normalizeEnvValue(process.env.UNSPLASH_ACCESS_KEY);
+
+function looksRecommendationWorthy(prompt) {
+  const text = String(prompt || "").toLowerCase();
+  const keywords = [
+    "restaurant",
+    "food",
+    "eat",
+    "cafe",
+    "bar",
+    "activity",
+    "things to do",
+    "date night",
+    "gym",
+    "shopping",
+    "buy",
+    "store",
+    "visit",
+    "hotel",
+    "museum",
+    "park"
+  ];
+  return keywords.some((k) => text.includes(k));
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (v) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function getUnsplashImage(query) {
+  if (!unsplashAccessKey) return "";
+  const endpoint = new URL("https://api.unsplash.com/search/photos");
+  endpoint.searchParams.set("query", query);
+  endpoint.searchParams.set("per_page", "1");
+  endpoint.searchParams.set("orientation", "landscape");
+
+  const response = await fetch(endpoint.toString(), {
+    headers: { Authorization: `Client-ID ${unsplashAccessKey}` }
+  });
+  if (!response.ok) return "";
+  const data = await response.json();
+  return data?.results?.[0]?.urls?.regular || "";
+}
+
+async function getPlaceRecommendations({ prompt, userLocation }) {
+  if (!googlePlacesKey) return [];
+  const endpoint = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+  endpoint.searchParams.set("query", prompt);
+  endpoint.searchParams.set("key", googlePlacesKey);
+
+  const response = await fetch(endpoint.toString());
+  if (!response.ok) return [];
+  const data = await response.json();
+  const top = (data.results || []).slice(0, 3);
+
+  const cards = [];
+  for (const place of top) {
+    const imageUrl = await getUnsplashImage(`${place.name} ${prompt}`);
+    const mapsUrl = place.place_id
+      ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`;
+
+    const lowerPrompt = prompt.toLowerCase();
+    const orderLink =
+      /food|restaurant|eat|delivery|takeaway|dinner|lunch/.test(lowerPrompt)
+        ? `https://www.ubereats.com/gb/search?q=${encodeURIComponent(place.name)}`
+        : /hotel|travel|trip|tour|visit|museum|activity/.test(lowerPrompt)
+          ? `https://www.tripadvisor.com/Search?q=${encodeURIComponent(place.name)}`
+          : `https://www.google.com/search?q=${encodeURIComponent(`${place.name} booking`)}`;
+
+    let distanceKm = null;
+    if (
+      userLocation?.lat &&
+      userLocation?.lng &&
+      place?.geometry?.location?.lat &&
+      place?.geometry?.location?.lng
+    ) {
+      distanceKm = haversineKm(
+        Number(userLocation.lat),
+        Number(userLocation.lng),
+        Number(place.geometry.location.lat),
+        Number(place.geometry.location.lng)
+      );
+    }
+
+    cards.push({
+      name: place.name,
+      rating: place.rating || null,
+      description: place.formatted_address || "Popular recommendation nearby.",
+      distance: distanceKm ? `${distanceKm.toFixed(1)} km away` : null,
+      imageUrl,
+      mapsUrl,
+      actionUrl: orderLink
+    });
+  }
+  return cards;
+}
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -149,22 +255,48 @@ app.post("/api/stripe-webhook", (req, res) => {
 app.use(express.json());
 
 app.post("/api/decide", async (req, res) => {
-  const { category, mood } = req.body ?? {};
-  if (!category || !mood) {
-    return res.status(400).json({ error: "category and mood are required." });
+  const { prompt, personality = "Balanced", conversation = [], groupSummary = "", userLocation } = req.body ?? {};
+  if (!prompt) {
+    return res.status(400).json({ error: "prompt is required." });
   }
 
   try {
+    const personalityGuide = {
+      Balanced: "Give practical, calm, confident answers.",
+      Savage: "Be blunt and spicy, but still helpful.",
+      "Hype Man": "Be energetic and motivating.",
+      "Life Coach": "Be wise, supportive, and growth-focused."
+    };
+
+    const priorMessages = Array.isArray(conversation)
+      ? conversation.map((msg) => `${msg.role || "user"}: ${msg.content || ""}`).join("\n")
+      : "";
+
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 180,
-      temperature: 0.5,
+      max_tokens: 140,
+      temperature: 0.55,
       system:
-        "You are a confidence-first decision assistant. Always return one decisive recommendation only.",
+        `You are a premium decision assistant. ${personalityGuide[personality] || personalityGuide.Balanced}
+Style rules:
+- Maximum 2-3 sentences total.
+- Be direct and decisive: make one clear decision.
+- Give one short reason why.
+- Ask at most ONE quick follow-up question only if needed.
+- No bullet points, no labels like "Why:", no long explanations.
+Voice: confident friend giving quick advice, not a consultant.`,
       messages: [
         {
           role: "user",
-          content: `Category: ${category}\nMood: ${mood}\n\nGive one confident decision in 1-2 sentences.`
+          content: `User decision request: ${prompt}
+Personality mode: ${personality}
+Group preferences (if any):
+${groupSummary || "None"}
+
+Conversation so far:
+${priorMessages || "No prior messages"}
+
+Respond as the assistant in this ongoing chat.`
         }
       ]
     });
@@ -173,7 +305,12 @@ app.post("/api/decide", async (req, res) => {
       message.content?.find((part) => part.type === "text")?.text?.trim() ||
       "Go with the boldest option available right now.";
 
-    return res.json({ answer });
+    let recommendations = [];
+    if (looksRecommendationWorthy(prompt)) {
+      recommendations = await getPlaceRecommendations({ prompt, userLocation });
+    }
+
+    return res.json({ answer, recommendations });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Claude API request failed." });
   }

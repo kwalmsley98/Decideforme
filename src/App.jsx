@@ -1,38 +1,215 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BarChart2, Clock, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
-
-const CATEGORIES = [
-  "Food",
-  "Travel",
-  "What to watch",
-  "Weekend activity",
-  "Fitness",
-  "Shopping"
+const DAILY_LIBRARY = [
+  {
+    prompt: "Would you rather have unlimited money or unlimited time?",
+    options: ["Unlimited money", "Unlimited time"]
+  },
+  {
+    prompt: "Which wins tonight: spontaneous fun or cozy reset?",
+    options: ["Spontaneous fun", "Cozy reset"]
+  },
+  {
+    prompt: "Better long-term life move right now?",
+    options: ["Take the bigger risk", "Play it smart and steady"]
+  }
 ];
 
-const MOODS = ["Chill", "Bold", "Focused", "Adventurous", "Low-energy", "Spontaneous"];
+function shouldUseNearby(text) {
+  const value = String(text || "").toLowerCase();
+  const terms = ["near me", "nearby", "close to me", "around me", "walking distance", "in my area"];
+  return terms.some((term) => value.includes(term));
+}
+
+function shareUrls(text) {
+  const encoded = encodeURIComponent(text);
+  return {
+    whatsapp: `https://wa.me/?text=${encoded}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
+    x: `https://twitter.com/intent/tweet?text=${encoded}`
+  };
+}
+
+function nextMidnightCountdown() {
+  const now = new Date();
+  const next = new Date();
+  next.setHours(24, 0, 0, 0);
+  const ms = Math.max(next.getTime() - now.getTime(), 0);
+  const hours = Math.floor(ms / 3600000);
+  const mins = Math.floor((ms % 3600000) / 60000);
+  const secs = Math.floor((ms % 60000) / 1000);
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+async function copyText(text) {
+  await navigator.clipboard.writeText(text);
+}
+
+function launchConfetti() {
+  const bucket = document.createElement("div");
+  bucket.className = "confetti-bucket";
+  for (let i = 0; i < 34; i += 1) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDelay = `${Math.random() * 0.5}s`;
+    piece.style.background = ["#f5e642", "#7d67ff", "#39d0ff", "#f975c8"][i % 4];
+    bucket.appendChild(piece);
+  }
+  document.body.appendChild(bucket);
+  setTimeout(() => bucket.remove(), 1800);
+}
+
+async function touchActivity(userId, { didDecision = false, didVote = false, mindsChanged = 0 }) {
+  if (!supabase || !userId) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  if (!profile) return;
+
+  const last = profile.last_active_date || "";
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  let currentStreak = profile.current_streak || 0;
+  if (last === today) {
+    currentStreak = profile.current_streak || 0;
+  } else if (last === yesterday) {
+    currentStreak += 1;
+  } else {
+    currentStreak = 1;
+  }
+  const longestStreak = Math.max(profile.longest_streak || 0, currentStreak);
+
+  if (currentStreak > 0 && currentStreak % 7 === 0) launchConfetti();
+
+  await supabase
+    .from("profiles")
+    .update({
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      last_active_date: today,
+      total_decisions: (profile.total_decisions || 0) + (didDecision ? 1 : 0),
+      total_votes: (profile.total_votes || 0) + (didVote ? 1 : 0),
+      minds_changed: (profile.minds_changed || 0) + mindsChanged
+    })
+    .eq("id", userId);
+}
+
+function LoadingOrb() {
+  return (
+    <div className="loading-wrap" aria-label="AI is thinking">
+      <div className="orb-ring ring-1" />
+      <div className="orb-ring ring-2" />
+      <div className="orb-core" />
+    </div>
+  );
+}
+
+function AnimatedCounter({ value }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    const target = Number(value || 0);
+    const duration = 600;
+    const start = performance.now();
+    let raf = 0;
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      setDisplay(Math.round(target * progress));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <>{display.toLocaleString()}</>;
+}
+
+function SharePanel({ text, className = "" }) {
+  const [copied, setCopied] = useState(false);
+  const urls = shareUrls(text);
+  const nativeShare = async () => {
+    if (!navigator.share) return;
+    try {
+      await navigator.share({ text });
+    } catch {
+      // Ignore canceled share
+    }
+  };
+  return (
+    <div className={`share-row ${className}`.trim()}>
+      <a className="share-btn wa" href={urls.whatsapp} target="_blank" rel="noreferrer">
+        W
+      </a>
+      <a className="share-btn fb" href={urls.facebook} target="_blank" rel="noreferrer">
+        f
+      </a>
+      <a className="share-btn x" href={urls.x} target="_blank" rel="noreferrer">
+        X
+      </a>
+      <button
+        className="share-btn copy"
+        onClick={async () => {
+          await copyText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }}
+      >
+        {copied ? "OK" : "C"}
+      </button>
+      <button className="share-btn native" onClick={nativeShare} disabled={!navigator.share}>
+        S
+      </button>
+    </div>
+  );
+}
 
 function Layout({ session, onSignOut, children }) {
+  const navItems = [
+    { to: "/", label: "Chat", icon: MessageCircle },
+    { to: "/stats", label: "Stats", icon: BarChart2 },
+    { to: "/group", label: "Group", icon: Users },
+    { to: "/history", label: "History", icon: Clock },
+    { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
+    { to: "/profile", label: "Profile", icon: User }
+  ];
+
+  const loginItem = { to: "/login", label: "Login", icon: LogIn };
+  const LoginIcon = loginItem.icon;
+
   return (
-    <div className="app-shell">
+    <div className="app-shell page-enter">
       <header className="topbar">
         <Link to="/" className="brand">
           Decide For Me
         </Link>
         <nav className="nav-links">
-          <Link to="/">Home</Link>
-          <Link to="/history">History</Link>
-          <Link to="/plans">Plans</Link>
+          {navItems.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
+              end={to === "/"}
+            >
+              <Icon size={16} />
+              <span className="nav-label">{label}</span>
+            </NavLink>
+          ))}
           {session ? (
             <button className="ghost-btn" onClick={onSignOut}>
               Logout
             </button>
           ) : (
-            <Link to="/login">Login</Link>
+            <NavLink to={loginItem.to} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+              <LoginIcon size={16} />
+              <span className="nav-label">{loginItem.label}</span>
+            </NavLink>
           )}
         </nav>
       </header>
@@ -47,187 +224,376 @@ function ProtectedRoute({ session, children }) {
   return children;
 }
 
-function HomeScreen({ selectedCategory, setSelectedCategory }) {
-  const navigate = useNavigate();
-  return (
-    <section className="card">
-      <h1>Pick a category</h1>
-      <p className="muted">Choose what you want help deciding.</p>
-      <div className="chip-grid">
-        {CATEGORIES.map((category) => (
-          <button
-            key={category}
-            className={`chip ${selectedCategory === category ? "active" : ""}`}
-            onClick={() => setSelectedCategory(category)}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
-      <button
-        className="primary-btn"
-        onClick={() => navigate("/mood")}
-        disabled={!selectedCategory}
-      >
-        Continue to mood
-      </button>
-    </section>
-  );
-}
+function DailyDilemmaCard({ session }) {
+  const [countdown, setCountdown] = useState(nextMidnightCountdown());
+  const [dilemma, setDilemma] = useState(null);
+  const [votes, setVotes] = useState([]);
+  const [aiPick, setAiPick] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
-function MoodScreen({ selectedCategory, selectedMood, setSelectedMood }) {
-  const navigate = useNavigate();
+  const loadDaily = async () => {
+    if (!supabase) return;
+    let { data } = await supabase.from("daily_dilemmas").select("*").eq("date_key", today).single();
+    if (!data) {
+      const index = Number(today.replaceAll("-", "")) % DAILY_LIBRARY.length;
+      const fallback = DAILY_LIBRARY[index];
+      const insert = await supabase
+        .from("daily_dilemmas")
+        .insert({
+          date_key: today,
+          question: fallback.prompt,
+          option_a: fallback.options[0],
+          option_b: fallback.options[1]
+        })
+        .select("*")
+        .single();
+      data = insert.data;
+    }
+    setDilemma(data);
 
-  if (!selectedCategory) {
-    return <Navigate to="/" replace />;
-  }
+    const { data: voteData } = await supabase
+      .from("daily_dilemma_votes")
+      .select("*")
+      .eq("dilemma_id", data.id);
+    setVotes(voteData ?? []);
 
-  return (
-    <section className="card">
-      <h1>How are you feeling?</h1>
-      <p className="muted">
-        Category: <strong>{selectedCategory}</strong>
-      </p>
-      <div className="chip-grid">
-        {MOODS.map((mood) => (
-          <button
-            key={mood}
-            className={`chip ${selectedMood === mood ? "active" : ""}`}
-            onClick={() => setSelectedMood(mood)}
-          >
-            {mood}
-          </button>
-        ))}
-      </div>
-      <div className="row">
-        <button className="ghost-btn" onClick={() => navigate("/")}>
-          Back
-        </button>
-        <button className="primary-btn" onClick={() => navigate("/answer")} disabled={!selectedMood}>
-          Get AI decision
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function AnswerScreen({ session, selectedCategory, selectedMood, latestAnswer, setLatestAnswer }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const canRequest = Boolean(selectedCategory && selectedMood);
+    if (data.ai_pick) setAiPick(data.ai_pick);
+  };
 
   useEffect(() => {
-    if (!canRequest || latestAnswer) return;
+    loadDaily();
+  }, []);
 
-    const fetchDecision = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await fetch(apiUrl("/api/decide"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            category: selectedCategory,
-            mood: selectedMood
-          })
-        });
+  useEffect(() => {
+    const id = setInterval(() => setCountdown(nextMidnightCountdown()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body.error || "Failed to get decision.");
+  useEffect(() => {
+    if (!supabase || !dilemma?.id) return;
+    const channel = supabase
+      .channel(`daily-${dilemma.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_dilemma_votes", filter: `dilemma_id=eq.${dilemma.id}` },
+        async () => {
+          const { data } = await supabase.from("daily_dilemma_votes").select("*").eq("dilemma_id", dilemma.id);
+          setVotes(data ?? []);
         }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [dilemma?.id]);
 
-        const data = await response.json();
-        setLatestAnswer(data.answer);
+  const castVote = async (option) => {
+    if (!supabase || !dilemma || !session?.user?.id) return;
+    await supabase.from("daily_dilemma_votes").upsert(
+      {
+        dilemma_id: dilemma.id,
+        user_id: session.user.id,
+        vote_option: option
+      },
+      { onConflict: "dilemma_id,user_id" }
+    );
+    await touchActivity(session.user.id, { didVote: true });
+  };
 
-        if (session?.user?.id) {
-          await supabase.from("decision_history").insert({
-            user_id: session.user.id,
-            category: selectedCategory,
-            mood: selectedMood,
-            answer: data.answer
-          });
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const getAIPick = async () => {
+    if (!dilemma || aiPick) return;
+    setLoadingAi(true);
+    const response = await fetch(apiUrl("/api/decide"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: `${dilemma.question}. Choose one option only: ${dilemma.option_a} or ${dilemma.option_b}.`
+      })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setAiPick(data.answer);
+      await supabase.from("daily_dilemmas").update({ ai_pick: data.answer }).eq("id", dilemma.id);
+    }
+    setLoadingAi(false);
+  };
 
-    fetchDecision();
-  }, [canRequest, latestAnswer, selectedCategory, selectedMood, setLatestAnswer, session]);
-
-  if (!canRequest) return <Navigate to="/" replace />;
+  if (!dilemma) return null;
+  const total = votes.length || 1;
+  const aVotes = votes.filter((v) => v.vote_option === "A").length;
+  const bVotes = votes.filter((v) => v.vote_option === "B").length;
 
   return (
-    <section className="card">
-      <h1>AI says:</h1>
-      <p className="muted">
-        {selectedCategory} + {selectedMood}
-      </p>
-      {loading ? <p className="muted">Thinking confidently...</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {latestAnswer ? <p className="answer">{latestAnswer}</p> : null}
-      <div className="row">
-        <Link className="ghost-btn link-btn" to="/">
-          Start over
-        </Link>
-        <Link className="primary-btn link-btn" to="/history">
-          View history
-        </Link>
+    <section className="card premium daily-card">
+      <p className="hero-kicker timer-pulse">Daily Dilemma · next in {countdown}</p>
+      <h3>{dilemma.question}</h3>
+      <div className="vote-row">
+        <button className="chip" onClick={() => castVote("A")}>
+          A: {dilemma.option_a}
+        </button>
+        <button className="chip" onClick={() => castVote("B")}>
+          B: {dilemma.option_b}
+        </button>
       </div>
+      <p className="meta">
+        Live votes: {Math.round((aVotes / total) * 100)}% A · {Math.round((bVotes / total) * 100)}% B
+      </p>
+      {!aiPick ? (
+        <button className="ghost-btn" onClick={getAIPick} disabled={loadingAi}>
+          {loadingAi ? "AI deciding..." : "See AI daily pick"}
+        </button>
+      ) : (
+        <p className="answer">{aiPick}</p>
+      )}
+    </section>
+  );
+}
+
+function ChatScreen({ session }) {
+  const [prompt, setPrompt] = useState("");
+  const [reply, setReply] = useState("");
+  const [conversation, setConversation] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [liveCount, setLiveCount] = useState(() => 10000 + new Date().getHours() * 57);
+
+  useEffect(() => {
+    if (!("Notification" in window) || !session) return;
+    Notification.requestPermission().catch(() => {});
+    const now = new Date();
+    const nearMidnight = new Date();
+    nearMidnight.setHours(23, 20, 0, 0);
+    const wait = nearMidnight.getTime() - now.getTime();
+    if (wait > 0) {
+      const id = setTimeout(() => {
+        if (Notification.permission === "granted") {
+          new Notification("Keep your streak alive 🔥", {
+            body: "Drop one decision or vote on today's dilemma before midnight."
+          });
+        }
+      }, wait);
+      return () => clearTimeout(id);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLiveCount((prev) => prev + Math.floor(Math.random() * 3) + 1);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  const requestUserLocation = async () => {
+    if (!("geolocation" in navigator)) return null;
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) =>
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          }),
+        () => resolve(null),
+        { maximumAge: 300000, timeout: 8000 }
+      );
+    });
+  };
+
+  const sendToAI = async (content, isInitial = false) => {
+    setLoading(true);
+    setError("");
+    const userMessage = { role: "user", content };
+    const updatedConversation = isInitial ? [userMessage] : [...conversation, userMessage];
+    if (isInitial) setConversation([userMessage]);
+    else setConversation(updatedConversation);
+
+    try {
+      const needsNearby = shouldUseNearby(content);
+      let locationForRequest = userLocation;
+      if (needsNearby && !locationForRequest) {
+        locationForRequest = await requestUserLocation();
+        if (locationForRequest) setUserLocation(locationForRequest);
+      }
+
+      const response = await fetch(apiUrl("/api/decide"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: isInitial ? content : prompt,
+          conversation: updatedConversation,
+          userLocation: locationForRequest
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "AI failed.");
+      const aiMessage = { role: "assistant", content: data.answer };
+      const finalConversation = [...updatedConversation, aiMessage];
+      setConversation(finalConversation);
+      setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
+      const changedMind = /actually|instead|not feeling|change/i.test(content) ? 1 : 0;
+      setReply("");
+
+      if (session?.user?.id && supabase) {
+        await supabase.from("decision_history").insert({
+          user_id: session.user.id,
+          category: "Natural language",
+          mood: "Inferred tone",
+          answer: data.answer,
+          conversation: finalConversation
+        });
+        await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="card premium">
+      <div className="hero-glow" />
+      <div className="hero-stack">
+        <p className="hero-kicker">⚡ Decision intelligence</p>
+        <h1 className="hero-title">Stop Overthinking. Just Decide.</h1>
+        <p className="hero-subtitle">What do you need help deciding?</p>
+      </div>
+      <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      <DailyDilemmaCard session={session} />
+      <div className="chat-divider" />
+
+      {conversation.length || loading ? (
+        <div className="chat-frame">
+          {conversation.map((msg, idx) => (
+            <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
+              <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
+              <div className={`bubble ${msg.role}`}>
+                {msg.role === "assistant" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
+              </div>
+            </div>
+          ))}
+          {loading ? <LoadingOrb /> : null}
+        </div>
+      ) : null}
+
+      {!conversation.length ? (
+        <form
+          className="form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!prompt.trim()) return;
+            sendToAI(prompt.trim(), true);
+          }}
+        >
+          <div className="input-row">
+              <input
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+                className="decision-input"
+              placeholder="e.g. Should I order sushi or cook tonight?"
+            />
+            <button className="send-btn" disabled={loading} aria-label="Send">
+              →
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form
+          className="form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!reply.trim()) return;
+            sendToAI(reply.trim(), false);
+          }}
+        >
+          <div className="suggestion-row">
+            {["Not feeling it 👎", "Something cheaper 💰", "Give me a wild option 🎲"].map((text) => (
+              <button
+                key={text}
+                type="button"
+                className="suggestion-chip"
+                onClick={() => setReply(text)}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+          <div className="input-row">
+              <input
+              value={reply}
+              onChange={(event) => setReply(event.target.value)}
+                className="decision-input"
+              placeholder="Reply…"
+            />
+            <button className="send-btn" disabled={loading} aria-label="Send">
+              →
+            </button>
+          </div>
+        </form>
+      )}
+      {conversation.length ? (
+        <SharePanel text={`Decide For Me: ${conversation[conversation.length - 1].content}`} />
+      ) : null}
+      {recommendations.length ? (
+        <div className="recommendations-wrap">
+          {recommendations.map((item) => (
+            <article key={item.name} className="recommend-card">
+              <div className="recommend-image-wrap">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} className="recommend-image" />
+                ) : (
+                  <div className="recommend-image placeholder">No image</div>
+                )}
+              </div>
+              <div className="recommend-body">
+                <h4>{item.name}</h4>
+                <p className="meta">
+                  {item.rating ? `⭐ ${item.rating}` : "⭐ New"} {item.distance ? `· ${item.distance}` : ""}
+                </p>
+                <p>{item.description}</p>
+                <div className="recommend-actions">
+                  <a className="ghost-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
+                    View on Google Maps
+                  </a>
+                  <a className="primary-btn" href={item.actionUrl} target="_blank" rel="noreferrer">
+                    Book / Order
+                  </a>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {error ? <p className="error">{error}</p> : null}
     </section>
   );
 }
 
 function HistoryScreen({ session }) {
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      setError("Supabase is not configured.");
-      return;
-    }
-
-    const loadHistory = async () => {
-      setLoading(true);
-      setError("");
-      const { data, error: fetchError } = await supabase
-        .from("decision_history")
-        .select("id, category, mood, answer, created_at")
-        .eq("user_id", session.user.id)
-        .order("created_at", { ascending: false });
-
-      if (fetchError) {
-        setError(fetchError.message);
-      } else {
-        setHistory(data ?? []);
-      }
-      setLoading(false);
-    };
-
-    loadHistory();
+    if (!supabase) return;
+    supabase
+      .from("decision_history")
+      .select("id, answer, mood, created_at")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .limit(25)
+      .then(({ data }) => setHistory(data ?? []));
   }, [session.user.id]);
 
   return (
     <section className="card">
-      <h1>Your history</h1>
-      {loading ? <p className="muted">Loading past decisions...</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {!loading && !history.length ? (
-        <p className="muted">No decisions yet. Generate one from Home.</p>
-      ) : null}
+      <h1>History</h1>
       <div className="history-list">
         {history.map((item) => (
           <article key={item.id} className="history-item">
-            <p className="meta">
-              {item.category} · {item.mood}
-            </p>
+            <p className="meta">{item.mood}</p>
             <p>{item.answer}</p>
             <p className="meta">{new Date(item.created_at).toLocaleString()}</p>
           </article>
@@ -237,36 +603,517 @@ function HistoryScreen({ session }) {
   );
 }
 
+function StatsScreen({ session }) {
+  const [stats, setStats] = useState(null);
+  const [weeklyRecap, setWeeklyRecap] = useState(null);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return;
+    const load = async () => {
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      const { data: history } = await supabase
+        .from("decision_history")
+        .select("created_at, category, conversation, answer")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: true });
+      const list = history ?? [];
+      const categoryMap = {};
+      let mindChanges = 0;
+      for (const item of list) {
+        categoryMap[item.category] = (categoryMap[item.category] || 0) + 1;
+        if (Array.isArray(item.conversation)) {
+          mindChanges += item.conversation.filter((x) => /actually|instead|change/i.test(x.content || "")).length;
+        }
+      }
+      const mostIndecisive = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]?.[0] || "General";
+      setStats({
+        totalDecisions: profile?.total_decisions || list.length,
+        mostIndecisive,
+        longestStreak: profile?.longest_streak || 0,
+        mindChanges,
+        firstDecision: list[0]?.answer || "No decisions yet"
+      });
+
+      const monday = new Date().getDay() === 1;
+      const insights = [
+        `You move fastest when choices are practical (${mostIndecisive} dominates your log).`,
+        `You reconsider details ${mindChanges} times, showing high intention not indecision.`,
+        `Your momentum score is strong: ${profile?.current_streak || 0} day streak with ${profile?.total_votes || 0} social votes.`
+      ];
+      if (monday) {
+        setWeeklyRecap(insights);
+      } else {
+        setWeeklyRecap(null);
+      }
+    };
+    load();
+  }, [session?.user?.id]);
+
+  if (!stats) return <section className="card">Loading your wrapped...</section>;
+
+  return (
+    <section className="card premium wrapped-card">
+      <h1>Your Decision Wrapped</h1>
+      <p className="muted">Your habits, streaks and decision personality in one snapshot.</p>
+      <div className="stats-grid">
+        <article className="history-item">
+          <p className="meta">Total decisions</p>
+          <p className="answer">{stats.totalDecisions}</p>
+        </article>
+        <article className="history-item">
+          <p className="meta">Most indecisive about</p>
+          <p>{stats.mostIndecisive}</p>
+        </article>
+        <article className="history-item">
+          <p className="meta">Longest streak</p>
+          <p className="answer">🔥 {stats.longestStreak} days</p>
+        </article>
+        <article className="history-item">
+          <p className="meta">Minds changed</p>
+          <p>{stats.mindChanges}</p>
+        </article>
+      </div>
+      <article className="history-item">
+        <p className="meta">First ever decision</p>
+        <p>{stats.firstDecision}</p>
+      </article>
+      {weeklyRecap ? (
+        <article className="history-item weekly-recap">
+          <p className="meta">Last week your AI learned this about you...</p>
+          <ul>
+            {weeklyRecap.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <SharePanel text={`My weekly Decide For Me recap:\n- ${weeklyRecap.join("\n- ")}`} />
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
+function GroupCreateScreen({ session }) {
+  const navigate = useNavigate();
+  const [prompt, setPrompt] = useState("");
+  const [error, setError] = useState("");
+
+  const createGroup = async (event) => {
+    event.preventDefault();
+    if (!supabase) return;
+    const shareCode = crypto.randomUUID().split("-")[0];
+    const { data, error: insertError } = await supabase
+      .from("group_decisions")
+      .insert({
+        owner_id: session?.user?.id ?? null,
+        prompt,
+        personality: "Inferred tone",
+        share_code: shareCode
+      })
+      .select("id, share_code")
+      .single();
+    if (insertError) return setError(insertError.message);
+    navigate(`/group/${data.share_code}`);
+  };
+
+  return (
+    <section className="card premium">
+      <h1>Decide for my group</h1>
+      <p className="muted">Create a decision room, share the link, collect preferences, get one final call.</p>
+      <form className="form" onSubmit={createGroup}>
+        <input
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder="What should our group decide?"
+          required
+        />
+        <button className="primary-btn">Create group room</button>
+      </form>
+      {error ? <p className="error">{error}</p> : null}
+    </section>
+  );
+}
+
+function GroupRoomScreen({ session }) {
+  const { shareCode } = useParams();
+  const [room, setRoom] = useState(null);
+  const [preference, setPreference] = useState("");
+  const [prefs, setPrefs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadRoom = async () => {
+    if (!supabase) return;
+    const { data: roomData } = await supabase
+      .from("group_decisions")
+      .select("*")
+      .eq("share_code", shareCode)
+      .single();
+    setRoom(roomData);
+    if (!roomData) return;
+    const { data: prefData } = await supabase
+      .from("group_preferences")
+      .select("*")
+      .eq("group_id", roomData.id)
+      .order("created_at", { ascending: false });
+    setPrefs(prefData ?? []);
+  };
+
+  useEffect(() => {
+    loadRoom();
+  }, [shareCode]);
+
+  useEffect(() => {
+    if (!supabase || !room?.id) return;
+    const channel = supabase
+      .channel(`group-${room.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "group_preferences", filter: `group_id=eq.${room.id}` },
+        () => loadRoom()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [room?.id]);
+
+  const submitPreference = async (event) => {
+    event.preventDefault();
+    if (!supabase || !room || !preference.trim()) return;
+    const { error: insertError } = await supabase.from("group_preferences").insert({
+      group_id: room.id,
+      user_id: session?.user?.id ?? null,
+      nickname: session?.user?.email?.split("@")[0] || "Guest",
+      preference
+    });
+    if (!insertError) setPreference("");
+  };
+
+  const generateFinal = async () => {
+    if (!room) return;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/decide"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: room.prompt,
+          personality: room.personality,
+          groupSummary: prefs.map((p) => `${p.nickname}: ${p.preference}`).join("\n"),
+          conversation: []
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed final group call.");
+      await supabase.from("group_decisions").update({ final_answer: data.answer }).eq("id", room.id);
+      loadRoom();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!room) return <section className="card">Loading room...</section>;
+  const shareLink = `${window.location.origin}/group/${room.share_code}`;
+
+  return (
+    <section className="card premium">
+      <h1>Group room</h1>
+      <p className="muted">{room.prompt}</p>
+      <p className="meta">Mode: {room.personality}</p>
+      <SharePanel text={shareLink} />
+      <form className="form" onSubmit={submitPreference}>
+        <input
+          value={preference}
+          onChange={(event) => setPreference(event.target.value)}
+          placeholder="Add your preference..."
+        />
+        <button className="ghost-btn">Add preference</button>
+      </form>
+      <div className="history-list">
+        {prefs.map((p) => (
+          <article key={p.id} className="history-item">
+            <p className="meta">{p.nickname}</p>
+            <p>{p.preference}</p>
+          </article>
+        ))}
+      </div>
+      <button className="primary-btn" onClick={generateFinal} disabled={loading}>
+        {loading ? "Deciding..." : "Make final group decision"}
+      </button>
+      {room.final_answer ? <p className="answer">{room.final_answer}</p> : null}
+      {loading ? <LoadingOrb /> : null}
+      {error ? <p className="error">{error}</p> : null}
+    </section>
+  );
+}
+
+function LeaderboardScreen({ session }) {
+  const placeholderUsers = useMemo(
+    () => [
+      { id: "p1", username: "Mystery Decider", score: 184, current_streak: 7 },
+      { id: "p2", username: "Bold Chooser", score: 162, current_streak: 4 },
+      { id: "p3", username: "The Indecisive One", score: 149, current_streak: 0 },
+      { id: "p4", username: "Coin Flip Legend", score: 121, current_streak: 3 },
+      { id: "p5", username: "Late Night Picker", score: 109, current_streak: 2 },
+      { id: "p6", username: "Vibe Selector", score: 96, current_streak: 0 },
+      { id: "p7", username: "Snap Decision", score: 87, current_streak: 5 },
+      { id: "p8", username: "Gut Feeling Guru", score: 81, current_streak: 0 }
+    ],
+    []
+  );
+
+  const [mode, setMode] = useState("all");
+  const [leaders, setLeaders] = useState([]);
+  const [myRank, setMyRank] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadLeaderboard = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username, total_decisions, current_streak")
+      .order("total_decisions", { ascending: false });
+    const profileList = profiles ?? [];
+
+    let list = profileList.map((p) => ({
+      ...p,
+      score: p.total_decisions || 0
+    }));
+
+    if (mode === "week") {
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const { data: weekData } = await supabase
+        .from("decision_history")
+        .select("user_id")
+        .gte("created_at", weekAgo);
+      const weekCounts = {};
+      for (const row of weekData ?? []) {
+        weekCounts[row.user_id] = (weekCounts[row.user_id] || 0) + 1;
+      }
+      list = profileList
+        .map((p) => ({
+          ...p,
+          score: weekCounts[p.id] || 0
+        }))
+        .sort((a, b) => b.score - a.score);
+    } else {
+      list.sort((a, b) => b.score - a.score);
+    }
+
+    const top = list.slice(0, 20);
+    setLeaders(top.length ? top : placeholderUsers);
+    if (session?.user?.id) {
+      const idx = list.findIndex((u) => u.id === session.user.id);
+      if (idx >= 0) setMyRank({ rank: idx + 1, ...list[idx] });
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadLeaderboard();
+    if (!supabase) return;
+    const channel = supabase
+      .channel("leaderboard-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, loadLeaderboard)
+      .on("postgres_changes", { event: "*", schema: "public", table: "decision_history" }, loadLeaderboard)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [session?.user?.id, mode, placeholderUsers]);
+
+  const activeLeaders = leaders.length ? leaders : placeholderUsers;
+  const podium = activeLeaders.slice(0, 3);
+  const rest = activeLeaders.slice(3, 20);
+
+  const podiumSlot = (user, index) => {
+    const rank = index + 1;
+    const initials = (user?.username || "U").slice(0, 2).toUpperCase();
+    const medalClass = rank === 1 ? "gold" : rank === 2 ? "silver" : "bronze";
+    return (
+      <article key={user?.id || `placeholder-${rank}`} className={`podium-slot ${medalClass} ${rank === 1 ? "champ" : ""}`}>
+        <p className="meta">
+          {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"} #{rank}
+        </p>
+        <div className="podium-avatar">{initials}</div>
+        <h4>{user?.username || "Mystery Decider"}</h4>
+        <p className="answer">
+          <AnimatedCounter value={user?.score || 0} /> decisions
+        </p>
+      </article>
+    );
+  };
+
+  return (
+    <section className="card premium leaderboard-card">
+      <div className="leaderboard-head">
+        <h1 className="leaderboard-title">🏆 Leaderboard</h1>
+        <div className="tab-row">
+          <button className={`chip ${mode === "all" ? "active" : ""}`} onClick={() => setMode("all")}>
+            All Time
+          </button>
+          <button className={`chip ${mode === "week" ? "active" : ""}`} onClick={() => setMode("week")}>
+            This Week
+          </button>
+        </div>
+      </div>
+
+      <div className="podium-grid">
+        {loading
+          ? [1, 2, 3].map((i) => (
+              <article key={i} className="podium-slot skeleton">
+                <div className="podium-avatar" />
+              </article>
+            ))
+          : [podium[1], podium[0], podium[2]].map((u, i) => podiumSlot(u, i === 0 ? 1 : i === 1 ? 0 : 2))}
+      </div>
+
+      <div className="leader-list">
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <article key={i} className="history-item rank-line skeleton">
+                <p>Loading...</p>
+              </article>
+            ))
+          : rest.map((user, i) => (
+              <article key={user.id} className="history-item rank-line">
+                <p className="rank-num">#{i + 4}</p>
+                <div className="podium-avatar small">{(user.username || "U").slice(0, 2).toUpperCase()}</div>
+                <p>{user.username || "Unnamed"}</p>
+                <p className="meta">
+                  <AnimatedCounter value={user.score || 0} /> decisions{" "}
+                  {user.current_streak > 0 ? <span>🔥</span> : null}
+                </p>
+              </article>
+            ))}
+      </div>
+
+      <article className="your-rank-card">
+        <p className="meta">Your Rank</p>
+        {myRank ? (
+          <p className="answer">
+            #{myRank.rank} · <AnimatedCounter value={myRank.score || 0} /> decisions
+          </p>
+        ) : (
+          <p className="answer">Make your first decision to claim your spot on the leaderboard! 🚀</p>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function ProfileScreen({ session }) {
+  const [profile, setProfile] = useState(null);
+  const [referrals, setReferrals] = useState([]);
+
+  const loadProfile = async () => {
+    if (!supabase || !session?.user?.id) return;
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
+    setProfile(profileData);
+    const { data: refData } = await supabase
+      .from("referrals")
+      .select("*")
+      .eq("referrer_id", session.user.id);
+    setReferrals(refData ?? []);
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, [session?.user?.id]);
+
+  if (!session) return <Navigate to="/login" replace />;
+  const referralLink = profile?.referral_code
+    ? `${window.location.origin}/signup?ref=${profile.referral_code}`
+    : "";
+
+  return (
+    <section className="card">
+      <h1>Profile</h1>
+      <p className="meta">{session.user.email}</p>
+      <p>Bonus decisions: {profile?.bonus_decisions || 0}</p>
+      <p>Total decisions: {profile?.total_decisions || 0}</p>
+      <p className="answer">🔥 Streak: {profile?.current_streak || 0} days</p>
+      <p className="meta">Longest streak: {profile?.longest_streak || 0} days</p>
+      {referralLink ? (
+        <>
+          <p className="muted">Referral link</p>
+          <p className="answer">{referralLink}</p>
+          <SharePanel text={referralLink} />
+        </>
+      ) : null}
+      <p className="muted">Referrals earned: {referrals.length}</p>
+    </section>
+  );
+}
+
 function AuthScreen({ mode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const title = mode === "login" ? "Login" : "Sign up";
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const ref = query.get("ref");
+    if (ref) localStorage.setItem("pending_referral_code", ref);
+  }, [location.search]);
+
+  const ensureProfileAndReferral = async (user) => {
+    if (!supabase || !user?.id) return;
+    const referralCode = crypto.randomUUID().slice(0, 8);
+    await supabase.from("profiles").upsert(
+      {
+        id: user.id,
+        username: user.email?.split("@")[0],
+        referral_code: referralCode
+      },
+      { onConflict: "id" }
+    );
+
+    const pending = localStorage.getItem("pending_referral_code");
+    if (!pending) return;
+    const { data: referrer } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("referral_code", pending)
+      .single();
+    if (!referrer?.id || referrer.id === user.id) return;
+
+    await supabase.from("referrals").upsert(
+      {
+        referrer_id: referrer.id,
+        referred_id: user.id
+      },
+      { onConflict: "referred_id" }
+    );
+
+    await supabase.rpc("grant_referral_bonus", {
+      p_referrer_id: referrer.id,
+      p_referred_id: user.id
+    });
+    localStorage.removeItem("pending_referral_code");
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!isSupabaseConfigured || !supabase) {
-      setError("Set valid Supabase env values first, then refresh.");
-      return;
-    }
     setLoading(true);
     setError("");
-    setMessage("");
-
     const action =
       mode === "login"
         ? supabase.auth.signInWithPassword({ email, password })
         : supabase.auth.signUp({ email, password });
-
-    const { error: authError } = await action;
-    if (authError) {
-      setError(authError.message);
-    } else {
-      setMessage(mode === "signup" ? "Account created. Check your email to verify." : "Logged in.");
+    const { data, error: authError } = await action;
+    if (authError) setError(authError.message);
+    else {
+      await ensureProfileAndReferral(data?.user);
       navigate("/");
     }
     setLoading(false);
@@ -274,105 +1121,46 @@ function AuthScreen({ mode }) {
 
   return (
     <section className="card auth-card">
-      <h1>{title}</h1>
-      <form onSubmit={handleSubmit} className="form">
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            minLength={6}
-          />
-        </label>
-        <button className="primary-btn" type="submit" disabled={loading}>
-          {loading ? "Please wait..." : title}
+      <h1>{mode === "login" ? "Login" : "Sign up"}</h1>
+      <form className="form" onSubmit={handleSubmit}>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          minLength={6}
+          required
+        />
+        <button className="primary-btn" disabled={loading}>
+          {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
         </button>
       </form>
-      {message ? <p className="success">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-      <p className="muted">
-        {mode === "login" ? "Need an account?" : "Already have an account?"}{" "}
-        <button
-          className="inline-btn"
-          onClick={() => navigate(mode === "login" ? "/signup" : "/login")}
-        >
-          {mode === "login" ? "Sign up" : "Login"}
-        </button>
-      </p>
     </section>
-  );
-}
-
-function SubscriptionCard({ title, price, stripePriceId }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const checkout = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch(apiUrl("/api/create-checkout-session"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stripePriceId })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Checkout failed.");
-      window.location.assign(data.url);
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
-
-  return (
-    <article className="plan-card">
-      <h3>{title}</h3>
-      <p className="plan-price">{price}/month</p>
-      <p className="muted">Includes 7-day free trial.</p>
-      <button className="primary-btn" onClick={checkout} disabled={loading}>
-        {loading ? "Redirecting..." : "Start free trial"}
-      </button>
-      {error ? <p className="error">{error}</p> : null}
-    </article>
   );
 }
 
 function PlansScreen() {
   const plans = useMemo(
     () => [
-      {
-        title: "Plus",
-        price: "£4.99",
-        stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PLUS_ID
-      },
-      {
-        title: "Pro",
-        price: "£9.99",
-        stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PRO_ID
-      }
+      { title: "Plus", price: "£4.99", stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PLUS_ID },
+      { title: "Pro", price: "£9.99", stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PRO_ID }
     ],
     []
   );
 
   return (
     <section className="card">
-      <h1>Choose your plan</h1>
+      <h1>Plans</h1>
       <div className="plans-grid">
         {plans.map((plan) => (
-          <SubscriptionCard key={plan.title} {...plan} />
+          <article key={plan.title} className="plan-card">
+            <h3>{plan.title}</h3>
+            <p className="plan-price">{plan.price}/month</p>
+            <p className="muted">7-day trial</p>
+            <button className="primary-btn">Start</button>
+          </article>
         ))}
       </div>
     </section>
@@ -381,9 +1169,6 @@ function PlansScreen() {
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedMood, setSelectedMood] = useState("");
-  const [latestAnswer, setLatestAnswer] = useState("");
 
   useEffect(() => {
     if (!supabase) return;
@@ -393,10 +1178,6 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession));
     return () => subscription.unsubscribe();
   }, []);
-
-  useEffect(() => {
-    setLatestAnswer("");
-  }, [selectedCategory, selectedMood]);
 
   const signOut = async () => {
     if (!supabase) return;
@@ -408,38 +1189,17 @@ export default function App() {
       {!isSupabaseConfigured ? (
         <section className="card">
           <h1>Setup required</h1>
-          <p className="error">
-            Add valid values for VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in `.env`, then refresh.
-          </p>
+          <p className="error">Set Supabase env values in `.env` and refresh.</p>
         </section>
       ) : null}
       <Routes>
+        <Route path="/" element={<ChatScreen session={session} />} />
         <Route
-          path="/"
+          path="/stats"
           element={
-            <HomeScreen selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />
-          }
-        />
-        <Route
-          path="/mood"
-          element={
-            <MoodScreen
-              selectedCategory={selectedCategory}
-              selectedMood={selectedMood}
-              setSelectedMood={setSelectedMood}
-            />
-          }
-        />
-        <Route
-          path="/answer"
-          element={
-            <AnswerScreen
-              session={session}
-              selectedCategory={selectedCategory}
-              selectedMood={selectedMood}
-              latestAnswer={latestAnswer}
-              setLatestAnswer={setLatestAnswer}
-            />
+            <ProtectedRoute session={session}>
+              <StatsScreen session={session} />
+            </ProtectedRoute>
           }
         />
         <Route
@@ -450,9 +1210,13 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/group" element={<GroupCreateScreen session={session} />} />
+        <Route path="/group/:shareCode" element={<GroupRoomScreen session={session} />} />
+        <Route path="/leaderboard" element={<LeaderboardScreen session={session} />} />
+        <Route path="/profile" element={<ProfileScreen session={session} />} />
+        <Route path="/plans" element={<PlansScreen />} />
         <Route path="/login" element={<AuthScreen mode="login" />} />
         <Route path="/signup" element={<AuthScreen mode="signup" />} />
-        <Route path="/plans" element={<PlansScreen />} />
       </Routes>
     </Layout>
   );
