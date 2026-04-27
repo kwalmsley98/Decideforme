@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { BarChart2, Clock, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
+import { BarChart2, Clock, Flame, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
@@ -73,6 +73,22 @@ function normalizePreferenceText(value) {
     .replace(/[^\w\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function autosizeTextarea(element, maxLines = 4) {
+  if (!element) return;
+  const styles = window.getComputedStyle(element);
+  const lineHeight = Number.parseFloat(styles.lineHeight) || 22;
+  const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
+  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0;
+  const borderTop = Number.parseFloat(styles.borderTopWidth) || 0;
+  const borderBottom = Number.parseFloat(styles.borderBottomWidth) || 0;
+  const maxHeight = lineHeight * maxLines + paddingTop + paddingBottom + borderTop + borderBottom;
+
+  element.style.height = "auto";
+  const nextHeight = Math.min(element.scrollHeight, maxHeight);
+  element.style.height = `${nextHeight}px`;
+  element.style.overflowY = element.scrollHeight > maxHeight ? "auto" : "hidden";
 }
 
 async function touchActivity(userId, { didDecision = false, didVote = false, mindsChanged = 0 }) {
@@ -233,7 +249,7 @@ function Layout({ session, onSignOut, children }) {
         {mobileTabs.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `mobile-tab ${isActive ? "active" : ""}`}>
             <span className="mobile-tab-icon" aria-hidden="true">
-              <Icon size={18} />
+              <Icon size={24} strokeWidth={1.5} />
             </span>
             <span className="mobile-tab-label">{label}</span>
             <span className="mobile-tab-dot" aria-hidden="true" />
@@ -253,43 +269,52 @@ function ProtectedRoute({ session, children }) {
 function DailyDilemmaCard({ session }) {
   const [countdown, setCountdown] = useState(nextMidnightCountdown());
   const [dilemma, setDilemma] = useState(null);
-  const [votes, setVotes] = useState([]);
+  const [userVote, setUserVote] = useState("");
   const [aiPick, setAiPick] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
+  const [loadingVote, setLoadingVote] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   const loadDaily = async () => {
     if (!supabase) return;
-    let { data } = await supabase.from("daily_dilemmas").select("*").eq("date_key", today).single();
+    let { data } = await supabase.from("daily_dilemmas").select("*").eq("date", today).single();
     if (!data) {
       const index = Number(today.replaceAll("-", "")) % DAILY_LIBRARY.length;
       const fallback = DAILY_LIBRARY[index];
       const insert = await supabase
         .from("daily_dilemmas")
         .insert({
+          date: today,
           date_key: today,
           question: fallback.prompt,
           option_a: fallback.options[0],
-          option_b: fallback.options[1]
+          option_b: fallback.options[1],
+          votes_a: 0,
+          votes_b: 0
         })
         .select("*")
         .single();
       data = insert.data;
     }
     setDilemma(data);
-
-    const { data: voteData } = await supabase
-      .from("daily_dilemma_votes")
-      .select("*")
-      .eq("dilemma_id", data.id);
-    setVotes(voteData ?? []);
+    if (session?.user?.id) {
+      const { data: myVote } = await supabase
+        .from("daily_dilemma_votes")
+        .select("vote_option")
+        .eq("dilemma_id", data.id)
+        .eq("user_id", session.user.id)
+        .single();
+      setUserVote(myVote?.vote_option || "");
+    } else {
+      setUserVote("");
+    }
 
     if (data.ai_pick) setAiPick(data.ai_pick);
   };
 
   useEffect(() => {
     loadDaily();
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const id = setInterval(() => setCountdown(nextMidnightCountdown()), 1000);
@@ -302,10 +327,10 @@ function DailyDilemmaCard({ session }) {
       .channel(`daily-${dilemma.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "daily_dilemma_votes", filter: `dilemma_id=eq.${dilemma.id}` },
+        { event: "UPDATE", schema: "public", table: "daily_dilemmas", filter: `id=eq.${dilemma.id}` },
         async () => {
-          const { data } = await supabase.from("daily_dilemma_votes").select("*").eq("dilemma_id", dilemma.id);
-          setVotes(data ?? []);
+          const { data } = await supabase.from("daily_dilemmas").select("*").eq("id", dilemma.id).single();
+          if (data) setDilemma(data);
         }
       )
       .subscribe();
@@ -313,68 +338,109 @@ function DailyDilemmaCard({ session }) {
   }, [dilemma?.id]);
 
   const castVote = async (option) => {
-    if (!supabase || !dilemma || !session?.user?.id) return;
-    await supabase.from("daily_dilemma_votes").upsert(
-      {
-        dilemma_id: dilemma.id,
-        user_id: session.user.id,
-        vote_option: option
-      },
-      { onConflict: "dilemma_id,user_id" }
-    );
-    await touchActivity(session.user.id, { didVote: true });
+    if (!supabase || !dilemma || !session?.user?.id || userVote) return;
+    setLoadingVote(true);
+    try {
+      await supabase.from("daily_dilemma_votes").upsert(
+        {
+          dilemma_id: dilemma.id,
+          user_id: session.user.id,
+          vote_option: option
+        },
+        { onConflict: "dilemma_id,user_id" }
+      );
+      const { data: refreshed } = await supabase.from("daily_dilemmas").select("*").eq("id", dilemma.id).single();
+      if (refreshed) setDilemma(refreshed);
+      setUserVote(option);
+      launchConfetti();
+      await touchActivity(session.user.id, { didVote: true });
+      if (!aiPick) getAIPick();
+    } finally {
+      setLoadingVote(false);
+    }
   };
 
   const getAIPick = async () => {
-    if (!dilemma || aiPick) return;
+    if (!dilemma || aiPick) return "";
     setLoadingAi(true);
-    const response = await fetch(apiUrl("/api/decide"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: `${dilemma.question}. Choose one option only: ${dilemma.option_a} or ${dilemma.option_b}.`
-      })
-    });
-    const data = await response.json();
-    if (response.ok) {
-      setAiPick(data.answer);
-      await supabase.from("daily_dilemmas").update({ ai_pick: data.answer }).eq("id", dilemma.id);
+    try {
+      const response = await fetch(apiUrl("/api/decide"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `${dilemma.question}. Choose one option only: ${dilemma.option_a} or ${dilemma.option_b}.`
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setAiPick(data.answer);
+        await supabase.from("daily_dilemmas").update({ ai_pick: data.answer }).eq("id", dilemma.id);
+        return data.answer;
+      }
+      return "";
+    } finally {
+      setLoadingAi(false);
     }
-    setLoadingAi(false);
   };
 
   if (!dilemma) return null;
-  const total = votes.length || 1;
-  const aVotes = votes.filter((v) => v.vote_option === "A").length;
-  const bVotes = votes.filter((v) => v.vote_option === "B").length;
+  const aVotes = dilemma.votes_a || 0;
+  const bVotes = dilemma.votes_b || 0;
+  const total = Math.max(aVotes + bVotes, 1);
+  const aPercent = Math.round((aVotes / total) * 100);
+  const bPercent = Math.round((bVotes / total) * 100);
+  const majority = aVotes === bVotes ? "It's a tie right now." : aVotes > bVotes ? `Majority chose: ${dilemma.option_a}` : `Majority chose: ${dilemma.option_b}`;
 
   return (
     <section className="card premium daily-card">
       <p className="hero-kicker timer-pulse">Daily Dilemma · next in {countdown}</p>
       <h3>{dilemma.question}</h3>
       <div className="vote-row">
-        <button className="chip" onClick={() => castVote("A")}>
+        <button className="daily-vote-btn option-a" onClick={() => castVote("A")} disabled={!session?.user?.id || Boolean(userVote) || loadingVote}>
           A: {dilemma.option_a}
         </button>
-        <button className="chip" onClick={() => castVote("B")}>
+        <button className="daily-vote-btn option-b" onClick={() => castVote("B")} disabled={!session?.user?.id || Boolean(userVote) || loadingVote}>
           B: {dilemma.option_b}
         </button>
       </div>
       <p className="meta">
-        Live votes: {Math.round((aVotes / total) * 100)}% A · {Math.round((bVotes / total) * 100)}% B
+        Live voters: {aVotes + bVotes} · {aPercent}% A · {bPercent}% B
       </p>
-      {!aiPick ? (
-        <button className="ghost-btn" onClick={getAIPick} disabled={loadingAi}>
-          {loadingAi ? "AI deciding..." : "See AI daily pick"}
-        </button>
+      {userVote ? (
+        <>
+          <div className="poll-results">
+            <div className="poll-row">
+              <p className="meta">A · {dilemma.option_a}</p>
+              <div className="poll-track option-a">
+                <span className="poll-fill option-a" style={{ width: `${aPercent}%` }} />
+              </div>
+            </div>
+            <div className="poll-row">
+              <p className="meta">B · {dilemma.option_b}</p>
+              <div className="poll-track option-b">
+                <span className="poll-fill option-b" style={{ width: `${bPercent}%` }} />
+              </div>
+            </div>
+          </div>
+          <p className="answer">{majority}</p>
+          <p className="meta">{loadingAi && !aiPick ? "AI verdict is loading..." : "AI verdict"}</p>
+          {aiPick ? <p className="answer">{aiPick}</p> : null}
+        </>
       ) : (
-        <p className="answer">{aiPick}</p>
+        <p className="meta">You can vote once today. Results unlock right after you vote.</p>
       )}
     </section>
   );
 }
 
 function ChatScreen({ session }) {
+  const DAILY_FREE_LIMIT = 10;
+  const quickCategories = [
+    { label: "🍕 Food", value: "Help me decide what to eat tonight." },
+    { label: "🎬 Watch", value: "Help me choose what to watch tonight." },
+    { label: "✈️ Travel", value: "Help me decide where to go for my next trip." },
+    { label: "💪 Fitness", value: "Help me pick the best workout for today." }
+  ];
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState("");
   const [conversation, setConversation] = useState([]);
@@ -387,6 +453,12 @@ function ChatScreen({ session }) {
   const [totalDecisions, setTotalDecisions] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [showFirstTimeNote, setShowFirstTimeNote] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState(0);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [promptRef, setPromptRef] = useState(null);
+  const [replyRef, setReplyRef] = useState(null);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     if (!("Notification" in window) || !session) return;
@@ -418,6 +490,8 @@ function ChatScreen({ session }) {
     if (!supabase || !session?.user?.id) {
       setLearnedPreferences([]);
       setTotalDecisions(0);
+      setDailyUsage(0);
+      setShowUpgradePrompt(false);
       return;
     }
 
@@ -436,10 +510,28 @@ function ChatScreen({ session }) {
         .single();
       setTotalDecisions(profile?.total_decisions || 0);
       setCurrentStreak(profile?.current_streak || 0);
+
+      const { data: usage } = await supabase
+        .from("daily_usage")
+        .select("decision_count")
+        .eq("user_id", session.user.id)
+        .eq("usage_date", todayKey)
+        .single();
+      const count = usage?.decision_count || 0;
+      setDailyUsage(count);
+      setShowUpgradePrompt(count >= DAILY_FREE_LIMIT);
     };
 
     loadPersonalization();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, todayKey]);
+
+  useEffect(() => {
+    autosizeTextarea(promptRef, 4);
+  }, [prompt, promptRef]);
+
+  useEffect(() => {
+    autosizeTextarea(replyRef, 4);
+  }, [reply, replyRef]);
 
   const requestUserLocation = async () => {
     if (!("geolocation" in navigator)) return null;
@@ -457,6 +549,11 @@ function ChatScreen({ session }) {
   };
 
   const sendToAI = async (content, isInitial = false) => {
+    if (session?.user?.id && dailyUsage >= DAILY_FREE_LIMIT) {
+      setShowUpgradePrompt(true);
+      setError("");
+      return;
+    }
     setLoading(true);
     setError("");
     const userMessage = { role: "user", content };
@@ -504,6 +601,20 @@ function ChatScreen({ session }) {
         if (isFirstDecision) setShowFirstTimeNote(true);
         setTotalDecisions((prev) => prev + 1);
         setCurrentStreak((prev) => Math.max(prev, 1));
+        const nextUsage = dailyUsage + 1;
+        setDailyUsage(nextUsage);
+        await supabase.from("daily_usage").upsert(
+          {
+            user_id: session.user.id,
+            usage_date: todayKey,
+            decision_count: nextUsage,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: "user_id,usage_date" }
+        );
+        if (nextUsage >= DAILY_FREE_LIMIT) {
+          setShowUpgradePrompt(true);
+        }
 
         fetch(apiUrl("/api/extract-preferences"), {
           method: "POST",
@@ -557,19 +668,14 @@ function ChatScreen({ session }) {
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      {session?.user?.id ? (
+        <p className="meta usage-meter">
+          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
+        </p>
+      ) : null}
       {showFirstTimeNote ? (
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
       ) : null}
-      <div className="home-insights">
-        <DailyDilemmaCard session={session} />
-        <article className="card streak-spotlight">
-          <p className="hero-kicker">Momentum</p>
-          <h3>🔥 {currentStreak} day streak</h3>
-          <p className="muted">
-            Keep your streak alive with one quick decision today. Your AI gets sharper every time.
-          </p>
-        </article>
-      </div>
       <div className="chat-divider" />
 
       {conversation.length || loading ? (
@@ -600,13 +706,20 @@ function ChatScreen({ session }) {
           }}
         >
           <div className="input-row">
-              <input
+              <textarea
+              ref={setPromptRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
                 className="decision-input"
-              placeholder="e.g. Should I order sushi or cook tonight?"
+              placeholder={
+                showUpgradePrompt
+                  ? "You've reached today's free limit. Upgrade for unlimited decisions."
+                  : "What should I decide today?"
+              }
+              disabled={showUpgradePrompt}
+              rows={1}
             />
-            <button className="send-btn" disabled={loading} aria-label="Send">
+            <button className="send-btn" disabled={loading || showUpgradePrompt} aria-label="Send">
               →
             </button>
           </div>
@@ -633,18 +746,53 @@ function ChatScreen({ session }) {
             ))}
           </div>
           <div className="input-row">
-              <input
+              <textarea
+              ref={setReplyRef}
               value={reply}
               onChange={(event) => setReply(event.target.value)}
                 className="decision-input"
               placeholder="Reply…"
+              disabled={showUpgradePrompt}
+              rows={1}
             />
-            <button className="send-btn" disabled={loading} aria-label="Send">
+            <button className="send-btn" disabled={loading || showUpgradePrompt} aria-label="Send">
               →
             </button>
           </div>
         </form>
       )}
+      {showUpgradePrompt ? (
+        <article className="upgrade-panel">
+          <p className="hero-kicker">Daily limit reached</p>
+          <h3>You've used all 10 free decisions for today.</h3>
+          <p className="muted">Upgrade to Plus or Pro for unlimited decisions, faster picks, and smarter personalization.</p>
+          <Link to="/plans" className="primary-btn upgrade-cta">
+            View plans
+          </Link>
+        </article>
+      ) : null}
+      {!conversation.length ? (
+        <div className="quick-category-row">
+          {quickCategories.map((item) => (
+            <button key={item.label} type="button" className="quick-category-pill" onClick={() => setPrompt(item.value)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="home-insights">
+        <article className="streak-spotlight">
+          <div className="streak-head">
+            <span className="streak-icon">
+              <Flame size={16} />
+            </span>
+            <p className="hero-kicker">Momentum</p>
+          </div>
+          <h3>{currentStreak} day streak</h3>
+          <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
+        </article>
+        <DailyDilemmaCard session={session} />
+      </div>
       {conversation.length ? (
         <SharePanel text={`Decide For Me: ${conversation[conversation.length - 1].content}`} />
       ) : null}
