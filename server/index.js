@@ -254,8 +254,36 @@ app.post("/api/stripe-webhook", (req, res) => {
 
 app.use(express.json());
 
+function parseExtractedPreferences(rawText) {
+  const fallback = [];
+  if (!rawText) return fallback;
+  try {
+    const parsed = JSON.parse(rawText);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+    return fallback;
+  } catch {
+    const matches = String(rawText)
+      .split("\n")
+      .map((line) => line.replace(/^[\-\*\d\.\)\s]+/, "").trim())
+      .filter(Boolean);
+    return matches.slice(0, 8);
+  }
+}
+
 app.post("/api/decide", async (req, res) => {
-  const { prompt, personality = "Balanced", conversation = [], groupSummary = "", userLocation } = req.body ?? {};
+  const {
+    prompt,
+    personality = "Balanced",
+    conversation = [],
+    groupSummary = "",
+    userLocation,
+    userPreferences = []
+  } = req.body ?? {};
   if (!prompt) {
     return res.status(400).json({ error: "prompt is required." });
   }
@@ -271,6 +299,12 @@ app.post("/api/decide", async (req, res) => {
     const priorMessages = Array.isArray(conversation)
       ? conversation.map((msg) => `${msg.role || "user"}: ${msg.content || ""}`).join("\n")
       : "";
+    const knownPreferences = Array.isArray(userPreferences)
+      ? userPreferences.map((pref) => String(pref || "").trim()).filter(Boolean).slice(0, 20)
+      : [];
+    const preferenceContext = knownPreferences.length
+      ? knownPreferences.map((pref) => `- ${pref}`).join("\n")
+      : "No known user preferences yet.";
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
@@ -293,6 +327,9 @@ Personality mode: ${personality}
 Group preferences (if any):
 ${groupSummary || "None"}
 
+Known user preferences:
+${preferenceContext}
+
 Conversation so far:
 ${priorMessages || "No prior messages"}
 
@@ -313,6 +350,46 @@ Respond as the assistant in this ongoing chat.`
     return res.json({ answer, recommendations });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Claude API request failed." });
+  }
+});
+
+app.post("/api/extract-preferences", async (req, res) => {
+  const { conversation = [], answer = "" } = req.body ?? {};
+  const priorMessages = Array.isArray(conversation)
+    ? conversation.map((msg) => `${msg.role || "user"}: ${msg.content || ""}`).join("\n")
+    : "";
+
+  try {
+    const extraction = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 180,
+      temperature: 0,
+      system: `Extract stable user preferences from a decision chat.
+Rules:
+- Return ONLY a JSON array of short strings.
+- Focus on durable tastes, constraints, or context (budget, location, diet, genres, style).
+- Skip temporary requests and anything uncertain.
+- Keep each preference specific and user-facing, in plain language.
+- Return [] when nothing useful is present.`,
+      messages: [
+        {
+          role: "user",
+          content: `Conversation:
+${priorMessages || "No conversation"}
+
+Latest assistant answer:
+${answer || "No answer"}
+
+Return JSON array now.`
+        }
+      ]
+    });
+
+    const text = extraction.content?.find((part) => part.type === "text")?.text?.trim() || "[]";
+    const preferences = parseExtractedPreferences(text);
+    return res.json({ preferences });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Preference extraction failed." });
   }
 });
 

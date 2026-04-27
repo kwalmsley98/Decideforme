@@ -67,6 +67,14 @@ function launchConfetti() {
   setTimeout(() => bucket.remove(), 1800);
 }
 
+function normalizePreferenceText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function touchActivity(userId, { didDecision = false, didVote = false, mindsChanged = 0 }) {
   if (!supabase || !userId) return;
   const today = new Date().toISOString().slice(0, 10);
@@ -171,13 +179,20 @@ function SharePanel({ text, className = "" }) {
 }
 
 function Layout({ session, onSignOut, children }) {
-  const navItems = [
+  const desktopNavItems = [
     { to: "/", label: "Chat", icon: MessageCircle },
     { to: "/stats", label: "Stats", icon: BarChart2 },
     { to: "/group", label: "Group", icon: Users },
     { to: "/history", label: "History", icon: Clock },
     { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { to: "/profile", label: "Profile", icon: User }
+  ];
+  const mobileTabs = [
+    { to: "/", label: "Chat", emoji: "💬" },
+    { to: "/group", label: "Group", emoji: "👥" },
+    { to: "/leaderboard", label: "Leaderboard", emoji: "🏆" },
+    { to: "/stats", label: "Stats", emoji: "📊" },
+    { to: "/profile", label: "Profile", emoji: "👤" }
   ];
 
   const loginItem = { to: "/login", label: "Login", icon: LogIn };
@@ -189,8 +204,8 @@ function Layout({ session, onSignOut, children }) {
         <Link to="/" className="brand">
           Decide For Me
         </Link>
-        <nav className="nav-links">
-          {navItems.map(({ to, label, icon: Icon }) => (
+        <nav className="nav-links desktop-only-nav">
+          {desktopNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -214,6 +229,17 @@ function Layout({ session, onSignOut, children }) {
         </nav>
       </header>
       <main className="content">{children}</main>
+      <nav className="mobile-tabbar" aria-label="Primary tabs">
+        {mobileTabs.map(({ to, label, emoji }) => (
+          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `mobile-tab ${isActive ? "active" : ""}`}>
+            <span className="mobile-tab-emoji" aria-hidden="true">
+              {emoji}
+            </span>
+            <span className="mobile-tab-label">{label}</span>
+            <span className="mobile-tab-dot" aria-hidden="true" />
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -357,6 +383,9 @@ function ChatScreen({ session }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [liveCount, setLiveCount] = useState(() => 10000 + new Date().getHours() * 57);
+  const [learnedPreferences, setLearnedPreferences] = useState([]);
+  const [totalDecisions, setTotalDecisions] = useState(0);
+  const [showFirstTimeNote, setShowFirstTimeNote] = useState(false);
 
   useEffect(() => {
     if (!("Notification" in window) || !session) return;
@@ -383,6 +412,32 @@ function ChatScreen({ session }) {
     }, 4000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) {
+      setLearnedPreferences([]);
+      setTotalDecisions(0);
+      return;
+    }
+
+    const loadPersonalization = async () => {
+      const { data: preferenceRows } = await supabase
+        .from("user_preferences")
+        .select("id, preference")
+        .eq("user_id", session.user.id)
+        .order("updated_at", { ascending: false });
+      setLearnedPreferences(preferenceRows ?? []);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("total_decisions")
+        .eq("id", session.user.id)
+        .single();
+      setTotalDecisions(profile?.total_decisions || 0);
+    };
+
+    loadPersonalization();
+  }, [session?.user?.id]);
 
   const requestUserLocation = async () => {
     if (!("geolocation" in navigator)) return null;
@@ -421,7 +476,8 @@ function ChatScreen({ session }) {
         body: JSON.stringify({
           prompt: isInitial ? content : prompt,
           conversation: updatedConversation,
-          userLocation: locationForRequest
+          userLocation: locationForRequest,
+          userPreferences: learnedPreferences.map((item) => item.preference)
         })
       });
       const data = await response.json();
@@ -434,6 +490,7 @@ function ChatScreen({ session }) {
       setReply("");
 
       if (session?.user?.id && supabase) {
+        const isFirstDecision = totalDecisions === 0;
         await supabase.from("decision_history").insert({
           user_id: session.user.id,
           category: "Natural language",
@@ -442,6 +499,44 @@ function ChatScreen({ session }) {
           conversation: finalConversation
         });
         await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
+        if (isFirstDecision) setShowFirstTimeNote(true);
+        setTotalDecisions((prev) => prev + 1);
+
+        fetch(apiUrl("/api/extract-preferences"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation: finalConversation,
+            answer: data.answer
+          })
+        })
+          .then((res) => res.json())
+          .then(async (payload) => {
+            if (!Array.isArray(payload?.preferences) || !payload.preferences.length) return;
+            const deduped = payload.preferences
+              .map((item) => String(item || "").trim())
+              .filter(Boolean)
+              .map((item) => ({
+                user_id: session.user.id,
+                preference: item,
+                preference_normalized: normalizePreferenceText(item),
+                updated_at: new Date().toISOString()
+              }))
+              .filter((item) => item.preference_normalized);
+            if (!deduped.length) return;
+
+            await supabase.from("user_preferences").upsert(deduped, {
+              onConflict: "user_id,preference_normalized"
+            });
+
+            const { data: refreshed } = await supabase
+              .from("user_preferences")
+              .select("id, preference")
+              .eq("user_id", session.user.id)
+              .order("updated_at", { ascending: false });
+            setLearnedPreferences(refreshed ?? []);
+          })
+          .catch(() => {});
       }
     } catch (err) {
       setError(err.message);
@@ -459,6 +554,9 @@ function ChatScreen({ session }) {
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      {showFirstTimeNote ? (
+        <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
+      ) : null}
       <DailyDilemmaCard session={session} />
       <div className="chat-divider" />
 
@@ -1007,6 +1105,7 @@ function LeaderboardScreen({ session }) {
 function ProfileScreen({ session }) {
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
+  const [preferences, setPreferences] = useState([]);
 
   const loadProfile = async () => {
     if (!supabase || !session?.user?.id) return;
@@ -1021,6 +1120,12 @@ function ProfileScreen({ session }) {
       .select("*")
       .eq("referrer_id", session.user.id);
     setReferrals(refData ?? []);
+    const { data: preferenceRows } = await supabase
+      .from("user_preferences")
+      .select("id, preference")
+      .eq("user_id", session.user.id)
+      .order("updated_at", { ascending: false });
+    setPreferences(preferenceRows ?? []);
   };
 
   useEffect(() => {
@@ -1031,6 +1136,11 @@ function ProfileScreen({ session }) {
   const referralLink = profile?.referral_code
     ? `${window.location.origin}/signup?ref=${profile.referral_code}`
     : "";
+  const removePreference = async (id) => {
+    if (!supabase || !id) return;
+    await supabase.from("user_preferences").delete().eq("id", id).eq("user_id", session.user.id);
+    setPreferences((prev) => prev.filter((item) => item.id !== id));
+  };
 
   return (
     <section className="card">
@@ -1048,6 +1158,29 @@ function ProfileScreen({ session }) {
         </>
       ) : null}
       <p className="muted">Referrals earned: {referrals.length}</p>
+      <article className="history-item ai-profile-card">
+        <p className="hero-kicker">Your AI knows you</p>
+        <p className="muted">Everything your assistant has learned from your decisions, so future advice is instantly personal.</p>
+        {preferences.length ? (
+          <div className="learned-preferences">
+            {preferences.map((item) => (
+              <div key={item.id} className="learned-preference-item">
+                <p>{item.preference}</p>
+                <button
+                  type="button"
+                  className="pref-remove-btn"
+                  aria-label={`Remove preference ${item.preference}`}
+                  onClick={() => removePreference(item.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="meta">Your AI is still learning. Start with one decision and your profile will begin to fill in.</p>
+        )}
+      </article>
     </section>
   );
 }

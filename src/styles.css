@@ -105,6 +105,10 @@ a {
   backdrop-filter: blur(10px);
 }
 
+.desktop-only-nav {
+  display: flex;
+}
+
 .brand {
   color: #fbf096;
   font-weight: 800;
@@ -162,6 +166,10 @@ a {
 .content {
   max-width: 1120px;
   margin: 0 auto;
+}
+
+.mobile-tabbar {
+  display: none;
 }
 
 .card {
@@ -230,6 +238,18 @@ a {
   margin: 0 0 8px;
   color: #aeb6d8;
   font-size: 0.92rem;
+}
+
+.personalization-note {
+  margin: 0 auto 12px;
+  max-width: 640px;
+  text-align: center;
+  color: #f9ef9e;
+  border: 1px solid rgba(245, 230, 66, 0.35);
+  background: rgba(245, 230, 66, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 0 16px rgba(245, 230, 66, 0.16);
 }
 
 .daily-card {
@@ -863,6 +883,47 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.ai-profile-card {
+  margin-top: 14px;
+}
+
+.learned-preferences {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.learned-preference-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.learned-preference-item p {
+  margin: 0;
+}
+
+.pref-remove-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f6f7ff;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.pref-remove-btn:hover {
+  border-color: rgba(245, 230, 66, 0.48);
+  color: #f5e642;
+}
+
 .answer {
   color: #f5e642;
   font-weight: 700;
@@ -893,12 +954,15 @@ a {
 
 @media (max-width: 760px) {
   .app-shell {
-    padding: 12px;
+    padding: 12px 12px calc(104px + env(safe-area-inset-bottom, 0px));
   }
   .topbar {
     align-items: flex-start;
     flex-direction: column;
     margin-bottom: 16px;
+  }
+  .desktop-only-nav {
+    display: none;
   }
   .bubble {
     max-width: 92%;
@@ -939,5 +1003,68 @@ a {
   }
   .podium-slot.champ {
     transform: none;
+  }
+  .mobile-tabbar {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px 8px 6px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 12, 20, 0.72);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 2px 0 rgba(255, 255, 255, 0.08) inset;
+  }
+  .mobile-tab {
+    min-height: 56px;
+    border-radius: 16px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    color: #cfd5ef;
+    text-decoration: none;
+    position: relative;
+    transition: color 0.25s ease, background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .mobile-tab-emoji {
+    font-size: 1.12rem;
+    line-height: 1;
+    transform: translateY(0);
+    transition: transform 0.25s ease;
+  }
+  .mobile-tab-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .mobile-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: transparent;
+    margin-top: 2px;
+    transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+    transform: scale(0.7);
+  }
+  .mobile-tab.active {
+    color: #f5e642;
+    background: rgba(245, 230, 66, 0.08);
+    box-shadow: 0 0 18px rgba(245, 230, 66, 0.22);
+    transform: translateY(-1px);
+  }
+  .mobile-tab.active .mobile-tab-emoji {
+    transform: translateY(-1px);
+  }
+  .mobile-tab.active .mobile-tab-dot {
+    background: #f5e642;
+    box-shadow: 0 0 10px rgba(245, 230, 66, 0.82);
+    transform: scale(1);
   }
 }
