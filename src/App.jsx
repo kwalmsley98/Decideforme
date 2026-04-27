@@ -188,11 +188,11 @@ function Layout({ session, onSignOut, children }) {
     { to: "/profile", label: "Profile", icon: User }
   ];
   const mobileTabs = [
-    { to: "/", label: "Chat", emoji: "💬" },
-    { to: "/group", label: "Group", emoji: "👥" },
-    { to: "/leaderboard", label: "Leaderboard", emoji: "🏆" },
-    { to: "/stats", label: "Stats", emoji: "📊" },
-    { to: "/profile", label: "Profile", emoji: "👤" }
+    { to: "/", label: "Chat", icon: MessageCircle },
+    { to: "/group", label: "Group", icon: Users },
+    { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
+    { to: "/stats", label: "Stats", icon: BarChart2 },
+    { to: "/profile", label: "Profile", icon: User }
   ];
 
   const loginItem = { to: "/login", label: "Login", icon: LogIn };
@@ -230,10 +230,10 @@ function Layout({ session, onSignOut, children }) {
       </header>
       <main className="content">{children}</main>
       <nav className="mobile-tabbar" aria-label="Primary tabs">
-        {mobileTabs.map(({ to, label, emoji }) => (
+        {mobileTabs.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `mobile-tab ${isActive ? "active" : ""}`}>
-            <span className="mobile-tab-emoji" aria-hidden="true">
-              {emoji}
+            <span className="mobile-tab-icon" aria-hidden="true">
+              <Icon size={18} />
             </span>
             <span className="mobile-tab-label">{label}</span>
             <span className="mobile-tab-dot" aria-hidden="true" />
@@ -385,6 +385,7 @@ function ChatScreen({ session }) {
   const [liveCount, setLiveCount] = useState(() => 10000 + new Date().getHours() * 57);
   const [learnedPreferences, setLearnedPreferences] = useState([]);
   const [totalDecisions, setTotalDecisions] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
   const [showFirstTimeNote, setShowFirstTimeNote] = useState(false);
 
   useEffect(() => {
@@ -430,10 +431,11 @@ function ChatScreen({ session }) {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("total_decisions")
+        .select("total_decisions, current_streak")
         .eq("id", session.user.id)
         .single();
       setTotalDecisions(profile?.total_decisions || 0);
+      setCurrentStreak(profile?.current_streak || 0);
     };
 
     loadPersonalization();
@@ -501,6 +503,7 @@ function ChatScreen({ session }) {
         await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
         if (isFirstDecision) setShowFirstTimeNote(true);
         setTotalDecisions((prev) => prev + 1);
+        setCurrentStreak((prev) => Math.max(prev, 1));
 
         fetch(apiUrl("/api/extract-preferences"), {
           method: "POST",
@@ -546,7 +549,7 @@ function ChatScreen({ session }) {
   };
 
   return (
-    <section className="card premium">
+    <section className="card premium home-card">
       <div className="hero-glow" />
       <div className="hero-stack">
         <p className="hero-kicker">⚡ Decision intelligence</p>
@@ -557,7 +560,16 @@ function ChatScreen({ session }) {
       {showFirstTimeNote ? (
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
       ) : null}
-      <DailyDilemmaCard session={session} />
+      <div className="home-insights">
+        <DailyDilemmaCard session={session} />
+        <article className="card streak-spotlight">
+          <p className="hero-kicker">Momentum</p>
+          <h3>🔥 {currentStreak} day streak</h3>
+          <p className="muted">
+            Keep your streak alive with one quick decision today. Your AI gets sharper every time.
+          </p>
+        </article>
+      </div>
       <div className="chat-divider" />
 
       {conversation.length || loading ? (
