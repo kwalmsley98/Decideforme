@@ -282,7 +282,8 @@ app.post("/api/decide", async (req, res) => {
     conversation = [],
     groupSummary = "",
     userLocation,
-    userPreferences = []
+    userPreferences = [],
+    lifeMode = false
   } = req.body ?? {};
   if (!prompt) {
     return res.status(400).json({ error: "prompt is required." });
@@ -318,6 +319,7 @@ Style rules:
 - Give one short reason why.
 - Ask at most ONE quick follow-up question only if needed.
 - No bullet points, no labels like "Why:", no long explanations.
+${lifeMode ? "- Life Mode is active: be extra bold, decisive, slightly dramatic, and end every response with exactly: No arguments. I've decided." : ""}
 Voice: confident friend giving quick advice, not a consultant.`,
       messages: [
         {

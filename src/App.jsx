@@ -48,6 +48,16 @@ function nextMidnightCountdown() {
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+function lifeModeCountdown(endTime) {
+  const end = new Date(endTime).getTime();
+  const now = Date.now();
+  const ms = Math.max(end - now, 0);
+  const hours = Math.floor(ms / 3600000);
+  const mins = Math.floor((ms % 3600000) / 60000);
+  const secs = Math.floor((ms % 60000) / 1000);
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
 async function copyText(text) {
   await navigator.clipboard.writeText(text);
 }
@@ -457,8 +467,15 @@ function ChatScreen({ session }) {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
+  const [lifeModePromptOpen, setLifeModePromptOpen] = useState(false);
+  const [lifeModeSession, setLifeModeSession] = useState(null);
+  const [lifeModeCountdownLabel, setLifeModeCountdownLabel] = useState("");
+  const [lifeModeGlobalCount, setLifeModeGlobalCount] = useState(0);
+  const [lifeModeRecap, setLifeModeRecap] = useState(null);
+  const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
 
   const todayKey = new Date().toISOString().slice(0, 10);
+  const lifeModeCaption = "I let AI run my life for 24 hours at decideforme.org 🤖 here’s what happened…";
 
   useEffect(() => {
     if (!("Notification" in window) || !session) return;
@@ -533,6 +550,129 @@ function ChatScreen({ session }) {
     autosizeTextarea(replyRef, 4);
   }, [reply, replyRef]);
 
+  const refreshLifeModeGlobalCount = async () => {
+    if (!supabase) return;
+    const { count } = await supabase
+      .from("life_mode_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .gt("ends_at", new Date().toISOString());
+    setLifeModeGlobalCount(count || 0);
+  };
+
+  const finalizeLifeModeIfNeeded = async (sessionRow) => {
+    if (!supabase || !sessionRow?.id || sessionRow.recap_json) return sessionRow?.recap_json || null;
+    const { data: logs } = await supabase
+      .from("life_mode_decisions")
+      .select("prompt, answer, created_at")
+      .eq("session_id", sessionRow.id)
+      .order("created_at", { ascending: false });
+    const list = logs ?? [];
+    const highlights = list.slice(0, 3).map((item) => ({
+      prompt: item.prompt,
+      answer: item.answer,
+      created_at: item.created_at
+    }));
+    let verdict = "Your AI thinks you need more adventure in your life.";
+    if (highlights.length) {
+      try {
+        const response = await fetch(apiUrl("/api/decide"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: `Based on these decisions, give one bold personality verdict in one sentence.
+${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).join("\n")}`
+          })
+        });
+        const data = await response.json();
+        if (response.ok && data?.answer) verdict = data.answer;
+      } catch {
+        // Keep fallback verdict.
+      }
+    }
+
+    const recap = {
+      totalDecisions: list.length,
+      highlights,
+      verdict
+    };
+    await supabase.from("life_mode_sessions").update({ is_active: false, recap_json: recap }).eq("id", sessionRow.id);
+    return recap;
+  };
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) {
+      setLifeModeSession(null);
+      setLifeModeRecap(null);
+      return;
+    }
+
+    const loadLifeMode = async () => {
+      const { data: activeSession } = await supabase
+        .from("life_mode_sessions")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .eq("is_active", true)
+        .gt("ends_at", new Date().toISOString())
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (activeSession) {
+        setLifeModeSession(activeSession);
+        setLifeModeRecap(null);
+      } else {
+        setLifeModeSession(null);
+        const { data: lastSession } = await supabase
+          .from("life_mode_sessions")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (lastSession && !lastSession.is_active && lastSession.recap_json) {
+          setLifeModeRecap(lastSession.recap_json);
+        } else if (lastSession && lastSession.is_active && new Date(lastSession.ends_at).getTime() <= Date.now()) {
+          const recap = await finalizeLifeModeIfNeeded(lastSession);
+          setLifeModeRecap(recap);
+        }
+      }
+      refreshLifeModeGlobalCount();
+    };
+
+    loadLifeMode();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    refreshLifeModeGlobalCount();
+    const id = setInterval(() => {
+      refreshLifeModeGlobalCount();
+    }, 20000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!lifeModeSession?.ends_at) {
+      setLifeModeCountdownLabel("");
+      return;
+    }
+
+    setLifeModeCountdownLabel(lifeModeCountdown(lifeModeSession.ends_at));
+    const id = setInterval(async () => {
+      const remaining = new Date(lifeModeSession.ends_at).getTime() - Date.now();
+      if (remaining <= 0) {
+        clearInterval(id);
+        const recap = await finalizeLifeModeIfNeeded(lifeModeSession);
+        setLifeModeSession(null);
+        setLifeModeRecap(recap);
+        refreshLifeModeGlobalCount();
+        setLifeModeCountdownLabel("00:00:00");
+      } else {
+        setLifeModeCountdownLabel(lifeModeCountdown(lifeModeSession.ends_at));
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lifeModeSession?.id, lifeModeSession?.ends_at]);
+
   const requestUserLocation = async () => {
     if (!("geolocation" in navigator)) return null;
     return new Promise((resolve) => {
@@ -546,6 +686,33 @@ function ChatScreen({ session }) {
         { maximumAge: 300000, timeout: 8000 }
       );
     });
+  };
+
+  const activateLifeMode = async () => {
+    if (!supabase || !session?.user?.id) return;
+    const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
+    const { data } = await supabase
+      .from("life_mode_sessions")
+      .insert({
+        user_id: session.user.id,
+        ends_at: endsAt,
+        is_active: true
+      })
+      .select("*")
+      .single();
+    setLifeModeSession(data || null);
+    setLifeModeRecap(null);
+    setLifeModePromptOpen(false);
+    await refreshLifeModeGlobalCount();
+  };
+
+  const copyLifeModeCaption = async () => {
+    const recapText = lifeModeRecap
+      ? `${lifeModeCaption}\n\nDecisions: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
+      : lifeModeCaption;
+    await copyText(recapText);
+    setCopiedLifeCaption(true);
+    setTimeout(() => setCopiedLifeCaption(false), 1400);
   };
 
   const sendToAI = async (content, isInitial = false) => {
@@ -573,15 +740,20 @@ function ChatScreen({ session }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: isInitial ? content : prompt,
+          prompt: content,
           conversation: updatedConversation,
           userLocation: locationForRequest,
-          userPreferences: learnedPreferences.map((item) => item.preference)
+          userPreferences: learnedPreferences.map((item) => item.preference),
+          lifeMode: Boolean(lifeModeSession)
         })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
-      const aiMessage = { role: "assistant", content: data.answer };
+      const ensuredLifeModeAnswer =
+        lifeModeSession && !String(data.answer || "").endsWith("No arguments. I've decided.")
+          ? `${String(data.answer || "").trim()} No arguments. I've decided.`
+          : data.answer;
+      const aiMessage = { role: "assistant", content: ensuredLifeModeAnswer };
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
       setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
@@ -594,7 +766,7 @@ function ChatScreen({ session }) {
           user_id: session.user.id,
           category: "Natural language",
           mood: "Inferred tone",
-          answer: data.answer,
+          answer: ensuredLifeModeAnswer,
           conversation: finalConversation
         });
         await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
@@ -616,12 +788,21 @@ function ChatScreen({ session }) {
           setShowUpgradePrompt(true);
         }
 
+        if (lifeModeSession?.id) {
+          await supabase.from("life_mode_decisions").insert({
+            session_id: lifeModeSession.id,
+            user_id: session.user.id,
+            prompt: content,
+            answer: ensuredLifeModeAnswer
+          });
+        }
+
         fetch(apiUrl("/api/extract-preferences"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation: finalConversation,
-            answer: data.answer
+            answer: ensuredLifeModeAnswer
           })
         })
           .then((res) => res.json())
@@ -668,6 +849,18 @@ function ChatScreen({ session }) {
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
+      {!lifeModeSession ? (
+        <button className="life-mode-btn" type="button" onClick={() => setLifeModePromptOpen(true)}>
+          <span className="life-mode-title">🎲 Let AI Run My Life</span>
+          <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
+        </button>
+      ) : (
+        <article className="life-mode-banner">
+          <p className="hero-kicker">Life Mode active</p>
+          <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
+        </article>
+      )}
       {session?.user?.id ? (
         <p className="meta usage-meter">
           Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
@@ -771,6 +964,46 @@ function ChatScreen({ session }) {
           </Link>
         </article>
       ) : null}
+      {lifeModeRecap ? (
+        <article className="life-recap-card">
+          <p className="hero-kicker">Life Mode Recap</p>
+          <h3>{lifeModeRecap.totalDecisions || 0} decisions in 24 hours</h3>
+          <p className="muted">{lifeModeRecap.verdict}</p>
+          <div className="history-list">
+            {(lifeModeRecap.highlights || []).slice(0, 3).map((item, idx) => (
+              <article key={`${item.created_at || idx}-${idx}`} className="history-item">
+                <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
+                <p>{item.prompt}</p>
+                <p className="answer">{item.answer}</p>
+              </article>
+            ))}
+          </div>
+          <div className="life-share-row">
+            <a
+              className="share-btn wa"
+              href={`https://wa.me/?text=${encodeURIComponent(`${lifeModeCaption}\n${lifeModeRecap.verdict}`)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              W
+            </a>
+            <a
+              className="share-btn x"
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${lifeModeCaption}\n${lifeModeRecap.verdict}`)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              X
+            </a>
+            <button className="share-btn copy" type="button" onClick={copyLifeModeCaption}>
+              {copiedLifeCaption ? "OK" : "IG"}
+            </button>
+            <button className="share-btn native" type="button" onClick={copyLifeModeCaption}>
+              {copiedLifeCaption ? "OK" : "TT"}
+            </button>
+          </div>
+        </article>
+      ) : null}
       {!conversation.length ? (
         <div className="quick-category-row">
           {quickCategories.map((item) => (
@@ -827,6 +1060,21 @@ function ChatScreen({ session }) {
         </div>
       ) : null}
       {error ? <p className="error">{error}</p> : null}
+      {lifeModePromptOpen ? (
+        <div className="life-mode-modal">
+          <div className="life-mode-modal-card">
+            <p className="hero-kicker">Life Mode Activation</p>
+            <h2>Are you sure?</h2>
+            <p>For the next 24 hours, AI makes every decision for you. No going back.</p>
+            <button className="primary-btn" type="button" onClick={activateLifeMode}>
+              I'm In
+            </button>
+            <button className="ghost-btn" type="button" onClick={() => setLifeModePromptOpen(false)}>
+              Maybe later
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

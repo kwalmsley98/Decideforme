@@ -247,6 +247,43 @@ a {
   font-size: 0.92rem;
 }
 
+.life-global-count {
+  text-align: center;
+  margin: 0 0 8px;
+}
+
+.life-mode-btn {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 230, 66, 0.45);
+  background: linear-gradient(145deg, rgba(30, 24, 46, 0.92), rgba(15, 18, 34, 0.92));
+  color: #f6f7ff;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 0 22px rgba(245, 230, 66, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.life-mode-title {
+  font-weight: 800;
+}
+
+.life-mode-subtitle {
+  font-size: 0.84rem;
+  color: #c7cce2;
+}
+
+.life-mode-banner {
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(245, 230, 66, 0.35);
+  background: rgba(245, 230, 66, 0.08);
+  text-align: center;
+}
+
 .home-insights {
   display: grid;
   gap: 10px;
@@ -1115,6 +1152,61 @@ a {
   display: inline-flex;
 }
 
+.life-recap-card {
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 8px;
+  border: 1px solid rgba(122, 139, 255, 0.35);
+  background: linear-gradient(145deg, rgba(14, 18, 32, 0.94), rgba(21, 17, 39, 0.94));
+}
+
+.life-recap-card h3 {
+  margin: 8px 0 6px;
+}
+
+.life-share-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.life-mode-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.life-mode-modal-card {
+  width: min(560px, 100%);
+  border-radius: 20px;
+  padding: 22px;
+  border: 1px solid rgba(245, 230, 66, 0.36);
+  background: linear-gradient(145deg, rgba(10, 10, 16, 0.96), rgba(22, 16, 36, 0.96));
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 0 28px rgba(245, 230, 66, 0.2);
+}
+
+.life-mode-modal-card h2 {
+  margin: 8px 0 6px;
+  font-size: clamp(1.6rem, 4vw, 2.3rem);
+}
+
+.life-mode-modal-card p {
+  margin: 0 0 14px;
+}
+
+.life-mode-modal-card .primary-btn,
+.life-mode-modal-card .ghost-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .plans-grid {
   margin-top: 14px;
   display: grid;
@@ -1201,6 +1293,18 @@ a {
   }
   .daily-card {
     padding: 12px;
+  }
+  .life-mode-btn {
+    padding: 10px;
+  }
+  .life-mode-title {
+    font-size: 0.95rem;
+  }
+  .life-mode-subtitle {
+    font-size: 0.76rem;
+  }
+  .life-mode-modal-card {
+    padding: 16px;
   }
   .daily-card h3 {
     margin: 6px 0;
