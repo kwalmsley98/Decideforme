@@ -644,6 +644,12 @@ a {
   line-height: 1.45;
   resize: none;
   overflow-y: hidden;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .decision-input::placeholder {
@@ -1271,6 +1277,7 @@ a {
   .decision-input {
     min-height: 58px;
     font-size: 0.98rem;
+    line-height: 1.4;
   }
   .quick-category-row {
     gap: 6px;

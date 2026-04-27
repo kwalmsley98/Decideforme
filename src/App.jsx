@@ -85,7 +85,7 @@ function normalizePreferenceText(value) {
     .trim();
 }
 
-function autosizeTextarea(element, maxLines = 4) {
+function autosizeTextarea(element, maxLines = 5) {
   if (!element) return;
   const styles = window.getComputedStyle(element);
   const lineHeight = Number.parseFloat(styles.lineHeight) || 22;
@@ -543,11 +543,11 @@ function ChatScreen({ session }) {
   }, [session?.user?.id, todayKey]);
 
   useEffect(() => {
-    autosizeTextarea(promptRef, 4);
+    autosizeTextarea(promptRef, 5);
   }, [prompt, promptRef]);
 
   useEffect(() => {
-    autosizeTextarea(replyRef, 4);
+    autosizeTextarea(replyRef, 5);
   }, [reply, replyRef]);
 
   const refreshLifeModeGlobalCount = async () => {
