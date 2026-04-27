@@ -850,17 +850,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       </div>
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
       <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
-      {!lifeModeSession ? (
-        <button className="life-mode-btn" type="button" onClick={() => setLifeModePromptOpen(true)}>
-          <span className="life-mode-title">🎲 Let AI Run My Life</span>
-          <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
-        </button>
-      ) : (
-        <article className="life-mode-banner">
-          <p className="hero-kicker">Life Mode active</p>
-          <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
-        </article>
-      )}
       {session?.user?.id ? (
         <p className="meta usage-meter">
           Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
@@ -907,7 +896,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               placeholder={
                 showUpgradePrompt
                   ? "You've reached today's free limit. Upgrade for unlimited decisions."
-                  : "What should I decide today?"
+                  : "What should I decide?"
               }
               disabled={showUpgradePrompt}
               rows={1}
@@ -953,6 +942,17 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </button>
           </div>
         </form>
+      )}
+      {!lifeModeSession ? (
+        <button className="life-mode-btn" type="button" onClick={() => setLifeModePromptOpen(true)}>
+          <span className="life-mode-title">🎲 Let AI Run My Life</span>
+          <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
+        </button>
+      ) : (
+        <article className="life-mode-banner">
+          <p className="hero-kicker">Life Mode active</p>
+          <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
+        </article>
       )}
       {showUpgradePrompt ? (
         <article className="upgrade-panel">
