@@ -287,6 +287,19 @@ function DailyDilemmaCard({ session }) {
   const [loadingVote, setLoadingVote] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const voteStorageKey = `daily_dilemma_vote_${today}`;
+  const guestIdStorageKey = "decide_for_me_guest_id";
+
+  const getOrCreateGuestId = () => {
+    try {
+      const existing = localStorage.getItem(guestIdStorageKey);
+      if (existing) return existing;
+      const created = crypto.randomUUID();
+      localStorage.setItem(guestIdStorageKey, created);
+      return created;
+    } catch {
+      return `guest-${Date.now()}`;
+    }
+  };
 
   const loadDaily = async () => {
     if (!supabase) return;
@@ -318,20 +331,31 @@ function DailyDilemmaCard({ session }) {
         return "";
       }
     })();
+    const guestId = getOrCreateGuestId();
 
     if (session?.user?.id) {
       const { data: myVote } = await supabase
-        .from("daily_dilemma_votes")
-        .select("vote_option")
+        .from("dilemma_votes")
+        .select("choice")
         .eq("dilemma_id", data.id)
         .eq("user_id", session.user.id)
-        .single();
-      const resolvedVote = myVote?.vote_option || localVote || "";
+        .maybeSingle();
+      const resolvedVote = (myVote?.choice ? myVote.choice.toUpperCase() : "") || localVote || "";
       setUserVote(resolvedVote);
       setRevealResults(Boolean(resolvedVote));
     } else {
-      setUserVote(localVote);
-      setRevealResults(Boolean(localVote));
+      let resolvedVote = localVote;
+      if (supabase) {
+        const { data: guestVote } = await supabase
+          .from("dilemma_votes")
+          .select("choice")
+          .eq("dilemma_id", data.id)
+          .eq("guest_id", guestId)
+          .maybeSingle();
+        if (guestVote?.choice) resolvedVote = guestVote.choice.toUpperCase();
+      }
+      setUserVote(resolvedVote);
+      setRevealResults(Boolean(resolvedVote));
     }
 
     if (data.ai_pick) setAiPick(data.ai_pick);
@@ -369,29 +393,18 @@ function DailyDilemmaCard({ session }) {
     setRevealResults(false);
     try {
       await new Promise((resolve) => setTimeout(resolve, 240));
-      if (supabase && session?.user?.id) {
-        await supabase.from("daily_dilemma_votes").insert(
-          {
-            dilemma_id: dilemma.id,
-            user_id: session.user.id,
-            vote_option: option
-          }
-        );
-
-        // Keep table counters authoritative by recalculating from the vote ledger.
-        const { data: allVotes } = await supabase
-          .from("daily_dilemma_votes")
-          .select("vote_option")
-          .eq("dilemma_id", dilemma.id);
-        const countA = (allVotes ?? []).filter((v) => v.vote_option === "A").length;
-        const countB = (allVotes ?? []).filter((v) => v.vote_option === "B").length;
-        await supabase
-          .from("daily_dilemmas")
-          .update({
-            votes_a: countA,
-            votes_b: countB
-          })
-          .eq("id", dilemma.id);
+      const guestId = getOrCreateGuestId();
+      if (supabase) {
+        const { error: castError } = await supabase.rpc("cast_dilemma_vote", {
+          p_dilemma_id: dilemma.id,
+          p_choice: option.toLowerCase(),
+          p_user_id: session?.user?.id || null,
+          p_guest_id: session?.user?.id ? null : guestId
+        });
+        if (castError) {
+          console.error("[DailyDilemma] cast vote failed", castError);
+          throw castError;
+        }
       }
       try {
         localStorage.setItem(voteStorageKey, option);
