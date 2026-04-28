@@ -706,6 +706,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     await refreshLifeModeGlobalCount();
   };
 
+  const openLifeModePrompt = (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    if (event?.stopPropagation) event.stopPropagation();
+    setLifeModePromptOpen(true);
+  };
+
   const copyLifeModeCaption = async () => {
     const recapText = lifeModeRecap
       ? `${lifeModeCaption}\n\nDecisions: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
@@ -944,7 +950,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </form>
       )}
       {!lifeModeSession ? (
-        <button className="life-mode-btn" type="button" onClick={() => setLifeModePromptOpen(true)}>
+        <button className="life-mode-btn" type="button" onClick={openLifeModePrompt} onTouchEnd={openLifeModePrompt}>
           <span className="life-mode-title">🎲 Let AI Run My Life</span>
           <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
         </button>
@@ -1065,7 +1071,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <div className="life-mode-modal-card">
             <p className="hero-kicker">Life Mode Activation</p>
             <h2>Are you sure?</h2>
-            <p>For the next 24 hours, AI makes every decision for you. No going back.</p>
+            <p>For the next 24 hours, AI makes every decision for you.</p>
             <button className="primary-btn" type="button" onClick={activateLifeMode}>
               I'm In
             </button>

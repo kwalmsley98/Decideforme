@@ -254,6 +254,8 @@ a {
 
 .life-mode-btn {
   width: 100%;
+  position: relative;
+  z-index: 3;
   border-radius: 16px;
   border: 1px solid rgba(245, 230, 66, 0.45);
   background: linear-gradient(145deg, rgba(30, 24, 46, 0.92), rgba(15, 18, 34, 0.92));
@@ -264,6 +266,8 @@ a {
   cursor: pointer;
   text-align: center;
   box-shadow: 0 0 22px rgba(245, 230, 66, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .life-mode-title {
