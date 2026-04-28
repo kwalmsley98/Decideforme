@@ -689,9 +689,22 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const activateLifeMode = async () => {
+    console.log("[LifeMode] I'm In tapped");
     if (!supabase || !session?.user?.id) return;
     const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
-    const { data } = await supabase
+    const optimisticSession = {
+      id: `local-${Date.now()}`,
+      user_id: session.user.id,
+      started_at: new Date().toISOString(),
+      ends_at: endsAt,
+      is_active: true
+    };
+    // Optimistic transition so mobile users always enter Life Mode instantly.
+    setLifeModeSession(optimisticSession);
+    setLifeModeRecap(null);
+    setLifeModePromptOpen(false);
+
+    const { data, error } = await supabase
       .from("life_mode_sessions")
       .insert({
         user_id: session.user.id,
@@ -700,9 +713,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       })
       .select("*")
       .single();
-    setLifeModeSession(data || null);
-    setLifeModeRecap(null);
-    setLifeModePromptOpen(false);
+    console.log("[LifeMode] activation result", { hasData: Boolean(data), error: error?.message || null });
+    if (error) {
+      setError("Life Mode activated, but session sync failed. Run latest Supabase SQL and try again.");
+      await refreshLifeModeGlobalCount();
+      return;
+    }
+
+    setLifeModeSession(data || optimisticSession);
     await refreshLifeModeGlobalCount();
   };
 
@@ -794,7 +812,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           setShowUpgradePrompt(true);
         }
 
-        if (lifeModeSession?.id) {
+        if (lifeModeSession?.id && !String(lifeModeSession.id).startsWith("local-")) {
           await supabase.from("life_mode_decisions").insert({
             session_id: lifeModeSession.id,
             user_id: session.user.id,
@@ -868,6 +886,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
       {conversation.length || loading ? (
         <div className="chat-frame">
+          {lifeModeSession ? (
+            <article className="life-chat-banner">
+              <p className="hero-kicker">Life Mode in control</p>
+              <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
+            </article>
+          ) : null}
           {conversation.map((msg, idx) => (
             <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
               <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>

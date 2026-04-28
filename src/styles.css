@@ -288,6 +288,17 @@ a {
   text-align: center;
 }
 
+.life-chat-banner {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 230, 66, 0.35);
+  background: rgba(245, 230, 66, 0.08);
+}
+
+.life-chat-banner p {
+  margin: 0;
+}
+
 .home-insights {
   display: grid;
   gap: 10px;
