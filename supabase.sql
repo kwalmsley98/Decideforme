@@ -125,6 +125,26 @@ begin
 end;
 $$;
 
+create or replace function public.increment_daily_dilemma_vote(p_dilemma_id bigint, p_vote_option text)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  if p_vote_option = 'A' then
+    update public.daily_dilemmas
+    set votes_a = votes_a + 1
+    where id = p_dilemma_id;
+  elsif p_vote_option = 'B' then
+    update public.daily_dilemmas
+    set votes_b = votes_b + 1
+    where id = p_dilemma_id;
+  else
+    raise exception 'Invalid vote option: %', p_vote_option;
+  end if;
+end;
+$$;
+
 drop trigger if exists trg_sync_daily_dilemma_vote_totals on public.daily_dilemma_votes;
 create trigger trg_sync_daily_dilemma_vote_totals
 after insert or update on public.daily_dilemma_votes

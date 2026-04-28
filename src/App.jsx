@@ -370,14 +370,28 @@ function DailyDilemmaCard({ session }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 240));
       if (supabase && session?.user?.id) {
-        await supabase.from("daily_dilemma_votes").upsert(
+        await supabase.from("daily_dilemma_votes").insert(
           {
             dilemma_id: dilemma.id,
             user_id: session.user.id,
             vote_option: option
-          },
-          { onConflict: "dilemma_id,user_id" }
+          }
         );
+
+        // Keep table counters authoritative by recalculating from the vote ledger.
+        const { data: allVotes } = await supabase
+          .from("daily_dilemma_votes")
+          .select("vote_option")
+          .eq("dilemma_id", dilemma.id);
+        const countA = (allVotes ?? []).filter((v) => v.vote_option === "A").length;
+        const countB = (allVotes ?? []).filter((v) => v.vote_option === "B").length;
+        await supabase
+          .from("daily_dilemmas")
+          .update({
+            votes_a: countA,
+            votes_b: countB
+          })
+          .eq("id", dilemma.id);
       }
       try {
         localStorage.setItem(voteStorageKey, option);
@@ -469,6 +483,7 @@ function DailyDilemmaCard({ session }) {
               </div>
             </div>
           </div>
+          <p className="meta community-split">{aPercent}% vs {bPercent}%</p>
           <p className="meta">Live voters: {aVotes + bVotes}</p>
           <p className="answer">{majority}</p>
           <p className="meta">{loadingAi && !aiPick ? "AI verdict is loading..." : "AI verdict"}</p>
