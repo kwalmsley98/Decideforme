@@ -280,10 +280,13 @@ function DailyDilemmaCard({ session }) {
   const [countdown, setCountdown] = useState(nextMidnightCountdown());
   const [dilemma, setDilemma] = useState(null);
   const [userVote, setUserVote] = useState("");
+  const [selectedVote, setSelectedVote] = useState("");
+  const [revealResults, setRevealResults] = useState(false);
   const [aiPick, setAiPick] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingVote, setLoadingVote] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
+  const voteStorageKey = `daily_dilemma_vote_${today}`;
 
   const loadDaily = async () => {
     if (!supabase) return;
@@ -307,6 +310,15 @@ function DailyDilemmaCard({ session }) {
       data = insert.data;
     }
     setDilemma(data);
+    const localVote = (() => {
+      try {
+        const raw = localStorage.getItem(voteStorageKey);
+        return raw === "A" || raw === "B" ? raw : "";
+      } catch {
+        return "";
+      }
+    })();
+
     if (session?.user?.id) {
       const { data: myVote } = await supabase
         .from("daily_dilemma_votes")
@@ -314,9 +326,12 @@ function DailyDilemmaCard({ session }) {
         .eq("dilemma_id", data.id)
         .eq("user_id", session.user.id)
         .single();
-      setUserVote(myVote?.vote_option || "");
+      const resolvedVote = myVote?.vote_option || localVote || "";
+      setUserVote(resolvedVote);
+      setRevealResults(Boolean(resolvedVote));
     } else {
-      setUserVote("");
+      setUserVote(localVote);
+      setRevealResults(Boolean(localVote));
     }
 
     if (data.ai_pick) setAiPick(data.ai_pick);
@@ -348,22 +363,37 @@ function DailyDilemmaCard({ session }) {
   }, [dilemma?.id]);
 
   const castVote = async (option) => {
-    if (!supabase || !dilemma || !session?.user?.id || userVote) return;
+    if (!dilemma || userVote || loadingVote) return;
+    setSelectedVote(option);
     setLoadingVote(true);
+    setRevealResults(false);
     try {
-      await supabase.from("daily_dilemma_votes").upsert(
-        {
-          dilemma_id: dilemma.id,
-          user_id: session.user.id,
-          vote_option: option
-        },
-        { onConflict: "dilemma_id,user_id" }
-      );
-      const { data: refreshed } = await supabase.from("daily_dilemmas").select("*").eq("id", dilemma.id).single();
-      if (refreshed) setDilemma(refreshed);
+      await new Promise((resolve) => setTimeout(resolve, 240));
+      if (supabase && session?.user?.id) {
+        await supabase.from("daily_dilemma_votes").upsert(
+          {
+            dilemma_id: dilemma.id,
+            user_id: session.user.id,
+            vote_option: option
+          },
+          { onConflict: "dilemma_id,user_id" }
+        );
+      }
+      try {
+        localStorage.setItem(voteStorageKey, option);
+      } catch {
+        // Ignore storage errors.
+      }
+      if (supabase) {
+        const { data: refreshed } = await supabase.from("daily_dilemmas").select("*").eq("id", dilemma.id).single();
+        if (refreshed) setDilemma(refreshed);
+      }
       setUserVote(option);
+      setTimeout(() => setRevealResults(true), 140);
       launchConfetti();
-      await touchActivity(session.user.id, { didVote: true });
+      if (session?.user?.id) {
+        await touchActivity(session.user.id, { didVote: true });
+      }
       if (!aiPick) getAIPick();
     } finally {
       setLoadingVote(false);
@@ -406,32 +436,40 @@ function DailyDilemmaCard({ session }) {
       <p className="hero-kicker timer-pulse">Daily Dilemma · next in {countdown}</p>
       <h3>{dilemma.question}</h3>
       <div className="vote-row">
-        <button className="daily-vote-btn option-a" onClick={() => castVote("A")} disabled={!session?.user?.id || Boolean(userVote) || loadingVote}>
+        <button
+          className={`daily-vote-btn option-a ${selectedVote === "A" ? "selected" : ""}`}
+          onClick={() => castVote("A")}
+          disabled={Boolean(userVote) || loadingVote}
+        >
           A: {dilemma.option_a}
+          {selectedVote === "A" ? <span className="vote-check">✓</span> : null}
         </button>
-        <button className="daily-vote-btn option-b" onClick={() => castVote("B")} disabled={!session?.user?.id || Boolean(userVote) || loadingVote}>
+        <button
+          className={`daily-vote-btn option-b ${selectedVote === "B" ? "selected" : ""}`}
+          onClick={() => castVote("B")}
+          disabled={Boolean(userVote) || loadingVote}
+        >
           B: {dilemma.option_b}
+          {selectedVote === "B" ? <span className="vote-check">✓</span> : null}
         </button>
       </div>
-      <p className="meta">
-        Live voters: {aVotes + bVotes} · {aPercent}% A · {bPercent}% B
-      </p>
       {userVote ? (
         <>
-          <div className="poll-results">
+          <div className={`poll-results ${revealResults ? "reveal" : ""}`}>
             <div className="poll-row">
               <p className="meta">A · {dilemma.option_a}</p>
               <div className="poll-track option-a">
-                <span className="poll-fill option-a" style={{ width: `${aPercent}%` }} />
+                <span className="poll-fill option-a" style={{ width: revealResults ? `${aPercent}%` : "0%" }} />
               </div>
             </div>
             <div className="poll-row">
               <p className="meta">B · {dilemma.option_b}</p>
               <div className="poll-track option-b">
-                <span className="poll-fill option-b" style={{ width: `${bPercent}%` }} />
+                <span className="poll-fill option-b" style={{ width: revealResults ? `${bPercent}%` : "0%" }} />
               </div>
             </div>
           </div>
+          <p className="meta">Live voters: {aVotes + bVotes}</p>
           <p className="answer">{majority}</p>
           <p className="meta">{loadingAi && !aiPick ? "AI verdict is loading..." : "AI verdict"}</p>
           {aiPick ? <p className="answer">{aiPick}</p> : null}
