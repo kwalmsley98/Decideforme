@@ -690,11 +690,10 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const activateLifeMode = async () => {
     console.log("[LifeMode] I'm In tapped");
-    if (!supabase || !session?.user?.id) return;
     const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
     const optimisticSession = {
       id: `local-${Date.now()}`,
-      user_id: session.user.id,
+      user_id: session?.user?.id || null,
       started_at: new Date().toISOString(),
       ends_at: endsAt,
       is_active: true
@@ -703,6 +702,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeSession(optimisticSession);
     setLifeModeRecap(null);
     setLifeModePromptOpen(false);
+
+    // If auth/Supabase isn't available, keep local Life Mode active so UX still works.
+    if (!supabase || !session?.user?.id) {
+      console.log("[LifeMode] running in local-only mode (no authenticated Supabase session)");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("life_mode_sessions")
