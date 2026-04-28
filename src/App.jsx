@@ -445,6 +445,7 @@ function DailyDilemmaCard({ session }) {
 
 function ChatScreen({ session }) {
   const DAILY_FREE_LIMIT = 10;
+  const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const quickCategories = [
     { label: "🍕 Food", value: "Help me decide what to eat tonight." },
     { label: "🎬 Watch", value: "Help me choose what to watch tonight." },
@@ -560,6 +561,23 @@ function ChatScreen({ session }) {
     setLifeModeGlobalCount(count || 0);
   };
 
+  const loadLifeModeFromStorage = () => {
+    try {
+      const raw = localStorage.getItem(LIFE_MODE_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.ends_at) return null;
+      if (new Date(parsed.ends_at).getTime() <= Date.now()) {
+        localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+        return null;
+      }
+      return parsed;
+    } catch {
+      localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+      return null;
+    }
+  };
+
   const finalizeLifeModeIfNeeded = async (sessionRow) => {
     if (!supabase || !sessionRow?.id || sessionRow.recap_json) return sessionRow?.recap_json || null;
     const { data: logs } = await supabase
@@ -601,9 +619,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   useEffect(() => {
-    if (!supabase || !session?.user?.id) {
-      setLifeModeSession(null);
+    const persisted = loadLifeModeFromStorage();
+    if (persisted) {
+      setLifeModeSession(persisted);
       setLifeModeRecap(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) {
+      const persisted = loadLifeModeFromStorage();
+      if (!persisted) {
+        setLifeModeSession(null);
+        setLifeModeRecap(null);
+      }
       return;
     }
 
@@ -621,7 +650,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         setLifeModeSession(activeSession);
         setLifeModeRecap(null);
       } else {
-        setLifeModeSession(null);
+        const persisted = loadLifeModeFromStorage();
+        setLifeModeSession(persisted || null);
         const { data: lastSession } = await supabase
           .from("life_mode_sessions")
           .select("*")
@@ -641,6 +671,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
     loadLifeMode();
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (lifeModeSession?.ends_at && new Date(lifeModeSession.ends_at).getTime() > Date.now()) {
+      localStorage.setItem(LIFE_MODE_STORAGE_KEY, JSON.stringify(lifeModeSession));
+      return;
+    }
+    localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+  }, [lifeModeSession]);
 
   useEffect(() => {
     refreshLifeModeGlobalCount();
@@ -663,6 +701,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         clearInterval(id);
         const recap = await finalizeLifeModeIfNeeded(lifeModeSession);
         setLifeModeSession(null);
+        localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
         setLifeModeRecap(recap);
         refreshLifeModeGlobalCount();
         setLifeModeCountdownLabel("00:00:00");
