@@ -511,6 +511,7 @@ function DailyDilemmaCard({ session }) {
 
 function ChatScreen({ session }) {
   const DAILY_FREE_LIMIT = 10;
+  const GUEST_DAILY_FREE_LIMIT = 3;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
   const quickCategories = [
@@ -532,6 +533,7 @@ function ChatScreen({ session }) {
   const [currentStreak, setCurrentStreak] = useState(0);
   const [showFirstTimeNote, setShowFirstTimeNote] = useState(false);
   const [dailyUsage, setDailyUsage] = useState(0);
+  const [guestDailyUsage, setGuestDailyUsage] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
@@ -601,11 +603,33 @@ function ChatScreen({ session }) {
   }, [todayKey]);
 
   useEffect(() => {
-    if (!supabase || !session?.user?.id) {
+    if (!supabase) {
       setLearnedPreferences([]);
       setTotalDecisions(0);
       setDailyUsage(0);
+      setGuestDailyUsage(0);
       setShowUpgradePrompt(false);
+      return;
+    }
+
+    if (!session?.user?.id) {
+      const loadGuestUsage = async () => {
+        const guestId = getOrCreateGuestId();
+        const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
+        const { count } = await supabase
+          .from("guest_decision_history")
+          .select("id", { count: "exact", head: true })
+          .eq("guest_id", guestId)
+          .gte("created_at", startOfTodayIso);
+        const nextGuestUsage = count || 0;
+        setLearnedPreferences([]);
+        setTotalDecisions(0);
+        setDailyUsage(0);
+        setGuestDailyUsage(nextGuestUsage);
+        setShowUpgradePrompt(nextGuestUsage >= GUEST_DAILY_FREE_LIMIT);
+      };
+
+      loadGuestUsage();
       return;
     }
 
@@ -637,6 +661,7 @@ function ChatScreen({ session }) {
         .single();
       const count = usage?.decision_count || 0;
       setDailyUsage(count);
+      setGuestDailyUsage(0);
       setShowUpgradePrompt(count >= DAILY_FREE_LIMIT);
     };
 
@@ -910,7 +935,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const sendToAI = async (content, isInitial = false) => {
+    const isGuest = !session?.user?.id;
     if (session?.user?.id && dailyUsage >= DAILY_FREE_LIMIT) {
+      setShowUpgradePrompt(true);
+      setError("");
+      return;
+    }
+    if (isGuest && guestDailyUsage >= GUEST_DAILY_FREE_LIMIT) {
       setShowUpgradePrompt(true);
       setError("");
       return;
@@ -1034,6 +1065,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           answer: ensuredLifeModeAnswer
         });
         setLiveCount((prev) => prev + 1);
+        const nextGuestUsage = guestDailyUsage + 1;
+        setGuestDailyUsage(nextGuestUsage);
+        if (nextGuestUsage >= GUEST_DAILY_FREE_LIMIT) {
+          setShowUpgradePrompt(true);
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -1056,7 +1092,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="meta usage-meter">
           Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
         </p>
-      ) : null}
+      ) : (
+        <p className="meta usage-meter">
+          Guest mode: {guestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
+        </p>
+      )}
       {showFirstTimeNote ? (
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
       ) : null}
@@ -1103,7 +1143,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 className="decision-input"
               placeholder={
                 showUpgradePrompt
-                  ? "You've reached today's free limit. Upgrade for unlimited decisions."
+                  ? session?.user?.id
+                    ? "You've reached today's free limit. Upgrade for unlimited decisions."
+                    : "You've used all guest decisions today. Sign up for 10 free decisions daily."
                   : "What should I decide?"
               }
               disabled={showUpgradePrompt}
@@ -1165,11 +1207,23 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       {showUpgradePrompt ? (
         <article className="upgrade-panel">
           <p className="hero-kicker">Daily limit reached</p>
-          <h3>You've used all 10 free decisions for today.</h3>
-          <p className="muted">Upgrade to Plus or Pro for unlimited decisions, faster picks, and smarter personalization.</p>
-          <Link to="/plans" className="primary-btn upgrade-cta">
-            View plans
-          </Link>
+          {session?.user?.id ? (
+            <>
+              <h3>You've used all 10 free decisions for today.</h3>
+              <p className="muted">Upgrade to Plus or Pro for unlimited decisions, faster picks, and smarter personalization.</p>
+              <Link to="/plans" className="primary-btn upgrade-cta">
+                View plans
+              </Link>
+            </>
+          ) : (
+            <>
+              <h3>You've used all 3 guest decisions for today.</h3>
+              <p className="muted">Create a free account to unlock 10 decisions per day and save your history.</p>
+              <Link to="/signup" className="primary-btn upgrade-cta">
+                Create free account
+              </Link>
+            </>
+          )}
         </article>
       ) : null}
       {lifeModeRecap ? (
