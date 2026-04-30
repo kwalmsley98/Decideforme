@@ -270,6 +270,112 @@ a {
   touch-action: manipulation;
 }
 
+.life-mode-fullscreen {
+  min-height: calc(100vh - 120px);
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 20%, rgba(90, 20, 20, 0.2), rgba(4, 4, 8, 0.98) 56%);
+  border: 1px solid rgba(255, 70, 70, 0.32);
+  box-shadow: 0 0 40px rgba(255, 60, 60, 0.15), inset 0 0 80px rgba(255, 0, 0, 0.08);
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.life-mode-veil {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 2px,
+    transparent 5px
+  );
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+.life-mode-command {
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+  color: #ffd6d6;
+  text-shadow: 0 0 20px rgba(255, 70, 70, 0.4);
+}
+
+.life-mode-sigil-wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.life-mode-sigil {
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 2.6rem;
+  color: #ffb0b0;
+  border: 1px solid rgba(255, 130, 130, 0.5);
+  box-shadow: 0 0 24px rgba(255, 90, 90, 0.35), inset 0 0 26px rgba(255, 65, 65, 0.18);
+  animation: lifePulse 1.8s ease-in-out infinite;
+}
+
+.life-mode-warning {
+  text-align: center;
+  margin: 0;
+}
+
+.life-mode-timer {
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: clamp(1.8rem, 7vw, 3rem);
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #ffe5e5;
+  text-shadow: 0 0 24px rgba(255, 80, 80, 0.42);
+}
+
+.life-mode-feed {
+  border-radius: 16px;
+  padding: 12px;
+  border: 1px solid rgba(255, 130, 130, 0.24);
+  background: rgba(8, 6, 10, 0.66);
+}
+
+.life-mode-feed-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.life-mode-feed-item {
+  border-radius: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.life-mode-feed-item p {
+  margin: 4px 0;
+}
+
+.life-mode-input-form {
+  margin-top: 2px;
+}
+
+@keyframes lifePulse {
+  50% {
+    transform: scale(1.07);
+    box-shadow: 0 0 34px rgba(255, 90, 90, 0.55), inset 0 0 34px rgba(255, 65, 65, 0.3);
+  }
+}
+
 .life-mode-title {
   font-weight: 800;
 }

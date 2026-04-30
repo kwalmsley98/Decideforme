@@ -544,8 +544,10 @@ function ChatScreen({ session }) {
   const [lifeModeRecap, setLifeModeRecap] = useState(null);
   const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
+  const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
+  const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
   const lifeModeCaption = "I let AI run my life for 24 hours at decideforme.org 🤖 here’s what happened…";
   const getOrCreateGuestId = () => {
     try {
@@ -585,7 +587,6 @@ function ChatScreen({ session }) {
     }
 
     const loadGlobalDecisionCount = async () => {
-      const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
       const [{ count: memberCount }, { count: guestCount }] = await Promise.all([
         supabase
           .from("decision_history")
@@ -667,6 +668,55 @@ function ChatScreen({ session }) {
 
     loadPersonalization();
   }, [session?.user?.id, todayKey]);
+
+  useEffect(() => {
+    if (!lifeModeSession?.id || String(lifeModeSession.id).startsWith("local-")) {
+      const localFeed = conversation
+        .filter((item) => item.role === "assistant")
+        .slice(-20)
+        .reverse()
+        .map((item, idx) => ({
+          id: `local-${idx}-${item.content?.slice(0, 12) || "decision"}`,
+          prompt: "Manual Life Mode decision",
+          answer: item.content,
+          created_at: new Date().toISOString()
+        }));
+      setLifeModeDecisionFeed(localFeed);
+      return;
+    }
+    if (!supabase) return;
+
+    const loadLifeModeDecisionFeed = async () => {
+      const { data } = await supabase
+        .from("life_mode_decisions")
+        .select("id, prompt, answer, created_at")
+        .eq("session_id", lifeModeSession.id)
+        .gte("created_at", startOfTodayIso)
+        .order("created_at", { ascending: false })
+        .limit(25);
+      setLifeModeDecisionFeed(data ?? []);
+    };
+
+    loadLifeModeDecisionFeed();
+
+    const channel = supabase
+      .channel(`life-mode-feed-${lifeModeSession.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "life_mode_decisions",
+          filter: `session_id=eq.${lifeModeSession.id}`
+        },
+        () => loadLifeModeDecisionFeed()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [lifeModeSession?.id, startOfTodayIso, supabase, conversation]);
 
   useEffect(() => {
     autosizeTextarea(promptRef, 5);
@@ -1021,6 +1071,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             prompt: content,
             answer: ensuredLifeModeAnswer
           });
+          setLifeModeDecisionFeed((prev) => [
+            {
+              id: `pending-${Date.now()}`,
+              prompt: content,
+              answer: ensuredLifeModeAnswer,
+              created_at: new Date().toISOString()
+            },
+            ...prev
+          ]);
         }
 
         fetch(apiUrl("/api/extract-preferences"), {
@@ -1079,6 +1138,67 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const displayedGuestDailyUsage = Math.min(guestDailyUsage, GUEST_DAILY_FREE_LIMIT);
+
+  if (lifeModeSession) {
+    return (
+      <section className="card premium life-mode-fullscreen">
+        <div className="life-mode-veil" />
+        <p className="hero-kicker">Life Mode Engaged</p>
+        <h1 className="life-mode-command">AI IS IN CONTROL</h1>
+        <div className="life-mode-sigil-wrap">
+          <div className="life-mode-sigil" aria-hidden="true">
+            ◉
+          </div>
+        </div>
+        <p className="meta life-mode-warning">Your decisions are now being executed by the system.</p>
+        <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
+        <p className="meta">Time remaining</p>
+
+        <article className="life-mode-feed">
+          <p className="hero-kicker">Today's AI Decision Feed</p>
+          <div className="life-mode-feed-list">
+            {lifeModeDecisionFeed.length ? (
+              lifeModeDecisionFeed.map((item) => (
+                <article key={item.id} className="life-mode-feed-item">
+                  <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
+                  <p>{item.prompt}</p>
+                  <p className="answer">{item.answer}</p>
+                </article>
+              ))
+            ) : (
+              <p className="meta">No decisions logged yet. Ask your first Life Mode question to begin the feed.</p>
+            )}
+          </div>
+        </article>
+
+        <form
+          className="form life-mode-input-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!prompt.trim()) return;
+            sendToAI(prompt.trim(), !conversation.length);
+          }}
+        >
+          <div className="input-row">
+            <textarea
+              ref={setPromptRef}
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              className="decision-input"
+              placeholder="Report your situation. AI will issue a final decision."
+              disabled={loading}
+              rows={1}
+            />
+            <button className="send-btn" disabled={loading} aria-label="Send">
+              →
+            </button>
+          </div>
+        </form>
+        {loading ? <LoadingOrb /> : null}
+        {error ? <p className="error">{error}</p> : null}
+      </section>
+    );
+  }
 
   return (
     <section className="card premium home-card">
