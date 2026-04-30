@@ -512,6 +512,7 @@ function DailyDilemmaCard({ session }) {
 function ChatScreen({ session }) {
   const DAILY_FREE_LIMIT = 10;
   const GUEST_DAILY_FREE_LIMIT = 3;
+  const PRO_PLAN_PRICE = "£4.99";
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
   const quickCategories = [
@@ -535,6 +536,8 @@ function ChatScreen({ session }) {
   const [dailyUsage, setDailyUsage] = useState(0);
   const [guestDailyUsage, setGuestDailyUsage] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [upgradePromptReason, setUpgradePromptReason] = useState("limit");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
   const [lifeModePromptOpen, setLifeModePromptOpen] = useState(false);
@@ -671,16 +674,24 @@ function ChatScreen({ session }) {
 
   useEffect(() => {
     if (!lifeModeSession?.id || String(lifeModeSession.id).startsWith("local-")) {
-      const localFeed = conversation
-        .filter((item) => item.role === "assistant")
-        .slice(-20)
-        .reverse()
-        .map((item, idx) => ({
-          id: `local-${idx}-${item.content?.slice(0, 12) || "decision"}`,
-          prompt: "DIRECTIVE ISSUED",
-          answer: item.content,
-          created_at: new Date().toISOString()
-        }));
+      const localPairs = [];
+      let lastUserPrompt = "";
+      conversation.forEach((item, idx) => {
+        if (item.role === "user") {
+          lastUserPrompt = item.content || "";
+          return;
+        }
+        if (item.role === "assistant") {
+          localPairs.push({
+            id: `local-${idx}-${String(item.content || "").slice(0, 12) || "decision"}`,
+            prompt: lastUserPrompt || "Input captured.",
+            answer: item.content,
+            created_at: new Date().toISOString()
+          });
+          lastUserPrompt = "";
+        }
+      });
+      const localFeed = localPairs.slice(-20).reverse();
       setLifeModeDecisionFeed(localFeed);
       return;
     }
@@ -972,7 +983,30 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   const openLifeModePrompt = (event) => {
     if (event?.preventDefault) event.preventDefault();
     if (event?.stopPropagation) event.stopPropagation();
+    if (!session?.user?.id) {
+      setUpgradePromptReason("feature");
+      setShowUpgradePrompt(true);
+      return;
+    }
     setLifeModePromptOpen(true);
+  };
+
+  const startProCheckout = async () => {
+    setCheckoutLoading(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/create-checkout-session"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
+      if (!data?.url) throw new Error("Stripe checkout URL missing.");
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message || "Failed to start Stripe checkout.");
+      setCheckoutLoading(false);
+    }
   };
 
   const copyLifeModeCaption = async () => {
@@ -987,11 +1021,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   const sendToAI = async (content, isInitial = false) => {
     const isGuest = !session?.user?.id;
     if (session?.user?.id && dailyUsage >= DAILY_FREE_LIMIT) {
+      setUpgradePromptReason("limit");
       setShowUpgradePrompt(true);
       setError("");
       return;
     }
     if (isGuest && guestDailyUsage >= GUEST_DAILY_FREE_LIMIT) {
+      setUpgradePromptReason("limit");
       setShowUpgradePrompt(true);
       setError("");
       return;
@@ -1127,6 +1163,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         const nextGuestUsage = guestDailyUsage + 1;
         setGuestDailyUsage(nextGuestUsage);
         if (nextGuestUsage >= GUEST_DAILY_FREE_LIMIT) {
+          setUpgradePromptReason("limit");
           setShowUpgradePrompt(true);
         }
       }
@@ -1159,11 +1196,17 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <div className="life-mode-feed-list">
             {lifeModeDecisionFeed.length ? (
               lifeModeDecisionFeed.map((item) => (
-                <article key={item.id} className="life-mode-feed-item">
-                  <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
-                  <p>DIRECTIVE ISSUED</p>
-                  <p className="answer">{item.answer}</p>
-                </article>
+                <div key={item.id} className="life-mode-feed-entry">
+                  <article className="life-mode-input-log">
+                    <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
+                    <p className="meta">SYSTEM INPUT LOG</p>
+                    <p>{item.prompt}</p>
+                  </article>
+                  <article className="life-mode-feed-item">
+                    <p className="meta">DIRECTIVE ISSUED</p>
+                    <p className="answer">{item.answer}</p>
+                  </article>
+                </div>
               ))
             ) : (
               <p className="meta">No decisions logged yet. Ask your first Life Mode question to begin the feed.</p>
@@ -1265,9 +1308,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 className="decision-input"
               placeholder={
                 showUpgradePrompt
-                  ? session?.user?.id
-                    ? "You've reached today's free limit. Upgrade for unlimited decisions."
-                    : "You've used all guest decisions today. Sign up for 10 free decisions daily."
+                  ? "Pro required. Upgrade to continue with unlimited decisions and full Life Mode."
                   : "What should I decide?"
               }
               disabled={showUpgradePrompt}
@@ -1327,26 +1368,23 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       )}
       {showUpgradePrompt ? (
-        <article className="upgrade-panel">
-          <p className="hero-kicker">Daily limit reached</p>
-          {session?.user?.id ? (
-            <>
-              <h3>You've used all 10 free decisions for today.</h3>
-              <p className="muted">Upgrade to Plus or Pro for unlimited decisions, faster picks, and smarter personalization.</p>
-              <Link to="/plans" className="primary-btn upgrade-cta">
-                View plans
+        <div className="upgrade-modal-overlay">
+          <article className="upgrade-modal-card">
+            <p className="hero-kicker">{upgradePromptReason === "feature" ? "Premium feature" : "Daily limit reached"}</p>
+            <h2>Upgrade to Pro</h2>
+            <p className="plan-price">{PRO_PLAN_PRICE}/month</p>
+            <p className="muted">Unlimited decisions and full Life Mode access.</p>
+            {!session?.user?.id ? <p className="meta">Guest daily free limit: 3 decisions. Signed-in free users: 10/day.</p> : null}
+            <button className="primary-btn upgrade-cta" onClick={startProCheckout} disabled={checkoutLoading}>
+              {checkoutLoading ? "Redirecting to Stripe..." : `Upgrade to Pro · ${PRO_PLAN_PRICE}/month`}
+            </button>
+            {!session?.user?.id ? (
+              <Link to="/signup" className="ghost-btn upgrade-cta">
+                Create free account instead
               </Link>
-            </>
-          ) : (
-            <>
-              <h3>You've used all 3 guest decisions for today.</h3>
-              <p className="muted">Create a free account to unlock 10 decisions per day and save your history.</p>
-              <Link to="/signup" className="primary-btn upgrade-cta">
-                Create free account
-              </Link>
-            </>
-          )}
-        </article>
+            ) : null}
+          </article>
+        </div>
       ) : null}
       {lifeModeRecap ? (
         <article className="life-recap-card">
@@ -2082,26 +2120,47 @@ function AuthScreen({ mode }) {
 }
 
 function PlansScreen() {
-  const plans = useMemo(
-    () => [
-      { title: "Plus", price: "£4.99", stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PLUS_ID },
-      { title: "Pro", price: "£9.99", stripePriceId: import.meta.env.VITE_STRIPE_PRICE_PRO_ID }
-    ],
+  const proPlan = useMemo(
+    () => ({
+      title: "Pro",
+      price: "£4.99"
+    }),
     []
   );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const startCheckout = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/create-checkout-session"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
+      if (!data?.url) throw new Error("Stripe checkout URL missing.");
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message || "Stripe checkout failed.");
+      setLoading(false);
+    }
+  };
 
   return (
     <section className="card">
-      <h1>Plans</h1>
+      <h1>Upgrade to Pro</h1>
       <div className="plans-grid">
-        {plans.map((plan) => (
-          <article key={plan.title} className="plan-card">
-            <h3>{plan.title}</h3>
-            <p className="plan-price">{plan.price}/month</p>
-            <p className="muted">7-day trial</p>
-            <button className="primary-btn">Start</button>
-          </article>
-        ))}
+        <article className="plan-card">
+          <h3>{proPlan.title}</h3>
+          <p className="plan-price">{proPlan.price}/month</p>
+          <p className="muted">Unlimited decisions and full Life Mode access.</p>
+          <button className="primary-btn" onClick={startCheckout} disabled={loading}>
+            {loading ? "Redirecting to Stripe..." : "Start Pro"}
+          </button>
+          {error ? <p className="error">{error}</p> : null}
+        </article>
       </div>
     </section>
   );

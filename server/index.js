@@ -401,13 +401,23 @@ Return JSON array now.`
 });
 
 app.post("/api/create-checkout-session", async (req, res) => {
-  const { stripePriceId } = req.body ?? {};
-  if (!stripePriceId) return res.status(400).json({ error: "stripePriceId is required." });
-
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      line_items: [{ price: stripePriceId, quantity: 1 }],
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "gbp",
+            unit_amount: 499,
+            recurring: { interval: "month" },
+            product_data: {
+              name: "Decide For Me Pro",
+              description: "Unlimited decisions and full Life Mode access"
+            }
+          }
+        }
+      ],
       subscription_data: {
         trial_period_days: 7
       },
