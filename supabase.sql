@@ -43,6 +43,7 @@ alter table public.profiles add column if not exists minds_changed int not null 
 alter table public.profiles add column if not exists current_streak int not null default 0;
 alter table public.profiles add column if not exists longest_streak int not null default 0;
 alter table public.profiles add column if not exists last_active_date date;
+alter table public.profiles add column if not exists is_pro boolean not null default false;
 
 create table if not exists public.group_decisions (
   id uuid primary key default gen_random_uuid(),

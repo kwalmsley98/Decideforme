@@ -522,6 +522,31 @@ function ChatScreen({ session }) {
     { label: "💪 Fitness", value: "Help me pick the best workout for today." }
   ];
   const learningSignals = ["Pattern detected.", "Noted. Your profile is updating.", "Signal logged.", "Preference map sharpening."];
+  const buildDecisionInsights = (historyRows) => {
+    const rows = Array.isArray(historyRows) ? historyRows : [];
+    if (!rows.length) return [];
+    let socialCount = 0;
+    let moneyCount = 0;
+    let foodCount = 0;
+    let reconsiderCount = 0;
+    for (const row of rows) {
+      const answer = String(row?.answer || "").toLowerCase();
+      const conversationItems = Array.isArray(row?.conversation) ? row.conversation : [];
+      const userMessages = conversationItems.filter((item) => item?.role === "user").map((item) => String(item?.content || "").toLowerCase());
+      const allText = `${answer} ${userMessages.join(" ")}`;
+      if (/(friend|social|party|date|people|text|call|group)/i.test(allText)) socialCount += 1;
+      if (/(money|budget|cheap|price|cost|spend|save|expensive)/i.test(allText)) moneyCount += 1;
+      if (/(food|eat|dinner|lunch|breakfast|restaurant|takeout|cook)/i.test(allText)) foodCount += 1;
+      if (/(actually|instead|change|not feeling|maybe)/i.test(allText)) reconsiderCount += 1;
+    }
+
+    const insights = [];
+    if (socialCount >= 2) insights.push("You tend to overthink social situations more than practical choices.");
+    if (foodCount >= 2 && moneyCount >= 2) insights.push("You decide quickly on food, but slow down when money is involved.");
+    if (reconsiderCount >= 2) insights.push("You explore alternatives before committing, especially when stakes feel high.");
+    if (!insights.length) insights.push("You move best with clear options and a decisive final call.");
+    return insights.slice(0, 3);
+  };
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState("");
   const [conversation, setConversation] = useState([]);
@@ -536,6 +561,9 @@ function ChatScreen({ session }) {
   const [showFirstTimeNote, setShowFirstTimeNote] = useState(false);
   const [dailyUsage, setDailyUsage] = useState(0);
   const [guestDailyUsage, setGuestDailyUsage] = useState(0);
+  const [profileInsights, setProfileInsights] = useState([]);
+  const [profileDecisionCount, setProfileDecisionCount] = useState(0);
+  const [isProUser, setIsProUser] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradePromptReason, setUpgradePromptReason] = useState("limit");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -621,11 +649,27 @@ function ChatScreen({ session }) {
       const loadGuestUsage = async () => {
         const guestId = getOrCreateGuestId();
         const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
-        const { count } = await supabase
-          .from("guest_decision_history")
-          .select("id", { count: "exact", head: true })
-          .eq("guest_id", guestId)
-          .gte("created_at", startOfTodayIso);
+        const [{ count }, { data: guestHistory }] = await Promise.all([
+          supabase
+            .from("guest_decision_history")
+            .select("id", { count: "exact", head: true })
+            .eq("guest_id", guestId)
+            .gte("created_at", startOfTodayIso),
+          supabase
+            .from("guest_decision_history")
+            .select("id, answer, created_at")
+            .eq("guest_id", guestId)
+            .order("created_at", { ascending: false })
+            .limit(50)
+        ]);
+        const guestRows = (guestHistory ?? []).map((row) => ({
+          ...row,
+          conversation: []
+        }));
+        const guestInsights = buildDecisionInsights(guestRows);
+        setProfileDecisionCount(guestRows.length);
+        setProfileInsights(guestInsights);
+        setIsProUser(false);
         const nextGuestUsage = count || 0;
         setLearnedPreferences([]);
         setTotalDecisions(0);
@@ -648,15 +692,21 @@ function ChatScreen({ session }) {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("total_decisions, current_streak")
+        .select("*")
         .eq("id", session.user.id)
         .single();
       setCurrentStreak(profile?.current_streak || 0);
+      setIsProUser(Boolean(profile?.is_pro));
 
-      const { count: decisionHistoryTotal } = await supabase
+      const { count: decisionHistoryTotal, data: decisionHistoryRows } = await supabase
         .from("decision_history")
-        .select("id", { count: "exact", head: true });
+        .select("id, answer, conversation, created_at", { count: "exact" })
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
       setTotalDecisions(decisionHistoryTotal || 0);
+      setProfileDecisionCount(decisionHistoryTotal || 0);
+      setProfileInsights(buildDecisionInsights(decisionHistoryRows ?? []));
 
       const { data: usage } = await supabase
         .from("daily_usage")
@@ -672,6 +722,33 @@ function ChatScreen({ session }) {
 
     loadPersonalization();
   }, [session?.user?.id, todayKey]);
+
+  useEffect(() => {
+    if (session?.user?.id) return;
+    setIsProUser(false);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!profileDecisionCount || profileDecisionCount < 5) return;
+    if (!session?.user?.id) return;
+    // Keep profile card feeling alive as decisions are made in the current session.
+    setProfileDecisionCount((prev) => prev);
+  }, [conversation.length, profileDecisionCount, session?.user?.id]);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return;
+    const refreshProfileInsightsAfterDecision = async () => {
+      const { count: decisionHistoryTotal, data: decisionHistoryRows } = await supabase
+        .from("decision_history")
+        .select("id, answer, conversation, created_at", { count: "exact" })
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setProfileDecisionCount(decisionHistoryTotal || 0);
+      setProfileInsights(buildDecisionInsights(decisionHistoryRows ?? []));
+    };
+    if (!loading) refreshProfileInsightsAfterDecision();
+  }, [loading, session?.user?.id, supabase]);
 
   useEffect(() => {
     if (!lifeModeSession?.id || String(lifeModeSession.id).startsWith("local-")) {
@@ -1274,6 +1351,29 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       )}
       {showFirstTimeNote ? (
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
+      ) : null}
+      {profileDecisionCount >= 5 ? (
+        <article className="history-item decision-profile-card">
+          <p className="hero-kicker">Your Decision Profile</p>
+          {isProUser ? (
+            <div className="history-list">
+              {profileInsights.map((insight) => (
+                <p key={insight} className="answer">
+                  {insight}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <>
+              <p className="muted">
+                {profileInsights[0] || "Pattern detected in your decision style."} Unlock full profile insights with Pro.
+              </p>
+              <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
+                Unlock full Decision Profile
+              </button>
+            </>
+          )}
+        </article>
       ) : null}
       <div className="chat-divider" />
 
