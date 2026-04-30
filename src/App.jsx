@@ -819,6 +819,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
     const authSession = supabase ? (await supabase.auth.getSession()).data.session : null;
     const resolvedUserId = session?.user?.id || authSession?.user?.id || null;
+    console.log("[LifeMode] activation context", {
+      user_id: resolvedUserId,
+      hasPropSession: Boolean(session?.user?.id),
+      hasAuthSession: Boolean(authSession?.user?.id)
+    });
     const optimisticSession = {
       id: `local-${Date.now()}`,
       user_id: resolvedUserId,
@@ -850,6 +855,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         .single();
       console.log("[LifeMode] activation result", { hasData: Boolean(data), error: error?.message || null });
       if (error) {
+        console.error("[LifeMode] insert error", {
+          user_id: resolvedUserId,
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         setError(`Life Mode activation failed to save: ${error.message}`);
       } else {
         setLifeModeSession(data || optimisticSession);
