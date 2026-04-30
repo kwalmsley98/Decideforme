@@ -317,6 +317,7 @@ Style rules:
 - Maximum 2-3 sentences total.
 - Be direct and decisive: make one clear decision.
 - Give one short reason why.
+- No waffle, no hedging, no rambling.
 - ${lifeMode ? "Do NOT ask the user any questions. Never request clarification or more information." : "Ask at most ONE quick follow-up question only if needed."}
 - No bullet points, no labels like "Why:", no long explanations.
 ${lifeMode ? "- Life Mode is active: be extra bold, decisive, slightly dramatic, and take control with immediate concrete actions." : ""}

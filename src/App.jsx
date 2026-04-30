@@ -521,6 +521,7 @@ function ChatScreen({ session }) {
     { label: "✈️ Travel", value: "Help me decide where to go for my next trip." },
     { label: "💪 Fitness", value: "Help me pick the best workout for today." }
   ];
+  const learningSignals = ["Pattern detected.", "Noted. Your profile is updating.", "Signal logged.", "Preference map sharpening."];
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState("");
   const [conversation, setConversation] = useState([]);
@@ -1060,11 +1061,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
+      const assistantTurnsSoFar = updatedConversation.filter((item) => item.role === "assistant").length;
       const ensuredLifeModeAnswer =
         lifeModeSession && !String(data.answer || "").endsWith("Directive issued.")
           ? `${String(data.answer || "").trim()} Directive issued.`
           : data.answer;
-      const aiMessage = { role: "assistant", content: ensuredLifeModeAnswer };
+      let finalAssistantText = String(ensuredLifeModeAnswer || "").trim();
+      if (!lifeModeSession && assistantTurnsSoFar >= 2) {
+        const shouldAddSignal = Math.random() < 0.35;
+        if (shouldAddSignal) {
+          const signal = learningSignals[Math.floor(Math.random() * learningSignals.length)];
+          finalAssistantText = `${finalAssistantText}\n\n_${signal}_`;
+        }
+      }
+      const aiMessage = { role: "assistant", content: finalAssistantText };
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
       setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
@@ -1077,7 +1087,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           user_id: session.user.id,
           category: "Natural language",
           mood: "Inferred tone",
-          answer: ensuredLifeModeAnswer,
+          answer: finalAssistantText,
           conversation: finalConversation
         });
         setLiveCount((prev) => prev + 1);
@@ -1105,7 +1115,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             session_id: lifeModeSession.id,
             user_id: session.user.id,
             prompt: content,
-            answer: ensuredLifeModeAnswer
+            answer: finalAssistantText
           });
           setLifeModeDecisionFeed((prev) => [
             {
@@ -1123,7 +1133,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation: finalConversation,
-            answer: ensuredLifeModeAnswer
+            answer: finalAssistantText
           })
         })
           .then((res) => res.json())
