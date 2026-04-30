@@ -1078,6 +1078,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
   };
 
+  const displayedGuestDailyUsage = Math.min(guestDailyUsage, GUEST_DAILY_FREE_LIMIT);
+
   return (
     <section className="card premium home-card">
       <div className="hero-glow" />
@@ -1094,7 +1096,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </p>
       ) : (
         <p className="meta usage-meter">
-          Guest mode: {guestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
+          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
         </p>
       )}
       {showFirstTimeNote ? (
