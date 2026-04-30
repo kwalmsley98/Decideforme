@@ -302,6 +302,20 @@ create table if not exists public.life_mode_decisions (
   created_at timestamptz not null default now()
 );
 
+create or replace function public.get_active_life_mode_user_count()
+returns integer
+language sql
+security definer
+set search_path = public
+as $$
+  select count(distinct user_id)::int
+  from public.life_mode_sessions
+  where is_active = true
+    and ends_at > now();
+$$;
+
+grant execute on function public.get_active_life_mode_user_count() to anon, authenticated;
+
 create or replace function public.grant_referral_bonus(p_referrer_id uuid, p_referred_id uuid)
 returns void
 language plpgsql

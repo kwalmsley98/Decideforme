@@ -630,6 +630,13 @@ function ChatScreen({ session }) {
 
   const refreshLifeModeGlobalCount = async () => {
     if (!supabase) return;
+    const { data, error } = await supabase.rpc("get_active_life_mode_user_count");
+    if (!error && typeof data === "number") {
+      setLifeModeGlobalCount(data);
+      return;
+    }
+
+    // Fallback for environments where the RPC isn't installed yet.
     const { count } = await supabase
       .from("life_mode_sessions")
       .select("id", { count: "exact", head: true })
