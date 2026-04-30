@@ -1842,6 +1842,21 @@ function AuthScreen({ mode }) {
   return (
     <section className="card auth-card">
       <h1>{mode === "login" ? "Login" : "Sign up"}</h1>
+      {mode === "login" ? (
+        <p className="meta">
+          New here?{" "}
+          <Link to="/signup" className="answer">
+            Create an account
+          </Link>
+        </p>
+      ) : (
+        <p className="meta">
+          Already have an account?{" "}
+          <Link to="/login" className="answer">
+            Login
+          </Link>
+        </p>
+      )}
       <form className="form" onSubmit={handleSubmit}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input
