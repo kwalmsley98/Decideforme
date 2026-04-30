@@ -592,8 +592,12 @@ function ChatScreen({ session }) {
         .select("total_decisions, current_streak")
         .eq("id", session.user.id)
         .single();
-      setTotalDecisions(profile?.total_decisions || 0);
       setCurrentStreak(profile?.current_streak || 0);
+
+      const { count: decisionHistoryTotal } = await supabase
+        .from("decision_history")
+        .select("id", { count: "exact", head: true });
+      setTotalDecisions(decisionHistoryTotal || 0);
 
       const { data: usage } = await supabase
         .from("daily_usage")
