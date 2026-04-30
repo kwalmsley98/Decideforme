@@ -525,7 +525,7 @@ function ChatScreen({ session }) {
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [liveCount, setLiveCount] = useState(() => 10000 + new Date().getHours() * 57);
+  const [liveCount, setLiveCount] = useState(0);
   const [learnedPreferences, setLearnedPreferences] = useState([]);
   const [totalDecisions, setTotalDecisions] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
@@ -564,10 +564,17 @@ function ChatScreen({ session }) {
   }, [session]);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setLiveCount((prev) => prev + Math.floor(Math.random() * 3) + 1);
-    }, 4000);
-    return () => clearInterval(id);
+    if (!supabase) {
+      setLiveCount(0);
+      return;
+    }
+
+    const loadGlobalDecisionCount = async () => {
+      const { count } = await supabase.from("decision_history").select("id", { count: "exact", head: true });
+      setLiveCount(count || 0);
+    };
+
+    loadGlobalDecisionCount();
   }, []);
 
   useEffect(() => {
@@ -907,6 +914,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           answer: ensuredLifeModeAnswer,
           conversation: finalConversation
         });
+        setLiveCount((prev) => prev + 1);
         await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
         if (isFirstDecision) setShowFirstTimeNote(true);
         setTotalDecisions((prev) => prev + 1);
