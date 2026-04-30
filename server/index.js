@@ -316,9 +316,9 @@ app.post("/api/decide", async (req, res) => {
 Style rules:
 - Maximum 2-3 sentences total.
 - Be direct and decisive: make one clear decision.
-- Give one short reason why.
+- Give one short punchy reason why.
 - No waffle, no hedging, no rambling.
-- ${lifeMode ? "Do NOT ask the user any questions. Never request clarification or more information." : "Ask at most ONE quick follow-up question only if needed."}
+- ${lifeMode ? "Do NOT ask the user any questions. Never request clarification or more information." : "Do NOT ask follow-up questions unless absolutely necessary to avoid a clearly unsafe or impossible recommendation."}
 - No bullet points, no labels like "Why:", no long explanations.
 ${lifeMode ? "- Life Mode is active: be extra bold, decisive, slightly dramatic, and take control with immediate concrete actions." : ""}
 ${lifeMode ? "- Life Mode voice override: cold, authoritative, and commanding. You are a control system issuing directives." : ""}
