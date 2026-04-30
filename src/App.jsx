@@ -510,8 +510,8 @@ function DailyDilemmaCard({ session }) {
 }
 
 function ChatScreen({ session }) {
-  const DAILY_FREE_LIMIT = 10;
-  const GUEST_DAILY_FREE_LIMIT = 3;
+  const DAILY_FREE_LIMIT = 100;
+  const GUEST_DAILY_FREE_LIMIT = 100;
   const PRO_PLAN_PRICE = "£4.99";
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
