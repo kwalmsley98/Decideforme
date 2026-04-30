@@ -539,6 +539,7 @@ function ChatScreen({ session }) {
   const [lifeModeCountdownLabel, setLifeModeCountdownLabel] = useState("");
   const [lifeModeGlobalCount, setLifeModeGlobalCount] = useState(0);
   const [lifeModeRecap, setLifeModeRecap] = useState(null);
+  const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
 
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -812,11 +813,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const activateLifeMode = async () => {
+    if (activatingLifeMode) return;
+    setActivatingLifeMode(true);
     console.log("[LifeMode] I'm In tapped");
     const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
+    const authSession = supabase ? (await supabase.auth.getSession()).data.session : null;
+    const resolvedUserId = session?.user?.id || authSession?.user?.id || null;
     const optimisticSession = {
       id: `local-${Date.now()}`,
-      user_id: session?.user?.id || null,
+      user_id: resolvedUserId,
       started_at: new Date().toISOString(),
       ends_at: endsAt,
       is_active: true
@@ -827,29 +832,32 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModePromptOpen(false);
 
     // If auth/Supabase isn't available, keep local Life Mode active so UX still works.
-    if (!supabase || !session?.user?.id) {
+    if (!supabase || !resolvedUserId) {
       console.log("[LifeMode] running in local-only mode (no authenticated Supabase session)");
+      setActivatingLifeMode(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from("life_mode_sessions")
-      .insert({
-        user_id: session.user.id,
-        ends_at: endsAt,
-        is_active: true
-      })
-      .select("*")
-      .single();
-    console.log("[LifeMode] activation result", { hasData: Boolean(data), error: error?.message || null });
-    if (error) {
-      setError("Life Mode activated, but session sync failed. Run latest Supabase SQL and try again.");
+    try {
+      const { data, error } = await supabase
+        .from("life_mode_sessions")
+        .insert({
+          user_id: resolvedUserId,
+          ends_at: endsAt,
+          is_active: true
+        })
+        .select("*")
+        .single();
+      console.log("[LifeMode] activation result", { hasData: Boolean(data), error: error?.message || null });
+      if (error) {
+        setError(`Life Mode activation failed to save: ${error.message}`);
+      } else {
+        setLifeModeSession(data || optimisticSession);
+      }
       await refreshLifeModeGlobalCount();
-      return;
+    } finally {
+      setActivatingLifeMode(false);
     }
-
-    setLifeModeSession(data || optimisticSession);
-    await refreshLifeModeGlobalCount();
   };
 
   const openLifeModePrompt = (event) => {
@@ -1225,8 +1233,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             <p className="hero-kicker">Life Mode Activation</p>
             <h2>Are you sure?</h2>
             <p>For the next 24 hours, AI makes every decision for you.</p>
-            <button className="primary-btn" type="button" onClick={activateLifeMode}>
-              I'm In
+            <button className="primary-btn" type="button" onClick={activateLifeMode} disabled={activatingLifeMode}>
+              {activatingLifeMode ? "Activating..." : "I'm In"}
             </button>
             <button className="ghost-btn" type="button" onClick={() => setLifeModePromptOpen(false)}>
               Maybe later
