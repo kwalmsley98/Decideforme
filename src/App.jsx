@@ -512,6 +512,7 @@ function DailyDilemmaCard({ session }) {
 function ChatScreen({ session }) {
   const DAILY_FREE_LIMIT = 10;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
+  const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
   const quickCategories = [
     { label: "🍕 Food", value: "Help me decide what to eat tonight." },
     { label: "🎬 Watch", value: "Help me choose what to watch tonight." },
@@ -544,6 +545,17 @@ function ChatScreen({ session }) {
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const lifeModeCaption = "I let AI run my life for 24 hours at decideforme.org 🤖 here’s what happened…";
+  const getOrCreateGuestId = () => {
+    try {
+      const existing = localStorage.getItem(GUEST_ID_STORAGE_KEY);
+      if (existing) return existing;
+      const created = crypto.randomUUID();
+      localStorage.setItem(GUEST_ID_STORAGE_KEY, created);
+      return created;
+    } catch {
+      return `guest-${Date.now()}`;
+    }
+  };
 
   useEffect(() => {
     if (!("Notification" in window) || !session) return;
@@ -571,12 +583,22 @@ function ChatScreen({ session }) {
     }
 
     const loadGlobalDecisionCount = async () => {
-      const { count } = await supabase.from("decision_history").select("id", { count: "exact", head: true });
-      setLiveCount(count || 0);
+      const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
+      const [{ count: memberCount }, { count: guestCount }] = await Promise.all([
+        supabase
+          .from("decision_history")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startOfTodayIso),
+        supabase
+          .from("guest_decision_history")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startOfTodayIso)
+      ]);
+      setLiveCount((memberCount || 0) + (guestCount || 0));
     };
 
     loadGlobalDecisionCount();
-  }, []);
+  }, [todayKey]);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id) {
@@ -1005,6 +1027,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             setLearnedPreferences(refreshed ?? []);
           })
           .catch(() => {});
+      } else if (supabase) {
+        const guestId = getOrCreateGuestId();
+        await supabase.from("guest_decision_history").insert({
+          guest_id: guestId,
+          answer: ensuredLifeModeAnswer
+        });
+        setLiveCount((prev) => prev + 1);
       }
     } catch (err) {
       setError(err.message);
