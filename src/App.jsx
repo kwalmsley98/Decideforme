@@ -677,7 +677,7 @@ function ChatScreen({ session }) {
         .reverse()
         .map((item, idx) => ({
           id: `local-${idx}-${item.content?.slice(0, 12) || "decision"}`,
-          prompt: "Manual Life Mode decision",
+          prompt: "DIRECTIVE ISSUED",
           answer: item.content,
           created_at: new Date().toISOString()
         }));
@@ -1025,8 +1025,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
       const ensuredLifeModeAnswer =
-        lifeModeSession && !String(data.answer || "").endsWith("No arguments. I've decided.")
-          ? `${String(data.answer || "").trim()} No arguments. I've decided.`
+        lifeModeSession && !String(data.answer || "").endsWith("Directive issued.")
+          ? `${String(data.answer || "").trim()} Directive issued.`
           : data.answer;
       const aiMessage = { role: "assistant", content: ensuredLifeModeAnswer };
       const finalConversation = [...updatedConversation, aiMessage];
@@ -1161,7 +1161,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               lifeModeDecisionFeed.map((item) => (
                 <article key={item.id} className="life-mode-feed-item">
                   <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
-                  <p>{item.prompt}</p>
+                  <p>DIRECTIVE ISSUED</p>
                   <p className="answer">{item.answer}</p>
                 </article>
               ))
