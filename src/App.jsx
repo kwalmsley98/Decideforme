@@ -28,6 +28,24 @@ function shouldUseNearby(text) {
   return terms.some((term) => value.includes(term));
 }
 
+function shouldRequestNearbyPlaces(text) {
+  const value = String(text || "").toLowerCase();
+  const terms = [
+    "food",
+    "eat",
+    "restaurant",
+    "cafe",
+    "travel",
+    "trip",
+    "activity",
+    "things to do",
+    "hotel",
+    "museum",
+    "park"
+  ];
+  return terms.some((term) => value.includes(term));
+}
+
 function shareUrls(text) {
   const encoded = encodeURIComponent(text);
   return {
@@ -1118,7 +1136,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     else setConversation(updatedConversation);
 
     try {
-      const needsNearby = shouldUseNearby(content);
+      const needsNearby = shouldUseNearby(content) || shouldRequestNearbyPlaces(content);
       let locationForRequest = userLocation;
       if (needsNearby && !locationForRequest) {
         locationForRequest = await requestUserLocation();
@@ -1575,7 +1593,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               <div className="recommend-body">
                 <h4>{item.name}</h4>
                 <p className="meta">
-                  {item.rating ? `⭐ ${item.rating}` : "⭐ New"} {item.distance ? `· ${item.distance}` : ""}
+                  {item.rating ? `⭐ ${item.rating}` : "⭐ New"}
+                  {item.priceLevel ? ` · ${item.priceLevel}` : ""}
+                  {item.distance ? ` · ${item.distance}` : ""}
                 </p>
                 <p>{item.description}</p>
                 <div className="recommend-actions">

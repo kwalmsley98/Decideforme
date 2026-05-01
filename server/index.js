@@ -117,8 +117,8 @@ const stripe = new Stripe(config.stripeSecretKey);
 const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY);
 const unsplashAccessKey = normalizeEnvValue(process.env.UNSPLASH_ACCESS_KEY);
 
-function looksRecommendationWorthy(prompt) {
-  const text = String(prompt || "").toLowerCase();
+function looksRecommendationWorthy(prompt, answer = "") {
+  const text = `${String(prompt || "").toLowerCase()} ${String(answer || "").toLowerCase()}`;
   const keywords = [
     "restaurant",
     "food",
@@ -138,6 +138,12 @@ function looksRecommendationWorthy(prompt) {
     "park"
   ];
   return keywords.some((k) => text.includes(k));
+}
+
+function formatPriceLevel(priceLevel) {
+  const numeric = Number(priceLevel);
+  if (!Number.isInteger(numeric) || numeric < 0) return null;
+  return "£".repeat(Math.max(1, Math.min(numeric + 1, 4)));
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -169,8 +175,11 @@ async function getUnsplashImage(query) {
 
 async function getPlaceRecommendations({ prompt, userLocation }) {
   if (!googlePlacesKey) return [];
+  if (!userLocation?.lat || !userLocation?.lng) return [];
   const endpoint = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
   endpoint.searchParams.set("query", prompt);
+  endpoint.searchParams.set("location", `${Number(userLocation.lat)},${Number(userLocation.lng)}`);
+  endpoint.searchParams.set("radius", "6000");
   endpoint.searchParams.set("key", googlePlacesKey);
 
   const response = await fetch(endpoint.toString());
@@ -211,6 +220,7 @@ async function getPlaceRecommendations({ prompt, userLocation }) {
     cards.push({
       name: place.name,
       rating: place.rating || null,
+      priceLevel: formatPriceLevel(place.price_level),
       description: place.formatted_address || "Popular recommendation nearby.",
       distance: distanceKm ? `${distanceKm.toFixed(1)} km away` : null,
       imageUrl,
@@ -352,8 +362,8 @@ Respond as the assistant in this ongoing chat.`
       "Go with the boldest option available right now.";
 
     let recommendations = [];
-    if (looksRecommendationWorthy(prompt)) {
-      recommendations = await getPlaceRecommendations({ prompt, userLocation });
+    if (looksRecommendationWorthy(prompt, answer)) {
+      recommendations = await getPlaceRecommendations({ prompt: answer || prompt, userLocation });
     }
 
     return res.json({ answer, recommendations });
