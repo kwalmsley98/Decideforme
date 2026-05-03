@@ -273,6 +273,96 @@ function parseExtractedPreferences(rawText) {
   }
 }
 
+/** Flights, hotels, holidays, or travel/shopping-for-deals price questions */
+function needsTravelPriceWebSearch(text) {
+  const v = String(text || "").toLowerCase();
+  const travelCore =
+    /\b(flight|flights|fly|flying|airline|airport|hotel|hotels|holiday|holidays|vacation|getaway|resort|airbnb|skyscanner|kayak|booking|expedia|package holiday|weekend break|travel to|trip to|go to|visit)\b/.test(
+      v
+    );
+  const travelPrice =
+    /\b(price|prices|pricing|cheap|cheaper|cheapest|deal|deals|fare|fares|cost|budget)\b/.test(v) &&
+    /\b(flight|hotel|trip|holiday|vacation|travel|fly|stay|book|abroad|ticket)\b/.test(v);
+  return travelCore || travelPrice;
+}
+
+async function tavilySearchTravel(prompt) {
+  const apiKey = normalizeEnvValue(process.env.TAVILY_API_KEY);
+  if (!apiKey) return "";
+  const query = `${String(prompt).trim().slice(0, 220)} flights hotels travel deals compare`;
+  try {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: "basic",
+        max_results: 8,
+        include_answer: false
+      })
+    });
+    const raw = await res.text();
+    if (!res.ok) return "";
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return "";
+    }
+    const results = Array.isArray(data.results) ? data.results : [];
+    if (!results.length) return "";
+    return results
+      .map((r, i) => {
+        const snippet = String(r.content || "").replace(/\s+/g, " ").trim().slice(0, 420);
+        return `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${snippet}`;
+      })
+      .join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
+async function braveSearchTravel(prompt) {
+  const apiKey = normalizeEnvValue(process.env.BRAVE_SEARCH_API_KEY);
+  if (!apiKey) return "";
+  const q = `${String(prompt).trim().slice(0, 200)} travel flights hotels`;
+  try {
+    const u = new URL("https://api.search.brave.com/res/v1/web/search");
+    u.searchParams.set("q", q);
+    u.searchParams.set("count", "8");
+    const res = await fetch(u, {
+      headers: { "X-Subscription-Token": apiKey, Accept: "application/json" }
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const web = data.web?.results || [];
+    if (!web.length) return "";
+    return web
+      .map((r, i) => {
+        const snippet = String(r.description || "").replace(/\s+/g, " ").trim().slice(0, 380);
+        return `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${snippet}`;
+      })
+      .join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
+function buildBookingLinksMarkdown(prompt) {
+  const p = String(prompt || "").trim();
+  const q = encodeURIComponent(p.slice(0, 200));
+  const destMatch = p.match(/\b(?:to|in|visit|near|around|from)\s+([A-Za-z][A-Za-z\s\-]{2,52})\b/i);
+  const dest = destMatch ? destMatch[1].trim() : "";
+  const destEnc = encodeURIComponent(dest || p.slice(0, 80));
+  return [
+    `[Google Flights](https://www.google.com/travel/flights?q=${q})`,
+    `[Skyscanner](https://www.skyscanner.net/transport/flights/?currency=GBP&locale=en-GB&market=UK&q=${q})`,
+    `[Booking.com](https://www.booking.com/searchresults.html?ss=${destEnc}&order=popularity)`,
+    `[Kayak](https://www.kayak.co.uk/flights?fid=1&q=${q})`
+  ].join("\n");
+}
+
 app.post("/api/decide", async (req, res) => {
   const {
     prompt,
@@ -305,26 +395,63 @@ app.post("/api/decide", async (req, res) => {
       ? knownPreferences.map((pref) => `- ${pref}`).join("\n")
       : "No known user preferences yet.";
 
+    const travelWeb = needsTravelPriceWebSearch(prompt);
+    let webSnippets = "";
+    if (travelWeb) {
+      webSnippets = (await tavilySearchTravel(prompt)) || (await braveSearchTravel(prompt));
+      if (!webSnippets) {
+        webSnippets =
+          "(No live search API key: set TAVILY_API_KEY or BRAVE_SEARCH_API_KEY on the server. You still have real booking links below and must not refuse to help.)";
+      }
+    }
+    const bookingLinksMd = travelWeb ? buildBookingLinksMarkdown(prompt) : "";
+
+    const travelWebUserBlock = travelWeb
+      ? `
+
+=== Live web search (use for real-world context; paraphrase, do not copy long quotes) ===
+${webSnippets}
+
+=== Direct booking & comparison links (include ALL of these as markdown in your answer) ===
+${bookingLinksMd}`
+      : "";
+
+    const travelWebSystemRules = travelWeb
+      ? `
+- LIVE WEB DATA appears above. NEVER say you cannot search the web, check airlines/hotels, or see prices online — you have search excerpts and official comparison URLs.
+- Use excerpts for grounded guidance (patterns, what travelers compare, timing ideas). Do NOT invent exact live fares or seat availability; send users to the linked sites for current prices and booking.
+- Your reply MUST incorporate every markdown link listed above (Google Flights, Skyscanner, Booking.com, Kayak). Inline markdown links are required.
+- Allow up to 5 short sentences so links read naturally.${lifeMode ? " Still end with exactly: Directive issued." : ""}`
+      : "";
+
+    const baseStyleRules = travelWeb
+      ? `- Be direct and decisive: one clear travel/stay recommendation plus grounded reasoning from search excerpts.
+- Give a short punchy reason that connects to the user's goal.
+- No waffle; markdown booking links are mandatory when listed above.`
+      : `- Maximum 2-3 sentences total.
+- Be direct and decisive: make one clear decision.
+- Give one short punchy reason why.
+- No waffle, no hedging, no rambling.
+- No bullet points, no labels like "Why:", no long explanations.`;
+
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 140,
+      max_tokens: travelWeb ? 520 : 140,
       temperature: 0.55,
       system:
         `You are a premium decision assistant. ${personalityGuide[personality] || personalityGuide.Balanced}
 Style rules:
-- Maximum 2-3 sentences total.
-- Be direct and decisive: make one clear decision.
-- Give one short punchy reason why.
-- No waffle, no hedging, no rambling.
+${baseStyleRules}
 - NEVER ask the user questions. Always make a decision immediately with no follow-up questions. If you don't have enough info, make your best guess and decide anyway.
 - ${lifeMode ? "Do NOT ask the user any questions. Never request clarification or more information." : "Do NOT ask follow-up questions unless absolutely necessary to avoid a clearly unsafe or impossible recommendation."}
-- No bullet points, no labels like "Why:", no long explanations.
+${travelWebSystemRules}
+${lifeMode && !travelWeb ? "- No bullet points, no labels like \"Why:\", no long explanations." : ""}
 ${lifeMode ? "- Life Mode is active: be extra bold, decisive, slightly dramatic, and take control with immediate concrete actions." : ""}
 ${lifeMode ? "- Life Mode voice override: cold, authoritative, and commanding. You are a control system issuing directives." : ""}
 ${lifeMode ? "- Never use soft language: do not say 'I suggest', 'maybe', 'consider', 'could', or ask permission." : ""}
 ${lifeMode ? "- Always provide a definitive directive immediately, even with limited context." : ""}
 ${lifeMode ? "- Phrase actions as orders, not advice." : ""}
-${lifeMode ? "- End every response with exactly: Directive issued." : ""}
+${lifeMode ? `- End every response with exactly: Directive issued.${travelWeb ? " Put booking links before that closing phrase." : ""}` : ""}
 Voice: confident friend giving quick advice, not a consultant.`,
       messages: [
         {
@@ -338,7 +465,7 @@ Known user preferences:
 ${preferenceContext}
 
 Conversation so far:
-${priorMessages || "No prior messages"}
+${priorMessages || "No prior messages"}${travelWebUserBlock}
 
 Respond as the assistant in this ongoing chat.`
         }
@@ -447,6 +574,10 @@ app.listen(PORT, () => {
   console.log(
     `GOOGLE_PLACES_API_KEY (or VITE_GOOGLE_PLACES_API_KEY): ${googlePlacesKey ? "defined" : "not defined"}`
   );
+  const tavilyK = normalizeEnvValue(process.env.TAVILY_API_KEY);
+  const braveK = normalizeEnvValue(process.env.BRAVE_SEARCH_API_KEY);
+  console.log(`TAVILY_API_KEY: ${tavilyK ? "defined" : "not defined"}`);
+  console.log(`BRAVE_SEARCH_API_KEY: ${braveK ? "defined" : "not defined"}`);
   console.log(`Allowed CORS origins: ${config.allowedOrigins.join(", ")}`);
   console.log(`API server running at http://localhost:${PORT}`);
 });
