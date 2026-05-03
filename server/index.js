@@ -398,6 +398,41 @@ function buildBookingLinksMarkdown(prompt) {
     .join("\n");
 }
 
+/** Self-harm / suicide / crisis / severe distress — triggers safe response + UI changes */
+function detectMentalHealthCrisis(fullText) {
+  const raw = String(fullText || "").toLowerCase();
+  const t = raw.replace(/\s+/g, " ");
+
+  const patterns = [
+    /\bsuicid/,
+    /\bself[\s-]?harm\b/,
+    /\bkill\s+myself\b/,
+    /\bkill\s+me\b/,
+    /\bend\s+(?:my\s+)?life\b/,
+    /\bwant\s+to\s+die\b/,
+    /\bdon'?t\s+want\s+to\s+live\b/,
+    /\bhurt\s+myself\b/,
+    /\bcut\s+myself\b/,
+    /\boverdose\b/,
+    /\bjump\s+off\b/,
+    /\bhanging\b.*\b(myself|suicide)\b/,
+    /\bno\s+point\s+(?:in\s+)?living\b/,
+    /\bbe?tter\s+off\s+dead\b/,
+    /\bmental\s+health\s+crisis\b/,
+    /\bemotional\s+distress\b/,
+    /\bcan'?t\s+cope\s+anymore\b/,
+    /\bwish\s+I\s+(?:was|were)\s+dead\b/,
+    /\btake\s+my\s+(?:own\s+)?life\b/
+  ];
+  if (patterns.some((re) => re.test(t))) return true;
+
+  const distress = [/feel\s+(?:so\s+)?hopeless\b/, /feel\s+(?:so\s+)?empty\b/, /\bbreaking\s+down\b/, /\bcan'?t\s+stop\s+crying\b/];
+  const distressHits = distress.filter((re) => re.test(t)).length;
+  if (distressHits >= 2) return true;
+
+  return false;
+}
+
 app.post("/api/decide", async (req, res) => {
   const {
     prompt,
@@ -429,6 +464,42 @@ app.post("/api/decide", async (req, res) => {
     const preferenceContext = knownPreferences.length
       ? knownPreferences.map((pref) => `- ${pref}`).join("\n")
       : "No known user preferences yet.";
+
+    const combinedForCrisis = `${prompt}\n${priorMessages}`;
+    if (detectMentalHealthCrisis(combinedForCrisis)) {
+      const crisisMessage = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 420,
+        temperature: 0.35,
+        system: `The user may be experiencing emotional distress, suicidal thoughts, urges to self-harm, or a mental health crisis.
+
+You MUST:
+- Respond with empathy and calm. Never shame, joke, dismiss, or use aggressive / "savage" / hype tones.
+- Prioritise safety. Do not provide methods, encouragement, or instructions related to self-harm or suicide.
+- Your reply MUST clearly include UK Samaritans: call **116 123** (free, confidential, 24/7). Mention that if life is at immediate risk they can call **999** (UK).
+- You may briefly mention NHS **111** or text **SHOUT** to **85258** as extra UK options.
+- Do not claim to be a therapist or diagnosis. Encourage speaking to Samaritans or a GP.
+- About 4–7 short sentences. The Samaritans number 116 123 must appear in the message.`,
+        messages: [
+          {
+            role: "user",
+            content: `Latest message:\n${prompt}\n\nEarlier chat:\n${priorMessages || "None"}\n\nWrite one supportive reply. Include Samaritans 116 123.`
+          }
+        ]
+      });
+      let crisisAnswer =
+        crisisMessage.content?.find((part) => part.type === "text")?.text?.trim() ||
+        "";
+      if (!crisisAnswer) {
+        crisisAnswer =
+          "I'm really glad you reached out. If things feel overwhelming, please talk to Samaritans — call **116 123** anytime in the UK (free, 24/7). If you or someone else is in immediate danger, call **999**.";
+      }
+      if (!/116\s*123/.test(crisisAnswer)) {
+        crisisAnswer +=
+          "\n\nIn the UK, **Samaritans** are available 24/7 on **116 123** (free and confidential). For immediate danger, call **999**.";
+      }
+      return res.json({ answer: crisisAnswer, crisisSupport: true });
+    }
 
     const travelWeb = needsTravelPriceWebSearch(prompt);
     let webSnippets = "";

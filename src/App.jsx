@@ -653,6 +653,7 @@ function ChatScreen({ session }) {
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [crisisSupportActive, setCrisisSupportActive] = useState(false);
   const [liveCount, setLiveCount] = useState(0);
   const [learnedPreferences, setLearnedPreferences] = useState([]);
   const [totalDecisions, setTotalDecisions] = useState(0);
@@ -1277,6 +1278,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
     setLoading(true);
     setError("");
+    setCrisisSupportActive(false);
     setNearbyFetchError("");
     setShowNearbyFindButton(false);
     setNearbyPlacePromptContext("");
@@ -1305,6 +1307,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
+      setCrisisSupportActive(Boolean(data.crisisSupport));
       const assistantTurnsSoFar = conversationForApi(updatedConversation).filter((item) => item.role === "assistant")
         .length;
       const ensuredLifeModeAnswer =
@@ -1706,18 +1709,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             sendToAI(reply.trim(), false);
           }}
         >
-          <div className="suggestion-row">
-            {["Not feeling it 👎", "Something cheaper 💰", "Give me a wild option 🎲"].map((text) => (
-              <button
-                key={text}
-                type="button"
-                className="suggestion-chip"
-                onClick={() => setReply(text)}
-              >
-                {text}
-              </button>
-            ))}
-          </div>
+          {!crisisSupportActive ? (
+            <div className="suggestion-row">
+              {["Not feeling it 👎", "Something cheaper 💰", "Give me a wild option 🎲"].map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  className="suggestion-chip"
+                  onClick={() => setReply(text)}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="input-row">
               <textarea
               ref={setReplyRef}
