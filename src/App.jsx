@@ -46,6 +46,19 @@ function shouldRequestNearbyPlaces(text) {
   return terms.some((term) => value.includes(term));
 }
 
+/** Maps user prompt to server /api/nearby-places `type` for Places includedTypes */
+function inferNearbyPlaceType(text) {
+  const v = String(text || "").toLowerCase();
+  if (/\b(museum)\b/.test(v)) return "museum";
+  if (/\b(park)\b/.test(v)) return "park";
+  if (/(hotel|travel|trip|flight|vacation|lodging)/i.test(v)) return "travel";
+  if (/\b(cafe)\b/.test(v)) return "cafe";
+  if (/\b(bar)\b/.test(v)) return "bar";
+  if (/(food|eat|restaurant|dinner|lunch|breakfast|meal|takeout|snack)/i.test(v)) return "food";
+  if (/(activity|things to do|visit|tourist)/i.test(v)) return "activity";
+  return "food";
+}
+
 function shareUrls(text) {
   const encoded = encodeURIComponent(text);
   return {
@@ -568,7 +581,8 @@ function ChatScreen({ session }) {
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState("");
   const [conversation, setConversation] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [nearbyPlacesLoading, setNearbyPlacesLoading] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1136,7 +1150,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     else setConversation(updatedConversation);
 
     try {
-      const needsNearby = shouldUseNearby(content) || shouldRequestNearbyPlaces(content);
+      const needsNearby = shouldUseNearby(content);
       let locationForRequest = userLocation;
       if (needsNearby && !locationForRequest) {
         locationForRequest = await requestUserLocation();
@@ -1172,7 +1186,37 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const aiMessage = { role: "assistant", content: finalAssistantText };
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
-      setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
+
+      let fetchedNearby = [];
+      if (shouldRequestNearbyPlaces(content)) {
+        let posForNearby = locationForRequest || userLocation;
+        if (!posForNearby && "geolocation" in navigator) {
+          posForNearby = await requestUserLocation();
+        }
+        if (posForNearby) {
+          setUserLocation(posForNearby);
+          setNearbyPlacesLoading(true);
+          try {
+            const nr = await fetch(apiUrl("/api/nearby-places"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lat: posForNearby.lat,
+                lng: posForNearby.lng,
+                type: inferNearbyPlaceType(content)
+              })
+            });
+            const nd = await nr.json();
+            fetchedNearby = Array.isArray(nd.places) ? nd.places : [];
+          } catch {
+            fetchedNearby = [];
+          } finally {
+            setNearbyPlacesLoading(false);
+          }
+        }
+      }
+      setNearbyPlaces(fetchedNearby);
+
       const changedMind = /actually|instead|not feeling|change/i.test(content) ? 1 : 0;
       setReply("");
 
@@ -1343,6 +1387,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </form>
         {loading ? <LoadingOrb /> : null}
+        {nearbyPlacesLoading ? <p className="meta">Finding nearby places…</p> : null}
+        {nearbyPlaces.length ? (
+          <div className="recommendations-wrap">
+            {nearbyPlaces.map((item, idx) => (
+              <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
+                <div className="recommend-body">
+                  <h4>{item.name}</h4>
+                  <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
+                  <p>{item.address}</p>
+                  <div className="recommend-actions">
+                    <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
+                      Open in Maps
+                    </a>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
         {error ? <p className="error">{error}</p> : null}
       </section>
     );
@@ -1579,31 +1642,18 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       {conversation.length ? (
         <SharePanel text={`Decide For Me: ${conversation[conversation.length - 1].content}`} />
       ) : null}
-      {recommendations.length ? (
+      {nearbyPlacesLoading ? <p className="meta">Finding nearby places…</p> : null}
+      {nearbyPlaces.length ? (
         <div className="recommendations-wrap">
-          {recommendations.map((item) => (
-            <article key={item.name} className="recommend-card">
-              <div className="recommend-image-wrap">
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="recommend-image" />
-                ) : (
-                  <div className="recommend-image placeholder">No image</div>
-                )}
-              </div>
+          {nearbyPlaces.map((item, idx) => (
+            <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
               <div className="recommend-body">
                 <h4>{item.name}</h4>
-                <p className="meta">
-                  {item.rating ? `⭐ ${item.rating}` : "⭐ New"}
-                  {item.priceLevel ? ` · ${item.priceLevel}` : ""}
-                  {item.distance ? ` · ${item.distance}` : ""}
-                </p>
-                <p>{item.description}</p>
+                <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
+                <p>{item.address}</p>
                 <div className="recommend-actions">
-                  <a className="ghost-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
-                    View on Google Maps
-                  </a>
-                  <a className="primary-btn" href={item.actionUrl} target="_blank" rel="noreferrer">
-                    Book / Order
+                  <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
+                    Open in Maps
                   </a>
                 </div>
               </div>

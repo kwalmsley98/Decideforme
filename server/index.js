@@ -114,121 +114,81 @@ const anthropic = new Anthropic({
 });
 
 const stripe = new Stripe(config.stripeSecretKey);
-const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY);
-const unsplashAccessKey = normalizeEnvValue(process.env.UNSPLASH_ACCESS_KEY);
+const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY || process.env.VITE_GOOGLE_PLACES_API_KEY);
 
-function looksRecommendationWorthy(prompt, answer = "") {
-  const text = `${String(prompt || "").toLowerCase()} ${String(answer || "").toLowerCase()}`;
-  const keywords = [
-    "restaurant",
-    "food",
-    "eat",
-    "cafe",
-    "bar",
-    "activity",
-    "things to do",
-    "date night",
-    "gym",
-    "shopping",
-    "buy",
-    "store",
-    "visit",
-    "hotel",
-    "museum",
-    "park"
-  ];
-  return keywords.some((k) => text.includes(k));
+/** Maps client `type` (e.g. food, travel, activity) to Places API (New) includedTypes */
+function mapNearbyRequestTypeToIncludedTypes(type) {
+  const t = String(type || "").toLowerCase();
+  if (/(museum)/i.test(t)) return ["museum"];
+  if (/(park)/i.test(t)) return ["park"];
+  if (/(hotel|travel|trip|lodging)/i.test(t)) return ["lodging"];
+  if (/(cafe)/i.test(t)) return ["cafe"];
+  if (/(bar)/i.test(t)) return ["bar"];
+  if (/(food|eat|restaurant|dinner|lunch|breakfast|meal)/i.test(t)) return ["restaurant"];
+  if (/(activity|things|tourist|visit|do)/i.test(t)) return ["tourist_attraction"];
+  return ["restaurant"];
 }
 
-function formatPriceLevel(priceLevel) {
-  const numeric = Number(priceLevel);
-  if (!Number.isInteger(numeric) || numeric < 0) return null;
-  return "£".repeat(Math.max(1, Math.min(numeric + 1, 4)));
-}
-
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const toRad = (v) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-async function getUnsplashImage(query) {
-  if (!unsplashAccessKey) return "";
-  const endpoint = new URL("https://api.unsplash.com/search/photos");
-  endpoint.searchParams.set("query", query);
-  endpoint.searchParams.set("per_page", "1");
-  endpoint.searchParams.set("orientation", "landscape");
-
-  const response = await fetch(endpoint.toString(), {
-    headers: { Authorization: `Client-ID ${unsplashAccessKey}` }
-  });
-  if (!response.ok) return "";
-  const data = await response.json();
-  return data?.results?.[0]?.urls?.regular || "";
-}
-
-async function getPlaceRecommendations({ prompt, userLocation }) {
-  if (!googlePlacesKey) return [];
-  if (!userLocation?.lat || !userLocation?.lng) return [];
-  const endpoint = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
-  endpoint.searchParams.set("query", prompt);
-  endpoint.searchParams.set("location", `${Number(userLocation.lat)},${Number(userLocation.lng)}`);
-  endpoint.searchParams.set("radius", "6000");
-  endpoint.searchParams.set("key", googlePlacesKey);
-
-  const response = await fetch(endpoint.toString());
-  if (!response.ok) return [];
-  const data = await response.json();
-  const top = (data.results || []).slice(0, 3);
-
-  const cards = [];
-  for (const place of top) {
-    const imageUrl = await getUnsplashImage(`${place.name} ${prompt}`);
-    const mapsUrl = place.place_id
-      ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`;
-
-    const lowerPrompt = prompt.toLowerCase();
-    const orderLink =
-      /food|restaurant|eat|delivery|takeaway|dinner|lunch/.test(lowerPrompt)
-        ? `https://www.ubereats.com/gb/search?q=${encodeURIComponent(place.name)}`
-        : /hotel|travel|trip|tour|visit|museum|activity/.test(lowerPrompt)
-          ? `https://www.tripadvisor.com/Search?q=${encodeURIComponent(place.name)}`
-          : `https://www.google.com/search?q=${encodeURIComponent(`${place.name} booking`)}`;
-
-    let distanceKm = null;
-    if (
-      userLocation?.lat &&
-      userLocation?.lng &&
-      place?.geometry?.location?.lat &&
-      place?.geometry?.location?.lng
-    ) {
-      distanceKm = haversineKm(
-        Number(userLocation.lat),
-        Number(userLocation.lng),
-        Number(place.geometry.location.lat),
-        Number(place.geometry.location.lng)
-      );
-    }
-
-    cards.push({
-      name: place.name,
-      rating: place.rating || null,
-      priceLevel: formatPriceLevel(place.price_level),
-      description: place.formatted_address || "Popular recommendation nearby.",
-      distance: distanceKm ? `${distanceKm.toFixed(1)} km away` : null,
-      imageUrl,
-      mapsUrl,
-      actionUrl: orderLink
-    });
+/** Places API (New): POST places:searchNearby — returns normalized place rows */
+async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
+  if (!googlePlacesKey) {
+    return { places: [], error: "Missing GOOGLE_PLACES_API_KEY." };
   }
-  return cards;
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { places: [], error: "Invalid lat or lng." };
+  }
+
+  const types = Array.isArray(includedTypes) && includedTypes.length ? includedTypes : ["restaurant"];
+
+  const body = {
+    includedTypes: types,
+    maxResultCount: 5,
+    rankPreference: "DISTANCE",
+    locationRestriction: {
+      circle: {
+        center: { latitude, longitude },
+        radius: 5000
+      }
+    }
+  };
+
+  const response = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": googlePlacesKey,
+      "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const rawText = await response.text();
+  if (!response.ok) {
+    console.error("[Places New] searchNearby failed", { status: response.status, body: rawText.slice(0, 500) });
+    return { places: [], error: rawText || `HTTP ${response.status}` };
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    return { places: [], error: "Invalid JSON from Places API." };
+  }
+
+  const list = Array.isArray(data.places) ? data.places.slice(0, 5) : [];
+  const places = list.map((p) => {
+    const name = p.displayName?.text || p.displayName || "";
+    const address = p.formattedAddress || "";
+    const rating = typeof p.rating === "number" ? p.rating : null;
+    const mapsUrl =
+      p.googleMapsUri ||
+      (name ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${address}`)}` : "");
+    return { name, rating, address, mapsUrl };
+  });
+
+  return { places };
 }
 
 app.get("/api/health", (_req, res) => {
@@ -361,14 +321,23 @@ Respond as the assistant in this ongoing chat.`
       message.content?.find((part) => part.type === "text")?.text?.trim() ||
       "Go with the boldest option available right now.";
 
-    let recommendations = [];
-    if (looksRecommendationWorthy(prompt, answer)) {
-      recommendations = await getPlaceRecommendations({ prompt: answer || prompt, userLocation });
-    }
-
-    return res.json({ answer, recommendations });
+    return res.json({ answer });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Claude API request failed." });
+  }
+});
+
+app.post("/api/nearby-places", async (req, res) => {
+  try {
+    const { lat, lng, type } = req.body ?? {};
+    const includedTypes = mapNearbyRequestTypeToIncludedTypes(type);
+    const result = await searchNearbyPlacesNew({ lat, lng, includedTypes });
+    if (result.error && (!result.places || result.places.length === 0)) {
+      return res.status(502).json({ error: result.error, places: [] });
+    }
+    return res.json({ places: result.places });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Nearby places failed.", places: [] });
   }
 });
 
