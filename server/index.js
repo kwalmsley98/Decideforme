@@ -353,6 +353,22 @@ async function braveSearchTravel(prompt) {
  * Deep links for major booking sites; destination parsed from "to Paris", "in London", etc. when possible.
  * Order: Skyscanner, Google Flights, Booking.com, Kayak (matches app UI).
  */
+/** Consumer flights search: destination pre-filled via query (city / region name). */
+function buildSkyscannerFlightsUrl(prompt, dest) {
+  const u = new URL("https://www.skyscanner.net/flights");
+  u.searchParams.set("currency", "GBP");
+  u.searchParams.set("locale", "en-GB");
+  u.searchParams.set("market", "UK");
+  const destTrim = dest ? String(dest).trim() : "";
+  if (destTrim) {
+    u.searchParams.set("destination", destTrim);
+  } else {
+    const hint = String(prompt || "").trim().slice(0, 180);
+    if (hint) u.searchParams.set("query", hint);
+  }
+  return u.toString();
+}
+
 function buildBookingLinks(prompt) {
   const p = String(prompt || "").trim();
   const fullQ = encodeURIComponent(p.slice(0, 200));
@@ -360,9 +376,8 @@ function buildBookingLinks(prompt) {
   const dest = destMatch ? destMatch[1].trim() : "";
   const destEnc = encodeURIComponent(dest);
   const flightsQ = dest ? encodeURIComponent(`Flights to ${dest}`) : fullQ;
-  const skyscannerQ = dest ? destEnc : fullQ;
 
-  const skyscannerUrl = `https://www.skyscanner.net/transport/flights/?currency=GBP&locale=en-GB&market=UK&q=${skyscannerQ}`;
+  const skyscannerUrl = buildSkyscannerFlightsUrl(p, dest);
   const googleFlightsUrl = `https://www.google.com/travel/flights?q=${flightsQ}`;
   const bookingUrl = dest
     ? `https://www.booking.com/searchresults.html?ss=${destEnc}&order=popularity`
