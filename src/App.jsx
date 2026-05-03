@@ -20,7 +20,9 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
-const ONBOARDING_STORAGE_KEY = "decide_for_me_onboarding_done";
+/** Once set, onboarding overlay is never shown again on this device. */
+const DFM_ONBOARDED_KEY = "dfm_onboarded";
+const LEGACY_ONBOARDING_KEY = "decide_for_me_onboarding_done";
 
 const NEARBY_RADIUS_OPTIONS = [
   { label: "0.5 miles", meters: 800 },
@@ -455,7 +457,13 @@ function Layout({ session, onSignOut, children }) {
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(ONBOARDING_STORAGE_KEY)) setShowOnboarding(true);
+      if (localStorage.getItem(DFM_ONBOARDED_KEY)) return;
+      if (localStorage.getItem(LEGACY_ONBOARDING_KEY)) {
+        localStorage.setItem(DFM_ONBOARDED_KEY, "1");
+        localStorage.removeItem(LEGACY_ONBOARDING_KEY);
+        return;
+      }
+      setShowOnboarding(true);
     } catch {
       /* ignore */
     }
@@ -463,7 +471,8 @@ function Layout({ session, onSignOut, children }) {
 
   const finishOnboarding = () => {
     try {
-      localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+      localStorage.setItem(DFM_ONBOARDED_KEY, "1");
+      localStorage.removeItem(LEGACY_ONBOARDING_KEY);
     } catch {
       /* ignore */
     }
