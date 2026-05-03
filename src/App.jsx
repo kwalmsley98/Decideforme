@@ -97,6 +97,31 @@ function inferNearbyPlaceType(text) {
   return "food";
 }
 
+function trimDecisionSnippet(text, max) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
+/** Strip UI-only messages before sending history to the AI */
+function conversationForApi(messages) {
+  return (Array.isArray(messages) ? messages : []).filter((m) => m.role === "user" || m.role === "assistant");
+}
+
+function buildNearbyPickReason({ userPrompt, assistantReply, cuisineType }, index) {
+  const cue = trimDecisionSnippet(userPrompt, 42);
+  const aiHint = trimDecisionSnippet(assistantReply, 48);
+  const cat = cuisineType || "local spot";
+  const lead = aiHint ? `Given your decision (“${aiHint}”) and “${cue}”, ` : `For “${cue}”, `;
+  const lines = [
+    `${lead}this ${cat} is a strong nearby match by distance and ratings.`,
+    `${lead}another well-rated ${cat} close by if you want a backup.`,
+    `${lead}worth a look as ${cat} — consistent with what you asked.`,
+    `${lead}one more ${cat} nearby from local results.`
+  ];
+  return lines[Math.min(index, lines.length - 1)];
+}
+
 function shareUrls(text) {
   const encoded = encodeURIComponent(text);
   return {
@@ -619,7 +644,6 @@ function ChatScreen({ session }) {
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState("");
   const [conversation, setConversation] = useState([]);
-  const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [nearbyPlacesLoading, setNearbyPlacesLoading] = useState(false);
   const [showNearbyFindButton, setShowNearbyFindButton] = useState(false);
   const [nearbyPlacePromptContext, setNearbyPlacePromptContext] = useState("");
@@ -1083,7 +1107,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const pos = await requestUserLocation();
       if (!pos) {
         setNearbyFetchError("Could not get your location. Allow location access and try again.");
-        setNearbyPlaces([]);
         return;
       }
       setUserLocation(pos);
@@ -1102,22 +1125,37 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         nd = rawText ? JSON.parse(rawText) : {};
       } catch {
         setNearbyFetchError("Unexpected response from the server.");
-        setNearbyPlaces([]);
         return;
       }
       if (!nr.ok) {
         setNearbyFetchError(nd?.error || `Request failed (${nr.status}).`);
-        setNearbyPlaces([]);
         return;
       }
-      const places = Array.isArray(nd.places) ? nd.places : [];
-      setNearbyPlaces(places);
-      if (!places.length) {
+      const rawPlaces = Array.isArray(nd.places) ? nd.places : [];
+      if (!rawPlaces.length) {
         setNearbyFetchError("No places found near you for this topic.");
+        return;
       }
+      const lastAssistant = [...conversation].reverse().find((m) => m.role === "assistant");
+      const placesWithReasons = rawPlaces.map((p, i) => ({
+        name: p.name,
+        rating: p.rating,
+        address: p.address || "",
+        mapsUrl: p.mapsUrl,
+        cuisineType: p.cuisineType || "",
+        reason: buildNearbyPickReason(
+          {
+            userPrompt: ctx,
+            assistantReply: lastAssistant?.content,
+            cuisineType: p.cuisineType || ""
+          },
+          i
+        )
+      }));
+      setConversation((prev) => [...prev, { role: "nearby", places: placesWithReasons }]);
+      setShowNearbyFindButton(false);
     } catch (err) {
       setNearbyFetchError(err?.message || "Could not load nearby places.");
-      setNearbyPlaces([]);
     } finally {
       setNearbyPlacesLoading(false);
     }
@@ -1237,7 +1275,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
     setLoading(true);
     setError("");
-    setNearbyPlaces([]);
     setNearbyFetchError("");
     setShowNearbyFindButton(false);
     setNearbyPlacePromptContext("");
@@ -1258,7 +1295,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: content,
-          conversation: updatedConversation,
+          conversation: conversationForApi(updatedConversation),
           userLocation: locationForRequest,
           userPreferences: learnedPreferences.map((item) => item.preference),
           lifeMode: Boolean(lifeModeSession)
@@ -1266,7 +1303,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
-      const assistantTurnsSoFar = updatedConversation.filter((item) => item.role === "assistant").length;
+      const assistantTurnsSoFar = conversationForApi(updatedConversation).filter((item) => item.role === "assistant")
+        .length;
       const ensuredLifeModeAnswer =
         lifeModeSession && !String(data.answer || "").endsWith("Directive issued.")
           ? `${String(data.answer || "").trim()} Directive issued.`
@@ -1342,7 +1380,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            conversation: finalConversation,
+            conversation: conversationForApi(finalConversation),
             answer: finalAssistantText
           })
         })
@@ -1395,6 +1433,56 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const displayedGuestDailyUsage = Math.min(guestDailyUsage, GUEST_DAILY_FREE_LIMIT);
+
+  const renderChatMessage = (msg, idx) => {
+    if (msg.role === "nearby" && Array.isArray(msg.places)) {
+      return (
+        <div key={`nearby-${idx}`} className="message-row assistant nearby-inline-row">
+          <div className="avatar nearby-avatar" aria-hidden="true">
+            📍
+          </div>
+          <div className="bubble nearby-inline-bubble">
+            <p className="nearby-inline-heading">Nearby places</p>
+            <div className="nearby-inline-list">
+              {msg.places.map((p, i) => (
+                <div key={`${p.name}-${i}`} className="nearby-inline-item">
+                  <div className="nearby-inline-head">
+                    <strong className="nearby-inline-name">{p.name}</strong>
+                    <span className="meta nearby-inline-cuisine">
+                      {p.cuisineType || "Venue"}
+                      {p.rating != null ? ` · ⭐ ${p.rating}` : ""}
+                    </span>
+                  </div>
+                  {p.address ? <p className="meta nearby-inline-address">{p.address}</p> : null}
+                  <p className="nearby-inline-reason">{p.reason}</p>
+                  {p.mapsUrl ? (
+                    <a className="nearby-inline-maps" href={p.mapsUrl} target="_blank" rel="noreferrer">
+                      Open in Maps
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (msg.role === "user" || msg.role === "assistant") {
+      return (
+        <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
+          <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
+          <div className={`bubble ${msg.role}`}>
+            {msg.role === "assistant" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            ) : (
+              msg.content
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   if (lifeModeSession) {
     return (
@@ -1457,40 +1545,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </button>
           </div>
         </form>
-        {loading ? <LoadingOrb /> : null}
-        {showNearbyFindButton && !loading ? (
-          <div className="find-nearby-cta">
-            <button
-              type="button"
-              className="ghost-btn find-nearby-btn"
-              onClick={() => fetchNearbyPlacesForContext()}
-              disabled={nearbyPlacesLoading}
-            >
-              {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
-            </button>
-          </div>
-        ) : null}
-        {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
-        {nearbyPlaces.length ? (
-          <div className="recommendations-wrap recommendations-wrap--natural-flow">
-            {nearbyPlaces.map((item, idx) => (
-              <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
-                <div className="recommend-body">
-                  <h4>{item.name}</h4>
-                  <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
-                  <p>{item.address}</p>
-                  <div className="recommend-actions">
-                    {item.mapsUrl ? (
-                      <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
-                        Google Maps
-                      </a>
-                    ) : (
-                      <span className="meta">Maps link unavailable</span>
-                    )}
-                  </div>
+        {conversation.length || loading ? (
+          <div className="chat-and-nearby life-mode-chat-stack">
+            <div className="chat-frame">
+              {conversation.map(renderChatMessage)}
+              {loading ? <LoadingOrb /> : null}
+              {showNearbyFindButton && !loading && conversation.length ? (
+                <div className="find-nearby-cta find-nearby-cta--in-chat">
+                  <button
+                    type="button"
+                    className="ghost-btn find-nearby-btn"
+                    onClick={() => fetchNearbyPlacesForContext()}
+                    disabled={nearbyPlacesLoading}
+                  >
+                    {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+                  </button>
                 </div>
-              </article>
-            ))}
+              ) : null}
+            </div>
+            {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
           </div>
         ) : null}
         {error ? <p className="error">{error}</p> : null}
@@ -1554,55 +1627,22 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
               </article>
             ) : null}
-            {conversation.map((msg, idx) => (
-              <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
-                <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
-                <div className={`bubble ${msg.role}`}>
-                  {msg.role === "assistant" ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-              </div>
-            ))}
+            {conversation.map(renderChatMessage)}
             {loading ? <LoadingOrb /> : null}
+            {showNearbyFindButton && !loading && conversation.length ? (
+              <div className="find-nearby-cta find-nearby-cta--in-chat">
+                <button
+                  type="button"
+                  className="ghost-btn find-nearby-btn"
+                  onClick={() => fetchNearbyPlacesForContext()}
+                  disabled={nearbyPlacesLoading}
+                >
+                  {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+                </button>
+              </div>
+            ) : null}
           </div>
-          {showNearbyFindButton && !loading && conversation.length ? (
-            <div className="find-nearby-cta">
-              <button
-                type="button"
-                className="ghost-btn find-nearby-btn"
-                onClick={() => fetchNearbyPlacesForContext()}
-                disabled={nearbyPlacesLoading}
-              >
-                {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
-              </button>
-            </div>
-          ) : null}
           {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
-          {nearbyPlaces.length ? (
-            <div className="recommendations-wrap recommendations-wrap--natural-flow">
-              {nearbyPlaces.map((item, idx) => (
-                <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
-                  <div className="recommend-body">
-                    <h4>{item.name}</h4>
-                    <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
-                    <p>{item.address}</p>
-                    <div className="recommend-actions">
-                      {item.mapsUrl ? (
-                        <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
-                          Google Maps
-                        </a>
-                      ) : (
-                        <span className="meta">Maps link unavailable</span>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -1764,7 +1804,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <DailyDilemmaCard session={session} />
       </div>
       {conversation.length ? (
-        <SharePanel text={`Decide For Me: ${conversation[conversation.length - 1].content}`} />
+        <SharePanel
+          text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}
+        />
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {lifeModePromptOpen ? (

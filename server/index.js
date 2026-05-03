@@ -165,7 +165,7 @@ async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": googlePlacesKey,
-      "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri"
+      "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri,places.types"
     },
     body: JSON.stringify(body)
   });
@@ -191,10 +191,32 @@ async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
     const mapsUrl =
       p.googleMapsUri ||
       (name ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${address}`)}` : "");
-    return { name, rating, address, mapsUrl };
+    const types = Array.isArray(p.types) ? p.types : [];
+    const cuisineType = humanizePlaceTypes(types);
+    return { name, rating, address, mapsUrl, cuisineType, types };
   });
 
   return { places };
+}
+
+/** Display label for cuisine / venue category from Places API type strings */
+function humanizePlaceTypes(types) {
+  const skip = new Set([
+    "point_of_interest",
+    "establishment",
+    "premise",
+    "food",
+    "store",
+    "political"
+  ]);
+  const preferred = (types || []).filter((t) => t && !skip.has(t));
+  const direct = preferred.find((t) => t.includes("restaurant") || t.includes("cafe") || t.includes("bar"));
+  const pick = direct || preferred[0];
+  if (!pick) return "Venue";
+  let label = pick.replace(/_/g, " ");
+  label = label.replace(/\b\w/g, (c) => c.toUpperCase());
+  label = label.replace(/\s+Restaurant$/i, "").replace(/\s+Bar$/i, " bar").replace(/\s+Cafe$/i, " café");
+  return label.trim() || "Venue";
 }
 
 app.get("/api/health", (_req, res) => {

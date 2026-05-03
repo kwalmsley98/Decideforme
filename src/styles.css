@@ -699,6 +699,91 @@ a {
   justify-content: center;
 }
 
+.find-nearby-cta--in-chat {
+  margin-top: 8px;
+}
+
+.nearby-inline-row {
+  align-items: flex-start;
+}
+
+.nearby-avatar {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.nearby-inline-bubble {
+  max-width: 100%;
+}
+
+.nearby-inline-heading {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #c9cff0;
+}
+
+.nearby-inline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.nearby-inline-item {
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nearby-inline-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.nearby-inline-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.nearby-inline-name {
+  font-size: 1rem;
+}
+
+.nearby-inline-cuisine {
+  font-size: 0.82rem;
+}
+
+.nearby-inline-address {
+  margin: 6px 0 4px;
+  font-size: 0.84rem;
+}
+
+.nearby-inline-reason {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #c5cde8;
+}
+
+a.nearby-inline-maps {
+  display: inline-block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #a9b6ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a.nearby-inline-maps:hover {
+  color: #f5e642;
+}
+
+.life-mode-chat-stack {
+  margin-top: 8px;
+}
+
 .chat-divider {
   height: 1px;
   margin: 8px 0 14px;
