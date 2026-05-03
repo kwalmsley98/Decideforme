@@ -3055,9 +3055,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!session?.user) return;
-    ensureProfileAndReferral(session.user);
-  }, [session?.user?.id]);
+    if (!session?.user || !supabase) return;
+    const token = session.access_token;
+    let cancelled = false;
+    (async () => {
+      await ensureProfileAndReferral(session.user);
+      if (cancelled || !token) return;
+      try {
+        await fetch(apiUrl("/api/emails/welcome"), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch {
+        /* non-blocking */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, session?.access_token]);
 
   const signOut = async () => {
     if (!supabase) return;

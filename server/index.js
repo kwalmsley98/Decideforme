@@ -3,6 +3,13 @@ import cors from "cors";
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import Stripe from "stripe";
+import {
+  assertCronSecret,
+  getNotificationConfig,
+  runDailyDilemmaReminders,
+  runStreakReminders,
+  trySendWelcomeForUser
+} from "./notifications.js";
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -810,6 +817,54 @@ Return JSON array now.`
   }
 });
 
+/**
+ * Scheduled jobs (9:00 and 19:00 local — set NOTIFICATION_TZ, default Europe/London):
+ *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://YOUR_API/api/cron/daily-dilemma-reminder
+ *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://YOUR_API/api/cron/streak-reminder
+ * Requires: RESEND_API_KEY, EMAIL_FROM, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, Supabase URL + keys.
+ */
+app.post("/api/cron/daily-dilemma-reminder", async (req, res) => {
+  const gate = assertCronSecret(req);
+  if (!gate.ok) return res.status(401).json({ error: gate.reason });
+  try {
+    const out = await runDailyDilemmaReminders();
+    if (!out.ok) return res.status(503).json(out);
+    return res.json(out);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Cron job failed." });
+  }
+});
+
+app.post("/api/cron/streak-reminder", async (req, res) => {
+  const gate = assertCronSecret(req);
+  if (!gate.ok) return res.status(401).json({ error: gate.reason });
+  try {
+    const out = await runStreakReminders();
+    if (!out.ok) return res.status(503).json(out);
+    return res.json(out);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Cron job failed." });
+  }
+});
+
+/** Called from the app after sign-in to send welcome email once (uses user JWT). */
+app.post("/api/emails/welcome", async (req, res) => {
+  try {
+    const header = req.headers?.authorization;
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
+    if (!token) return res.status(401).json({ error: "Missing Authorization bearer token." });
+    const out = await trySendWelcomeForUser(token);
+    if (!out.ok) {
+      const emailCfg = getNotificationConfig();
+      if (!emailCfg.resendApiKey) return res.status(503).json({ error: out.error || "Email not configured." });
+      return res.status(400).json({ error: out.error || "Welcome email failed." });
+    }
+    return res.json({ ok: true, ...out });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Welcome email failed." });
+  }
+});
+
 app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
@@ -852,6 +907,10 @@ app.listen(PORT, () => {
   const braveK = normalizeEnvValue(process.env.BRAVE_SEARCH_API_KEY);
   console.log(`TAVILY_API_KEY: ${tavilyK ? "defined" : "not defined"}`);
   console.log(`BRAVE_SEARCH_API_KEY: ${braveK ? "defined" : "not defined"}`);
+  const emailCfg = getNotificationConfig();
+  console.log(
+    `[Email] RESEND_API_KEY: ${emailCfg.resendApiKey ? "defined" : "not defined"}; SERVICE_ROLE: ${emailCfg.supabaseServiceKey ? "defined" : "not defined"}; CRON_SECRET: ${emailCfg.cronSecret ? "defined" : "not defined"}`
+  );
   console.log(`Allowed CORS origins: ${config.allowedOrigins.join(", ")}`);
   console.log(`API server running at http://localhost:${PORT}`);
 });
