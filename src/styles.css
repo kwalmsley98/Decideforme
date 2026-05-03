@@ -962,6 +962,14 @@ a.nearby-inline-maps:hover {
   padding: 14px 15px;
 }
 
+.form .chat-composer textarea.chat-composer-input {
+  border-radius: 0;
+  border: none;
+  background: transparent !important;
+  padding: 11px 6px 12px 4px;
+  box-shadow: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -980,17 +988,17 @@ a.nearby-inline-maps:hover {
   gap: 10px;
   margin-bottom: 8px;
   padding: 8px 10px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pending-attach-thumb {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   object-fit: cover;
   border-radius: 10px;
-  border: 1px solid rgba(245, 230, 66, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .pending-attach-remove {
@@ -1011,31 +1019,127 @@ a.nearby-inline-maps:hover {
   color: #f5e642;
 }
 
-.attach-btn {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
+/* Claude-style minimal chat composer */
+.chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px 6px 6px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 10, 18, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chat-composer:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.chat-composer-attach {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 40px;
+  margin-bottom: 1px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(200, 206, 230, 0.5);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.chat-composer-attach:hover:not(:disabled) {
+  color: rgba(235, 238, 255, 0.92);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chat-composer-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: min(200px, 40vh);
+  margin: 0;
+  padding: 11px 6px 12px 4px;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #eef2ff !important;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.chat-composer-input::placeholder {
+  color: rgba(180, 188, 214, 0.55);
+}
+
+.chat-composer-input:focus {
+  outline: none;
+}
+
+.chat-composer-send {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
+  margin: 0 2px 5px 2px;
+  padding: 0;
+  border: none;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.06);
-  color: #dce2ff;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.88);
   cursor: pointer;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
 }
 
-.attach-btn:hover:not(:disabled) {
-  border-color: rgba(245, 230, 66, 0.45);
-  color: #f5e642;
+.chat-composer-send:hover:not(:disabled) {
+  background: rgba(245, 230, 66, 0.22);
+  color: #fffbeb;
 }
 
-.attach-btn:disabled {
+.chat-composer-send:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.chat-composer-send:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+@media (min-width: 640px) {
+  .chat-composer-input {
+    font-size: 1.05rem;
+  }
+
+  .chat-composer {
+    padding: 8px 10px 8px 8px;
+    border-radius: 26px;
+  }
 }
 
 .message-user-image {
@@ -1050,48 +1154,6 @@ a.nearby-inline-maps:hover {
 .message-user-text {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.decision-input {
-  width: 100%;
-  min-height: 56px;
-  font-size: 1.08rem;
-  border-color: rgba(245, 230, 66, 0.55) !important;
-  background: rgba(9, 11, 18, 0.9) !important;
-  color: #eef2ff !important;
-  box-shadow: inset 0 0 0 1px rgba(245, 230, 66, 0.26), 0 0 0 3px rgba(245, 230, 66, 0.08),
-    0 0 18px rgba(245, 230, 66, 0.1);
-  padding-left: 52px;
-  padding-right: 58px;
-  text-align: left;
-  line-height: 1.45;
-  resize: none;
-  overflow-y: hidden;
-  overflow-x: hidden;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.decision-input::placeholder {
-  text-align: left;
-  color: #cdd3ea;
-}
-
-.decision-input:focus {
-  outline: none;
-  border-color: rgba(245, 230, 66, 0.74) !important;
-  background: rgba(9, 11, 18, 0.95) !important;
-  box-shadow: inset 0 0 0 1px rgba(245, 230, 66, 0.34), 0 0 0 4px rgba(245, 230, 66, 0.11),
-    0 0 22px rgba(245, 230, 66, 0.18);
-}
-
-.input-row {
-  position: relative;
-  width: 100%;
-  border-radius: 20px;
 }
 
 .suggestion-row {
@@ -1123,29 +1185,6 @@ a.nearby-inline-maps:hover {
   }
 }
 
-.send-btn {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(245, 230, 66, 0.5);
-  background: rgba(245, 230, 66, 0.92);
-  color: #1a1a1a;
-  font-size: 1rem;
-  font-weight: 800;
-  cursor: pointer;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 4px 14px rgba(245, 230, 66, 0.28);
-}
-
-.send-btn:hover {
-  filter: brightness(1.05);
-}
-
 .primary-btn,
 .ghost-btn {
   border: none;
@@ -1158,7 +1197,6 @@ a.nearby-inline-maps:hover {
 
 .primary-btn:active,
 .ghost-btn:active,
-.send-btn:active,
 .chip:active {
   transform: translateY(1px) scale(0.99);
 }
@@ -1734,10 +1772,21 @@ a.nearby-inline-maps:hover {
   .chat-divider {
     margin: 4px 0 8px;
   }
-  .decision-input {
-    min-height: 58px;
-    font-size: 0.98rem;
-    line-height: 1.4;
+  .chat-composer {
+    padding: 6px 6px 6px 4px;
+    border-radius: 22px;
+  }
+
+  .chat-composer-input {
+    min-height: 46px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .chat-composer-send {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 4px;
   }
   .quick-category-row {
     gap: 6px;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { BarChart2, Clock, Flame, ImagePlus, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
+import { ArrowUp, BarChart2, Clock, Flame, LogIn, MessageCircle, Paperclip, Trophy, User, Users } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
@@ -1684,38 +1684,44 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               </button>
             </div>
           ) : null}
-          <div className="input-row">
+          <div className="chat-composer">
             <input
               ref={attachInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="sr-only"
-              aria-hidden
               tabIndex={-1}
               onChange={onAttachFile}
             />
             <button
               type="button"
-              className="attach-btn"
+              className="chat-composer-attach"
               disabled={loading}
-              aria-label="Add photo"
+              aria-label="Attach image"
               onClick={() => attachInputRef.current?.click()}
             >
-              <ImagePlus size={20} strokeWidth={2} />
+              <Paperclip size={18} strokeWidth={1.75} />
             </button>
             <textarea
               ref={setPromptRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={composerEnterSubmit}
-              className="decision-input"
+              className="chat-composer-input"
               placeholder="Report your situation. AI will issue a final decision."
               disabled={loading}
               rows={1}
             />
-            <button className="send-btn" disabled={loading} aria-label="Send">
-              →
-            </button>
+            {(prompt.trim() || pendingImage) && !showUpgradePrompt ? (
+              <button
+                type="submit"
+                className="chat-composer-send"
+                disabled={loading}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} strokeWidth={2.25} />
+              </button>
+            ) : null}
           </div>
         </form>
         {conversation.length || loading ? (
@@ -1836,31 +1842,30 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               </button>
             </div>
           ) : null}
-          <div className="input-row">
+          <div className="chat-composer">
             <input
               ref={attachInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="sr-only"
-              aria-hidden
               tabIndex={-1}
               onChange={onAttachFile}
             />
             <button
               type="button"
-              className="attach-btn"
+              className="chat-composer-attach"
               disabled={loading || showUpgradePrompt}
-              aria-label="Add photo"
+              aria-label="Attach image"
               onClick={() => attachInputRef.current?.click()}
             >
-              <ImagePlus size={20} strokeWidth={2} />
+              <Paperclip size={18} strokeWidth={1.75} />
             </button>
             <textarea
               ref={setPromptRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={composerEnterSubmit}
-              className="decision-input"
+              className="chat-composer-input"
               placeholder={
                 showUpgradePrompt
                   ? "Pro required. Upgrade to continue with unlimited decisions and full Life Mode."
@@ -1869,9 +1874,16 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               disabled={showUpgradePrompt}
               rows={1}
             />
-            <button className="send-btn" disabled={loading || showUpgradePrompt} aria-label="Send">
-              →
-            </button>
+            {(prompt.trim() || pendingImage) && !showUpgradePrompt ? (
+              <button
+                type="submit"
+                className="chat-composer-send"
+                disabled={loading}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} strokeWidth={2.25} />
+              </button>
+            ) : null}
           </div>
         </form>
       ) : (
@@ -1905,38 +1917,44 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               </button>
             </div>
           ) : null}
-          <div className="input-row">
+          <div className="chat-composer">
             <input
               ref={attachInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="sr-only"
-              aria-hidden
               tabIndex={-1}
               onChange={onAttachFile}
             />
             <button
               type="button"
-              className="attach-btn"
+              className="chat-composer-attach"
               disabled={loading || showUpgradePrompt}
-              aria-label="Add photo"
+              aria-label="Attach image"
               onClick={() => attachInputRef.current?.click()}
             >
-              <ImagePlus size={20} strokeWidth={2} />
+              <Paperclip size={18} strokeWidth={1.75} />
             </button>
             <textarea
               ref={setReplyRef}
               value={reply}
               onChange={(event) => setReply(event.target.value)}
               onKeyDown={composerEnterSubmit}
-              className="decision-input"
+              className="chat-composer-input"
               placeholder="Reply…"
               disabled={showUpgradePrompt}
               rows={1}
             />
-            <button className="send-btn" disabled={loading || showUpgradePrompt} aria-label="Send">
-              →
-            </button>
+            {(reply.trim() || pendingImage) && !showUpgradePrompt ? (
+              <button
+                type="submit"
+                className="chat-composer-send"
+                disabled={loading}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} strokeWidth={2.25} />
+              </button>
+            ) : null}
           </div>
         </form>
       )}
