@@ -422,6 +422,9 @@ app.listen(PORT, () => {
   console.log(
     `Anthropic key loaded from ${config.anthropicKeySource} (length: ${config.anthropicApiKey.length}).`
   );
+  console.log(
+    `GOOGLE_PLACES_API_KEY (or VITE_GOOGLE_PLACES_API_KEY): ${googlePlacesKey ? "defined" : "not defined"}`
+  );
   console.log(`Allowed CORS origins: ${config.allowedOrigins.join(", ")}`);
   console.log(`API server running at http://localhost:${PORT}`);
 });
