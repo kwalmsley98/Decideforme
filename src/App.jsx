@@ -7,12 +7,6 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
-const NEARBY_DEBUG =
-  import.meta.env.DEV === true || String(import.meta.env.VITE_DEBUG_NEARBY || "").trim() === "1";
-
-function logNearby(...args) {
-  if (NEARBY_DEBUG) console.log("[Nearby]", ...args);
-}
 const DAILY_LIBRARY = [
   {
     prompt: "Would you rather have unlimited money or unlimited time?",
@@ -34,97 +28,22 @@ function shouldUseNearby(text) {
   return terms.some((term) => value.includes(term));
 }
 
-function shouldRequestNearbyPlaces(text) {
+/** Whether to show “Find places near me” after this user message (food / drink / activity). */
+function shouldShowFindPlacesCta(text) {
   const v = String(text || "").toLowerCase();
-  const phrases = [
-    "near me",
-    "nearby",
-    "close to me",
-    "around me",
-    "walking distance",
-    "in my area",
-    "restaurant",
-    "café",
-    "cafe",
-    "coffee shop",
-    "things to do",
-    "something to do",
-    "movie theater",
-    "movie theatre",
-    "watch a movie",
-    "go shopping",
-    "department store",
-    "shopping mall",
-    "night life",
-    "night club",
-    "nightclub",
-    "fitness center",
-    "place to stay",
-    "theme park",
-    "amusement",
-    "brewery",
-    "winery",
-    "food hall",
-    "going out"
-  ];
-  if (phrases.some((p) => v.includes(p))) return true;
-
-  const wordPatterns = [
-    /\bfood\b/,
-    /\beat\b/,
-    /\bdrinks?\b/,
-    /\brestaurant\b/,
-    /\bcafe\b/,
-    /\bcoffee\b/,
-    /\bbar\b/,
-    /\bpub\b/,
-    /\bbrewpub\b/,
-    /\bgym\b/,
-    /\bfitness\b/,
-    /\bworkout\b/,
-    /\bcinema\b/,
-    /\bmovies?\b/,
-    /\bhotel\b/,
-    /\bmotel\b/,
-    /\bhostel\b/,
-    /\blodging\b/,
-    /\btravel\b/,
-    /\btrip\b/,
-    /\bvacation\b/,
-    /\bactivity\b/,
-    /\bactivities\b/,
-    /\bshopping\b/,
-    /\bmall\b/,
-    /\bboutique\b/,
-    /\bretail\b/,
-    /\boutlet\b/,
-    /\bnightlife\b/,
-    /\bclubbing\b/,
-    /\bmuseum\b/,
-    /\bnational park\b/,
-    /\bcity park\b/,
-    /\bpark\b/,
-    /\bgrocery\b/,
-    /\bmarket\b/,
-    /\blocal\b/,
-    /\bsupermarket\b/,
-    /\bbreakfast\b/,
-    /\blunch\b/,
-    /\bdinner\b/,
-    /\bbrunch\b/,
-    /\bmeal\b/,
-    /\bsnack\b/,
-    /\bdining\b/,
-    /\btakeout\b/,
-    /\btakeaway\b/,
-    /\bentertainment\b/,
-    /\battraction\b/,
-    /\btourist\b/,
-    /\bspa\b/,
-    /\bbowling\b/,
-    /\bclub\b/
-  ];
-  return wordPatterns.some((re) => re.test(v));
+  if (shouldUseNearby(v)) return true;
+  if (
+    /\b(food|restaurant|dinner|lunch|breakfast|brunch|bar|pub|cafe|coffee|meal|snack|eat|takeout|takeaway|delivery|bistro|brewery|winery|nightlife)\b/i.test(
+      v
+    )
+  ) {
+    return true;
+  }
+  if (/\b(activity|activities)\b/i.test(v)) return true;
+  if (/things to do|something to do|what to do|where to go|places to go/i.test(v)) return true;
+  if (/\b(gym|workout|cinema|movie|shopping|mall|hotel|museum|park)\b/i.test(v)) return true;
+  if (/\b(pizza|sushi|burger|drinks?)\b/i.test(v)) return true;
+  return false;
 }
 
 /** Maps user prompt to server /api/nearby-places `type` for Places includedTypes */
@@ -702,6 +621,9 @@ function ChatScreen({ session }) {
   const [conversation, setConversation] = useState([]);
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [nearbyPlacesLoading, setNearbyPlacesLoading] = useState(false);
+  const [showNearbyFindButton, setShowNearbyFindButton] = useState(false);
+  const [nearbyPlacePromptContext, setNearbyPlacePromptContext] = useState("");
+  const [nearbyFetchError, setNearbyFetchError] = useState("");
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1135,10 +1057,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }, [lifeModeSession?.id, lifeModeSession?.ends_at]);
 
   const requestUserLocation = async () => {
-    if (!("geolocation" in navigator)) {
-      logNearby("requestUserLocation: navigator.geolocation missing");
-      return null;
-    }
+    if (!("geolocation" in navigator)) return null;
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) =>
@@ -1146,17 +1065,62 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             lat: position.coords.latitude,
             lng: position.coords.longitude
           }),
-        (err) => {
-          const code =
-            err && typeof err.code === "number"
-              ? ["permission_denied", "position_unavailable", "timeout"][err.code - 1] || String(err.code)
-              : "unknown";
-          logNearby("getCurrentPosition failed", code, err?.message || "");
-          resolve(null);
-        },
+        () => resolve(null),
         { maximumAge: 300000, timeout: 15000, enableHighAccuracy: false }
       );
     });
+  };
+
+  const fetchNearbyPlacesForContext = async () => {
+    const ctx = nearbyPlacePromptContext || "";
+    setNearbyFetchError("");
+    if (!("geolocation" in navigator)) {
+      setNearbyFetchError("Location is not available in this browser.");
+      return;
+    }
+    setNearbyPlacesLoading(true);
+    try {
+      const pos = await requestUserLocation();
+      if (!pos) {
+        setNearbyFetchError("Could not get your location. Allow location access and try again.");
+        setNearbyPlaces([]);
+        return;
+      }
+      setUserLocation(pos);
+      const nr = await fetch(apiUrl("/api/nearby-places"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: pos.lat,
+          lng: pos.lng,
+          type: inferNearbyPlaceType(ctx)
+        })
+      });
+      const rawText = await nr.text();
+      let nd = {};
+      try {
+        nd = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        setNearbyFetchError("Unexpected response from the server.");
+        setNearbyPlaces([]);
+        return;
+      }
+      if (!nr.ok) {
+        setNearbyFetchError(nd?.error || `Request failed (${nr.status}).`);
+        setNearbyPlaces([]);
+        return;
+      }
+      const places = Array.isArray(nd.places) ? nd.places : [];
+      setNearbyPlaces(places);
+      if (!places.length) {
+        setNearbyFetchError("No places found near you for this topic.");
+      }
+    } catch (err) {
+      setNearbyFetchError(err?.message || "Could not load nearby places.");
+      setNearbyPlaces([]);
+    } finally {
+      setNearbyPlacesLoading(false);
+    }
   };
 
   const activateLifeMode = async () => {
@@ -1273,18 +1237,18 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
     setLoading(true);
     setError("");
+    setNearbyPlaces([]);
+    setNearbyFetchError("");
+    setShowNearbyFindButton(false);
+    setNearbyPlacePromptContext("");
     const userMessage = { role: "user", content };
     const updatedConversation = isInitial ? [userMessage] : [...conversation, userMessage];
     if (isInitial) setConversation([userMessage]);
     else setConversation(updatedConversation);
 
     try {
-      const wantsNearbyPlaces = shouldRequestNearbyPlaces(content);
-      const needsNearbyPhrase = shouldUseNearby(content);
       let locationForRequest = userLocation;
-
-      if ((needsNearbyPhrase || wantsNearbyPlaces) && !locationForRequest && "geolocation" in navigator) {
-        logNearby("prefetch geolocation", { needsNearbyPhrase, wantsNearbyPlaces });
+      if (shouldUseNearby(content) && !locationForRequest && "geolocation" in navigator) {
         locationForRequest = await requestUserLocation();
         if (locationForRequest) setUserLocation(locationForRequest);
       }
@@ -1319,63 +1283,10 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
 
-      let fetchedNearby = [];
-      logNearby("after /api/decide", {
-        wantsNearbyPlaces,
-        nearbyUrl: apiUrl("/api/nearby-places"),
-        apiBase: API_BASE_URL || "(same-origin)",
-        hasLocationFromPrefetch: Boolean(locationForRequest)
-      });
-
-      if (wantsNearbyPlaces) {
-        let posForNearby = locationForRequest || userLocation;
-        if (!posForNearby && "geolocation" in navigator) {
-          logNearby("retry geolocation before nearby-places fetch");
-          posForNearby = await requestUserLocation();
-        }
-        if (posForNearby) {
-          setUserLocation(posForNearby);
-          setNearbyPlacesLoading(true);
-          const payload = {
-            lat: posForNearby.lat,
-            lng: posForNearby.lng,
-            type: inferNearbyPlaceType(content)
-          };
-          try {
-            logNearby("fetch nearby-places", payload);
-            const nr = await fetch(apiUrl("/api/nearby-places"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-            const rawText = await nr.text();
-            let nd = {};
-            try {
-              nd = rawText ? JSON.parse(rawText) : {};
-            } catch (parseErr) {
-              console.warn("[Nearby] nearby-places response is not JSON", {
-                status: nr.status,
-                preview: rawText.slice(0, 120)
-              });
-            }
-            if (!nr.ok) {
-              console.warn("[Nearby] nearby-places HTTP error", nr.status, nd?.error || nd);
-            }
-            fetchedNearby = Array.isArray(nd.places) ? nd.places : [];
-            logNearby("nearby-places result", { ok: nr.ok, count: fetchedNearby.length });
-          } catch (err) {
-            console.warn("[Nearby] nearby-places fetch threw", err);
-            fetchedNearby = [];
-          } finally {
-            setNearbyPlacesLoading(false);
-          }
-        } else {
-          logNearby("skip nearby-places: no coordinates (permission denied, timeout, or unsupported)");
-        }
-      } else {
-        logNearby("skip nearby-places: prompt does not match shouldRequestNearbyPlaces");
+      if (shouldShowFindPlacesCta(content)) {
+        setShowNearbyFindButton(true);
+        setNearbyPlacePromptContext(content);
       }
-      setNearbyPlaces(fetchedNearby);
 
       const changedMind = /actually|instead|not feeling|change/i.test(content) ? 1 : 0;
       setReply("");
@@ -1547,7 +1458,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </form>
         {loading ? <LoadingOrb /> : null}
-        {nearbyPlacesLoading ? <p className="meta">Finding nearby places…</p> : null}
+        {showNearbyFindButton && !loading ? (
+          <div className="find-nearby-cta">
+            <button
+              type="button"
+              className="ghost-btn find-nearby-btn"
+              onClick={() => fetchNearbyPlacesForContext()}
+              disabled={nearbyPlacesLoading}
+            >
+              {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+            </button>
+          </div>
+        ) : null}
+        {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
         {nearbyPlaces.length ? (
           <div className="recommendations-wrap">
             {nearbyPlaces.map((item, idx) => (
@@ -1557,9 +1480,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                   <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
                   <p>{item.address}</p>
                   <div className="recommend-actions">
-                    <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
-                      Open in Maps
-                    </a>
+                    {item.mapsUrl ? (
+                      <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
+                        Google Maps
+                      </a>
+                    ) : (
+                      <span className="meta">Maps link unavailable</span>
+                    )}
                   </div>
                 </div>
               </article>
@@ -1639,6 +1566,41 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </div>
           ))}
           {loading ? <LoadingOrb /> : null}
+          {showNearbyFindButton && !loading && conversation.length ? (
+            <div className="find-nearby-cta">
+              <button
+                type="button"
+                className="ghost-btn find-nearby-btn"
+                onClick={() => fetchNearbyPlacesForContext()}
+                disabled={nearbyPlacesLoading}
+              >
+                {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+              </button>
+            </div>
+          ) : null}
+          {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
+          {nearbyPlaces.length ? (
+            <div className="recommendations-wrap">
+              {nearbyPlaces.map((item, idx) => (
+                <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
+                  <div className="recommend-body">
+                    <h4>{item.name}</h4>
+                    <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
+                    <p>{item.address}</p>
+                    <div className="recommend-actions">
+                      {item.mapsUrl ? (
+                        <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
+                          Google Maps
+                        </a>
+                      ) : (
+                        <span className="meta">Maps link unavailable</span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1801,25 +1763,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       </div>
       {conversation.length ? (
         <SharePanel text={`Decide For Me: ${conversation[conversation.length - 1].content}`} />
-      ) : null}
-      {nearbyPlacesLoading ? <p className="meta">Finding nearby places…</p> : null}
-      {nearbyPlaces.length ? (
-        <div className="recommendations-wrap">
-          {nearbyPlaces.map((item, idx) => (
-            <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
-              <div className="recommend-body">
-                <h4>{item.name}</h4>
-                <p className="meta">{item.rating != null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
-                <p>{item.address}</p>
-                <div className="recommend-actions">
-                  <a className="primary-btn" href={item.mapsUrl} target="_blank" rel="noreferrer">
-                    Open in Maps
-                  </a>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {lifeModePromptOpen ? (
