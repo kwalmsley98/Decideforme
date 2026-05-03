@@ -1943,7 +1943,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           ) : (
             <>
               <p className="muted">
-                {profileInsights[0] || "Pattern detected in your decision style."} Unlock full profile insights with Pro.
+                Your full decision style revealed — see what drives every choice you make.
               </p>
               <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
                 Unlock full Decision Profile
