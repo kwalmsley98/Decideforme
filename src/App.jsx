@@ -29,33 +29,146 @@ function shouldUseNearby(text) {
 }
 
 function shouldRequestNearbyPlaces(text) {
-  const value = String(text || "").toLowerCase();
-  const terms = [
-    "food",
-    "eat",
+  const v = String(text || "").toLowerCase();
+  const phrases = [
+    "near me",
+    "nearby",
+    "close to me",
+    "around me",
+    "walking distance",
+    "in my area",
     "restaurant",
+    "café",
     "cafe",
-    "travel",
-    "trip",
-    "activity",
+    "coffee shop",
     "things to do",
-    "hotel",
-    "museum",
-    "park"
+    "something to do",
+    "movie theater",
+    "movie theatre",
+    "watch a movie",
+    "go shopping",
+    "department store",
+    "shopping mall",
+    "night life",
+    "night club",
+    "nightclub",
+    "fitness center",
+    "place to stay",
+    "theme park",
+    "amusement",
+    "brewery",
+    "winery",
+    "food hall",
+    "going out"
   ];
-  return terms.some((term) => value.includes(term));
+  if (phrases.some((p) => v.includes(p))) return true;
+
+  const wordPatterns = [
+    /\bfood\b/,
+    /\beat\b/,
+    /\bdrinks?\b/,
+    /\brestaurant\b/,
+    /\bcafe\b/,
+    /\bcoffee\b/,
+    /\bbar\b/,
+    /\bpub\b/,
+    /\bbrewpub\b/,
+    /\bgym\b/,
+    /\bfitness\b/,
+    /\bworkout\b/,
+    /\bcinema\b/,
+    /\bmovies?\b/,
+    /\bhotel\b/,
+    /\bmotel\b/,
+    /\bhostel\b/,
+    /\blodging\b/,
+    /\btravel\b/,
+    /\btrip\b/,
+    /\bvacation\b/,
+    /\bactivity\b/,
+    /\bactivities\b/,
+    /\bshopping\b/,
+    /\bmall\b/,
+    /\bboutique\b/,
+    /\bretail\b/,
+    /\boutlet\b/,
+    /\bnightlife\b/,
+    /\bclubbing\b/,
+    /\bmuseum\b/,
+    /\bnational park\b/,
+    /\bcity park\b/,
+    /\bpark\b/,
+    /\bgrocery\b/,
+    /\bmarket\b/,
+    /\blocal\b/,
+    /\bsupermarket\b/,
+    /\bbreakfast\b/,
+    /\blunch\b/,
+    /\bdinner\b/,
+    /\bbrunch\b/,
+    /\bmeal\b/,
+    /\bsnack\b/,
+    /\bdining\b/,
+    /\btakeout\b/,
+    /\btakeaway\b/,
+    /\bentertainment\b/,
+    /\battraction\b/,
+    /\btourist\b/,
+    /\bspa\b/,
+    /\bbowling\b/,
+    /\bclub\b/
+  ];
+  return wordPatterns.some((re) => re.test(v));
 }
 
 /** Maps user prompt to server /api/nearby-places `type` for Places includedTypes */
 function inferNearbyPlaceType(text) {
   const v = String(text || "").toLowerCase();
-  if (/\b(museum)\b/.test(v)) return "museum";
-  if (/\b(park)\b/.test(v)) return "park";
-  if (/(hotel|travel|trip|flight|vacation|lodging)/i.test(v)) return "travel";
-  if (/\b(cafe)\b/.test(v)) return "cafe";
-  if (/\b(bar)\b/.test(v)) return "bar";
-  if (/(food|eat|restaurant|dinner|lunch|breakfast|meal|takeout|snack)/i.test(v)) return "food";
-  if (/(activity|things to do|visit|tourist)/i.test(v)) return "activity";
+
+  if (/\bmuseum\b/.test(v)) return "museum";
+  if (/\b(national park|city park)\b/.test(v) || (/\bpark\b/.test(v) && !/parking/i.test(v))) return "park";
+
+  if (
+    /\b(hotel|motel|hostel|inn)\b/.test(v) ||
+    /\b(lodging|airbnb|place to stay)\b/.test(v) ||
+    /(travel|trip|vacation|getaway|\bstaycation\b|flight)/i.test(v)
+  ) {
+    return "travel";
+  }
+
+  if (/\b(cafe|coffee shop)\b/.test(v) || /\bcoffee\b/.test(v)) return "cafe";
+
+  if (/(cinema|movie theater|movie theatre|imax|\bflix\b|watch a movie)/i.test(v) || /\bmovies\b/.test(v)) return "cinema";
+
+  if (/\b(gym|fitness|workout)\b/.test(v)) return "gym";
+
+  if (/(shopping|mall|boutique|retail|outlet|department store|clothes|clothing)/i.test(v) || /\bshop\b/.test(v))
+    return "shopping";
+
+  if (
+    /(food|eat|restaurant|dinner|lunch|breakfast|brunch|meal|takeout|takeaway|snack|dining|seafood|sushi|pizza|burger|kitchen)/i.test(
+      v
+    )
+  ) {
+    return "food";
+  }
+
+  if (/(nightlife|night club|nightclub|clubbing|dance club|\bpub crawl\b)/i.test(v)) return "nightlife";
+
+  if (/\b(pub|brewpub|speakeasy)\b/.test(v)) return "bar";
+  if (/\b(bar|bars|brewery|wine bar|cocktail)\b/i.test(v) && !/barbecue|bbq|barbell|handlebar|handlebars/i.test(v)) {
+    return "bar";
+  }
+
+  if (
+    /(activity|things to do|something to do|entertainment|attraction|tourist|visit|explore|day out|what to do|fun things|going out)/i.test(
+      v
+    ) ||
+    /\b(bowling|arcade|mini golf|escape room)\b/i.test(v)
+  ) {
+    return "activity";
+  }
+
   return "food";
 }
 

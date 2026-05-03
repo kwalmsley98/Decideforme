@@ -116,17 +116,23 @@ const anthropic = new Anthropic({
 const stripe = new Stripe(config.stripeSecretKey);
 const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY || process.env.VITE_GOOGLE_PLACES_API_KEY);
 
-/** Maps client `type` (e.g. food, travel, activity) to Places API (New) includedTypes */
+/** Maps client `type` from inferNearbyPlaceType to Places API (New) includedTypes */
 function mapNearbyRequestTypeToIncludedTypes(type) {
-  const t = String(type || "").toLowerCase();
-  if (/(museum)/i.test(t)) return ["museum"];
-  if (/(park)/i.test(t)) return ["park"];
-  if (/(hotel|travel|trip|lodging)/i.test(t)) return ["lodging"];
-  if (/(cafe)/i.test(t)) return ["cafe"];
-  if (/(bar)/i.test(t)) return ["bar"];
-  if (/(food|eat|restaurant|dinner|lunch|breakfast|meal)/i.test(t)) return ["restaurant"];
-  if (/(activity|things|tourist|visit|do)/i.test(t)) return ["tourist_attraction"];
-  return ["restaurant"];
+  const t = String(type || "").toLowerCase().trim();
+  const map = {
+    museum: ["museum"],
+    park: ["park"],
+    travel: ["lodging"],
+    cafe: ["cafe"],
+    bar: ["bar"],
+    gym: ["gym"],
+    cinema: ["movie_theater"],
+    shopping: ["shopping_mall", "department_store"],
+    nightlife: ["night_club", "bar"],
+    activity: ["tourist_attraction"],
+    food: ["restaurant"]
+  };
+  return map[t] || ["restaurant"];
 }
 
 /** Places API (New): POST places:searchNearby — returns normalized place rows */
