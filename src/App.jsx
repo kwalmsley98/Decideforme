@@ -7,6 +7,12 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
+const NEARBY_DEBUG =
+  import.meta.env.DEV === true || String(import.meta.env.VITE_DEBUG_NEARBY || "").trim() === "1";
+
+function logNearby(...args) {
+  if (NEARBY_DEBUG) console.log("[Nearby]", ...args);
+}
 const DAILY_LIBRARY = [
   {
     prompt: "Would you rather have unlimited money or unlimited time?",
@@ -1129,7 +1135,10 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }, [lifeModeSession?.id, lifeModeSession?.ends_at]);
 
   const requestUserLocation = async () => {
-    if (!("geolocation" in navigator)) return null;
+    if (!("geolocation" in navigator)) {
+      logNearby("requestUserLocation: navigator.geolocation missing");
+      return null;
+    }
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) =>
@@ -1137,8 +1146,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             lat: position.coords.latitude,
             lng: position.coords.longitude
           }),
-        () => resolve(null),
-        { maximumAge: 300000, timeout: 8000 }
+        (err) => {
+          const code =
+            err && typeof err.code === "number"
+              ? ["permission_denied", "position_unavailable", "timeout"][err.code - 1] || String(err.code)
+              : "unknown";
+          logNearby("getCurrentPosition failed", code, err?.message || "");
+          resolve(null);
+        },
+        { maximumAge: 300000, timeout: 15000, enableHighAccuracy: false }
       );
     });
   };
@@ -1263,9 +1279,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     else setConversation(updatedConversation);
 
     try {
-      const needsNearby = shouldUseNearby(content);
+      const wantsNearbyPlaces = shouldRequestNearbyPlaces(content);
+      const needsNearbyPhrase = shouldUseNearby(content);
       let locationForRequest = userLocation;
-      if (needsNearby && !locationForRequest) {
+
+      if ((needsNearbyPhrase || wantsNearbyPlaces) && !locationForRequest && "geolocation" in navigator) {
+        logNearby("prefetch geolocation", { needsNearbyPhrase, wantsNearbyPlaces });
         locationForRequest = await requestUserLocation();
         if (locationForRequest) setUserLocation(locationForRequest);
       }
@@ -1301,32 +1320,60 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setConversation(finalConversation);
 
       let fetchedNearby = [];
-      if (shouldRequestNearbyPlaces(content)) {
+      logNearby("after /api/decide", {
+        wantsNearbyPlaces,
+        nearbyUrl: apiUrl("/api/nearby-places"),
+        apiBase: API_BASE_URL || "(same-origin)",
+        hasLocationFromPrefetch: Boolean(locationForRequest)
+      });
+
+      if (wantsNearbyPlaces) {
         let posForNearby = locationForRequest || userLocation;
         if (!posForNearby && "geolocation" in navigator) {
+          logNearby("retry geolocation before nearby-places fetch");
           posForNearby = await requestUserLocation();
         }
         if (posForNearby) {
           setUserLocation(posForNearby);
           setNearbyPlacesLoading(true);
+          const payload = {
+            lat: posForNearby.lat,
+            lng: posForNearby.lng,
+            type: inferNearbyPlaceType(content)
+          };
           try {
+            logNearby("fetch nearby-places", payload);
             const nr = await fetch(apiUrl("/api/nearby-places"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                lat: posForNearby.lat,
-                lng: posForNearby.lng,
-                type: inferNearbyPlaceType(content)
-              })
+              body: JSON.stringify(payload)
             });
-            const nd = await nr.json();
+            const rawText = await nr.text();
+            let nd = {};
+            try {
+              nd = rawText ? JSON.parse(rawText) : {};
+            } catch (parseErr) {
+              console.warn("[Nearby] nearby-places response is not JSON", {
+                status: nr.status,
+                preview: rawText.slice(0, 120)
+              });
+            }
+            if (!nr.ok) {
+              console.warn("[Nearby] nearby-places HTTP error", nr.status, nd?.error || nd);
+            }
             fetchedNearby = Array.isArray(nd.places) ? nd.places : [];
-          } catch {
+            logNearby("nearby-places result", { ok: nr.ok, count: fetchedNearby.length });
+          } catch (err) {
+            console.warn("[Nearby] nearby-places fetch threw", err);
             fetchedNearby = [];
           } finally {
             setNearbyPlacesLoading(false);
           }
+        } else {
+          logNearby("skip nearby-places: no coordinates (permission denied, timeout, or unsupported)");
         }
+      } else {
+        logNearby("skip nearby-places: prompt does not match shouldRequestNearbyPlaces");
       }
       setNearbyPlaces(fetchedNearby);
 
