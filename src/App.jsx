@@ -773,7 +773,11 @@ function ChatScreen({ session }) {
     { label: "🍕 Food", value: "Help me decide what to eat tonight." },
     { label: "🎬 Watch", value: "Help me choose what to watch tonight." },
     { label: "✈️ Travel", value: "Help me decide where to go for my next trip." },
-    { label: "💪 Fitness", value: "Help me pick the best workout for today." }
+    { label: "💪 Fitness", value: "Help me pick the best workout for today." },
+    { label: "🍺 Nightlife", value: "Help me decide where to go out tonight — bars, clubs, or something low-key." },
+    { label: "🛍️ Shopping", value: "Help me choose what to buy or where to shop for what I need." },
+    { label: "💆 Wellness", value: "Help me pick a self-care or wellness move for today." },
+    { label: "🎮 Gaming", value: "Help me decide what to play tonight — game, genre, or session length." }
   ];
   const learningSignals = ["Pattern detected.", "Noted. Your profile is updating.", "Signal logged.", "Preference map sharpening."];
   const buildDecisionInsights = (historyRows) => {
@@ -1857,8 +1861,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   return (
     <section className="card premium home-card home-chat-focused">
       <div className="home-focus-top">
-        <p className="home-eyebrow">Decide For Me</p>
-        <p className="home-one-liner">What do you want to decide?</p>
+        <div className="home-brand-block">
+          <h1 className="home-brand-title">Decide For Me</h1>
+          <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
+        </div>
+        <p className="home-prompt-hint">What do you want to decide?</p>
         <div className="home-stats-inline">
           <span className="home-stat-pill">
             <AnimatedCounter value={liveCount} /> today
@@ -2114,12 +2121,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       ) : null}
       {!conversation.length ? (
-        <div className="quick-category-row">
-          {quickCategories.map((item) => (
-            <button key={item.label} type="button" className="quick-category-pill" onClick={() => setPrompt(item.value)}>
-              {item.label}
-            </button>
-          ))}
+        <div className="quick-category-scroll">
+          <div className="quick-category-row">
+            {quickCategories.map((item) => (
+              <button key={item.label} type="button" className="quick-category-pill" onClick={() => setPrompt(item.value)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
       <details className="home-secondary-details">
