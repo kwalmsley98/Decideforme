@@ -349,18 +349,38 @@ async function braveSearchTravel(prompt) {
   }
 }
 
-function buildBookingLinksMarkdown(prompt) {
+/**
+ * Deep links for major booking sites; destination parsed from "to Paris", "in London", etc. when possible.
+ * Order: Skyscanner, Google Flights, Booking.com, Kayak (matches app UI).
+ */
+function buildBookingLinks(prompt) {
   const p = String(prompt || "").trim();
-  const q = encodeURIComponent(p.slice(0, 200));
+  const fullQ = encodeURIComponent(p.slice(0, 200));
   const destMatch = p.match(/\b(?:to|in|visit|near|around|from)\s+([A-Za-z][A-Za-z\s\-]{2,52})\b/i);
   const dest = destMatch ? destMatch[1].trim() : "";
-  const destEnc = encodeURIComponent(dest || p.slice(0, 80));
+  const destEnc = encodeURIComponent(dest);
+  const flightsQ = dest ? encodeURIComponent(`Flights to ${dest}`) : fullQ;
+  const skyscannerQ = dest ? destEnc : fullQ;
+
+  const skyscannerUrl = `https://www.skyscanner.net/transport/flights/?currency=GBP&locale=en-GB&market=UK&q=${skyscannerQ}`;
+  const googleFlightsUrl = `https://www.google.com/travel/flights?q=${flightsQ}`;
+  const bookingUrl = dest
+    ? `https://www.booking.com/searchresults.html?ss=${destEnc}&order=popularity`
+    : `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(p.slice(0, 80))}&order=popularity`;
+  const kayakUrl = `https://www.kayak.co.uk/flights?fid=1&q=${flightsQ}`;
+
   return [
-    `[Google Flights](https://www.google.com/travel/flights?q=${q})`,
-    `[Skyscanner](https://www.skyscanner.net/transport/flights/?currency=GBP&locale=en-GB&market=UK&q=${q})`,
-    `[Booking.com](https://www.booking.com/searchresults.html?ss=${destEnc}&order=popularity)`,
-    `[Kayak](https://www.kayak.co.uk/flights?fid=1&q=${q})`
-  ].join("\n");
+    { label: "Skyscanner", url: skyscannerUrl },
+    { label: "Google Flights", url: googleFlightsUrl },
+    { label: "Booking.com", url: bookingUrl },
+    { label: "Kayak", url: kayakUrl }
+  ];
+}
+
+function buildBookingLinksMarkdown(prompt) {
+  return buildBookingLinks(prompt)
+    .map((l) => `[${l.label}](${l.url})`)
+    .join("\n");
 }
 
 app.post("/api/decide", async (req, res) => {
@@ -412,7 +432,7 @@ app.post("/api/decide", async (req, res) => {
 === Live web search (use for real-world context; paraphrase, do not copy long quotes) ===
 ${webSnippets}
 
-=== Direct booking & comparison links (include ALL of these as markdown in your answer) ===
+=== Booking URLs (shown as buttons in the app; reference briefly if helpful) ===
 ${bookingLinksMd}`
       : "";
 
@@ -420,14 +440,14 @@ ${bookingLinksMd}`
       ? `
 - LIVE WEB DATA appears above. NEVER say you cannot search the web, check airlines/hotels, or see prices online — you have search excerpts and official comparison URLs.
 - Use excerpts for grounded guidance (patterns, what travelers compare, timing ideas). Do NOT invent exact live fares or seat availability; send users to the linked sites for current prices and booking.
-- Your reply MUST incorporate every markdown link listed above (Google Flights, Skyscanner, Booking.com, Kayak). Inline markdown links are required.
-- Allow up to 5 short sentences so links read naturally.${lifeMode ? " Still end with exactly: Directive issued." : ""}`
+- The app shows tappable booking buttons (Skyscanner, Google Flights, Booking.com, Kayak) under your message — you do not need to repeat all four links; a short line like "compare on the buttons below" is enough.
+- Allow up to 5 short sentences so the answer reads well with the UI.${lifeMode ? " Still end with exactly: Directive issued." : ""}`
       : "";
 
     const baseStyleRules = travelWeb
       ? `- Be direct and decisive: one clear travel/stay recommendation plus grounded reasoning from search excerpts.
 - Give a short punchy reason that connects to the user's goal.
-- No waffle; markdown booking links are mandatory when listed above.`
+- No waffle.`
       : `- Maximum 2-3 sentences total.
 - Be direct and decisive: make one clear decision.
 - Give one short punchy reason why.
@@ -451,7 +471,7 @@ ${lifeMode ? "- Life Mode voice override: cold, authoritative, and commanding. Y
 ${lifeMode ? "- Never use soft language: do not say 'I suggest', 'maybe', 'consider', 'could', or ask permission." : ""}
 ${lifeMode ? "- Always provide a definitive directive immediately, even with limited context." : ""}
 ${lifeMode ? "- Phrase actions as orders, not advice." : ""}
-${lifeMode ? `- End every response with exactly: Directive issued.${travelWeb ? " Put booking links before that closing phrase." : ""}` : ""}
+${lifeMode ? `- End every response with exactly: Directive issued.${travelWeb ? " Booking buttons appear below your text — mention them if useful." : ""}` : ""}
 Voice: confident friend giving quick advice, not a consultant.`,
       messages: [
         {
@@ -476,7 +496,8 @@ Respond as the assistant in this ongoing chat.`
       message.content?.find((part) => part.type === "text")?.text?.trim() ||
       "Go with the boldest option available right now.";
 
-    return res.json({ answer });
+    const bookingLinks = travelWeb ? buildBookingLinks(prompt) : undefined;
+    return res.json({ answer, ...(bookingLinks ? { bookingLinks } : {}) });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Claude API request failed." });
   }

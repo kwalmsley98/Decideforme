@@ -605,6 +605,35 @@ a {
   color: #f5e642;
 }
 
+.booking-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+a.booking-pill {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8ebfb;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+a.booking-pill:hover {
+  border-color: rgba(245, 230, 66, 0.45);
+  color: #f5e642;
+}
+
 .streak-spotlight {
   border-radius: 18px;
   padding: 14px;

@@ -103,9 +103,11 @@ function trimDecisionSnippet(text, max) {
   return `${s.slice(0, max - 1)}…`;
 }
 
-/** Strip UI-only messages before sending history to the AI */
+/** Strip UI-only messages and extra fields before sending history to the AI */
 function conversationForApi(messages) {
-  return (Array.isArray(messages) ? messages : []).filter((m) => m.role === "user" || m.role === "assistant");
+  return (Array.isArray(messages) ? messages : [])
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role, content: m.content ?? "" }));
 }
 
 function buildNearbyPickReason({ userPrompt, assistantReply, cuisineType }, index) {
@@ -1317,7 +1319,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           finalAssistantText = `${finalAssistantText}\n\n_${signal}_`;
         }
       }
-      const aiMessage = { role: "assistant", content: finalAssistantText };
+      const aiMessage = {
+        role: "assistant",
+        content: finalAssistantText,
+        ...(Array.isArray(data.bookingLinks) && data.bookingLinks.length ? { bookingLinks: data.bookingLinks } : {})
+      };
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
 
@@ -1473,7 +1479,24 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
           <div className={`bubble ${msg.role}`}>
             {msg.role === "assistant" ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              <>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                {Array.isArray(msg.bookingLinks) && msg.bookingLinks.length ? (
+                  <div className="booking-pills-row" role="navigation" aria-label="Compare and book">
+                    {msg.bookingLinks.map((link) => (
+                      <a
+                        key={link.label}
+                        href={link.url}
+                        className="booking-pill"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
+              </>
             ) : (
               msg.content
             )}
@@ -1995,6 +2018,7 @@ function GroupRoomScreen({ session }) {
   const [prefs, setPrefs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [finalBookingLinks, setFinalBookingLinks] = useState([]);
 
   const loadRoom = async () => {
     if (!supabase) return;
@@ -2014,6 +2038,7 @@ function GroupRoomScreen({ session }) {
   };
 
   useEffect(() => {
+    setFinalBookingLinks([]);
     loadRoom();
   }, [shareCode]);
 
@@ -2061,6 +2086,7 @@ function GroupRoomScreen({ session }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed final group call.");
+      setFinalBookingLinks(Array.isArray(data.bookingLinks) ? data.bookingLinks : []);
       await supabase.from("group_decisions").update({ final_answer: data.answer }).eq("id", room.id);
       loadRoom();
     } catch (err) {
@@ -2098,7 +2124,20 @@ function GroupRoomScreen({ session }) {
       <button className="primary-btn" onClick={generateFinal} disabled={loading}>
         {loading ? "Deciding..." : "Make final group decision"}
       </button>
-      {room.final_answer ? <p className="answer">{room.final_answer}</p> : null}
+      {room.final_answer ? (
+        <>
+          <p className="answer">{room.final_answer}</p>
+          {finalBookingLinks.length ? (
+            <div className="booking-pills-row" role="navigation" aria-label="Compare and book">
+              {finalBookingLinks.map((link) => (
+                <a key={link.label} href={link.url} className="booking-pill" target="_blank" rel="noreferrer">
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
       {loading ? <LoadingOrb /> : null}
       {error ? <p className="error">{error}</p> : null}
     </section>
