@@ -13,6 +13,7 @@ import {
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import {
   ArrowUp,
+  BadgePercent,
   BarChart2,
   Clock,
   Compass,
@@ -29,9 +30,29 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
+function slugifyPublicRef(input) {
+  const s = String(input || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 36);
+  return s || "friend";
+}
+
+async function generateUniquePublicRefSlug(supabaseClient, baseName) {
+  const base = slugifyPublicRef(baseName);
+  for (let i = 0; i < 12; i++) {
+    const candidate = i === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 8)}`;
+    const { data } = await supabaseClient.from("profiles").select("id").eq("public_ref_slug", candidate).maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${base}-${crypto.randomUUID().slice(0, 10)}`;
+}
 /** Once set, onboarding overlay is never shown again on this device. */
 const DFM_ONBOARDED_KEY = "dfm_onboarded";
 const LEGACY_ONBOARDING_KEY = "decide_for_me_onboarding_done";
@@ -494,11 +515,13 @@ function Layout({ session, onSignOut, children }) {
   const desktopNavItems = [
     { to: "/", label: "Chat", icon: MessageCircle },
     { to: "/explore", label: "Explore", icon: Compass },
+    { to: "/referrals", label: "Referrals", icon: BadgePercent },
     { to: "/profile", label: "Profile", icon: User }
   ];
   const mobileTabs = [
     { to: "/", label: "Chat", icon: MessageCircle },
     { to: "/explore", label: "Explore", icon: Compass },
+    { to: "/referrals", label: "Referrals", icon: BadgePercent },
     { to: "/profile", label: "Profile", icon: User }
   ];
 
@@ -792,9 +815,9 @@ function DailyDilemmaCard({ session }) {
 }
 
 function ChatScreen({ session }) {
+  const { currency, formatMonth, formatYear } = useCommerceCurrency();
   const DAILY_FREE_LIMIT = 100;
   const GUEST_DAILY_FREE_LIMIT = 100;
-  const PRO_PLAN_PRICE = "£4.99";
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
   const quickCategories = [
@@ -1452,13 +1475,21 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModePromptOpen(true);
   };
 
-  const startProCheckout = async () => {
+  const startProCheckout = async (plan = "month") => {
+    if (!session?.access_token) {
+      setError("Sign in to upgrade to Pro.");
+      return;
+    }
     setCheckoutLoading(true);
     setError("");
     try {
       const response = await fetch(apiUrl("/api/create-checkout-session"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ plan: plan === "year" ? "year" : "month", currency })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
@@ -2198,12 +2229,29 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </button>
             <p className="hero-kicker">{upgradePromptReason === "feature" ? "Premium feature" : "Daily limit reached"}</p>
             <h2>Upgrade to Pro</h2>
-            <p className="plan-price">{PRO_PLAN_PRICE}/month</p>
+            <p className="plan-price">
+              {formatMonth()}/mo · {formatYear()}/yr
+            </p>
             <p className="muted">Unlimited decisions and full Life Mode access.</p>
-            {!session?.user?.id ? <p className="meta">Guest daily free limit: 3 decisions. Signed-in free users: 10/day.</p> : null}
-            <button className="primary-btn upgrade-cta" onClick={startProCheckout} disabled={checkoutLoading}>
-              {checkoutLoading ? "Redirecting to Stripe..." : `Upgrade to Pro · ${PRO_PLAN_PRICE}/month`}
-            </button>
+            {!session?.user?.id ? <p className="meta">Sign in to subscribe. Free tier limits apply to guests and free accounts.</p> : null}
+            <div className="upgrade-modal-plans">
+              <button
+                type="button"
+                className="primary-btn upgrade-cta"
+                onClick={() => startProCheckout("month")}
+                disabled={checkoutLoading}
+              >
+                {checkoutLoading ? "Redirecting…" : `Monthly · ${formatMonth()}/mo`}
+              </button>
+              <button
+                type="button"
+                className="ghost-btn upgrade-cta"
+                onClick={() => startProCheckout("year")}
+                disabled={checkoutLoading}
+              >
+                {checkoutLoading ? "Redirecting…" : `Yearly · ${formatYear()}/yr`}
+              </button>
+            </div>
             {!session?.user?.id ? (
               <Link to="/signup" className="ghost-btn upgrade-cta">
                 Create free account instead
@@ -2760,10 +2808,130 @@ function LeaderboardScreen({ session }) {
   );
 }
 
+function RefLandingCapture() {
+  const { username } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const slug = String(username || "")
+      .trim()
+      .toLowerCase();
+    if (slug) {
+      localStorage.setItem("pending_ref_slug", slug);
+      fetch(apiUrl("/api/ref/track-click"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug })
+      }).catch(() => {});
+    }
+    navigate("/signup", { replace: true });
+  }, [username, navigate]);
+
+  return (
+    <section className="card">
+      <p className="answer">Taking you to sign up…</p>
+    </section>
+  );
+}
+
+function ReferralLeaderboardScreen() {
+  const [rows, setRows] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch(apiUrl("/api/referrals/leaderboard"))
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else setRows(Array.isArray(d.rows) ? d.rows : []);
+      })
+      .catch((e) => setError(e.message));
+  }, []);
+
+  return (
+    <section className="card premium leaderboard-card">
+      <div className="leaderboard-head">
+        <h1 className="leaderboard-title">🏅 Referral leaderboard</h1>
+      </div>
+      <p className="muted">Ranked by total affiliate earnings, then paying referrals.</p>
+      {error ? <p className="error">{error}</p> : null}
+      <div className="leader-list">
+        {rows.length ? (
+          rows.map((r, i) => (
+            <article key={r.referrer_id} className="history-item rank-line">
+              <p className="rank-num">#{i + 1}</p>
+              <div className="podium-avatar small">{(r.username || "U").slice(0, 2).toUpperCase()}</div>
+              <div className="referral-lb-main">
+                <p>{r.username || "Creator"}</p>
+                <p className="meta">
+                  Paying subscribers: {r.paying_users} · Signups: {r.signups} · Earned: £
+                  {((r.total_commission_pence || 0) / 100).toFixed(2)}
+                </p>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="meta">No referral data yet — share your link and appear here.</p>
+        )}
+      </div>
+      <Link to="/affiliates" className="ghost-btn">
+        How the affiliate program works
+      </Link>
+    </section>
+  );
+}
+
+function AffiliatesPage() {
+  const { formatMonth, formatYear } = useCommerceCurrency();
+  useEffect(() => {
+    document.title = "Affiliate Program | Decide For Me";
+    let el = document.querySelector('meta[name="description"]');
+    if (!el) {
+      el = document.createElement("meta");
+      el.setAttribute("name", "description");
+      document.head.appendChild(el);
+    }
+    el.setAttribute(
+      "content",
+      "50% recurring commission on Decide For Me Pro. Referral leaderboard, Stripe payouts, earn while you sleep."
+    );
+    return () => {
+      document.title = "Decide For Me";
+    };
+  }, []);
+
+  return (
+    <section className="card premium seo-landing">
+      <p className="hero-kicker">Partners</p>
+      <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
+      <p className="answer seo-landing-lede">
+        Share Decide For Me with your audience and earn <strong>half of every Pro subscription</strong> you refer (
+        {formatMonth()}/month or {formatYear()}/year plans). Top performers hit the public leaderboard;
+        payouts go straight to your bank via Stripe Connect.
+      </p>
+      <ul className="affiliates-benefits">
+        <li>Clean link: <code className="affiliates-code">decideforme.org/ref/yourname</code></li>
+        <li>Live dashboard: clicks, signups, paying users, total earnings</li>
+        <li>We handle billing; you promote a product people actually use</li>
+      </ul>
+      <div className="seo-landing-cta-row">
+        <Link to="/signup" className="primary-btn seo-landing-cta">
+          Sign up &amp; get your link
+        </Link>
+        <Link to="/referrals" className="ghost-btn seo-landing-secondary">
+          View leaderboard
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function ProfileScreen({ session }) {
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [preferences, setPreferences] = useState([]);
+  const [referralDash, setReferralDash] = useState(null);
+  const [connectLoading, setConnectLoading] = useState(false);
 
   const loadProfile = async () => {
     if (!supabase || !session?.user?.id) return;
@@ -2784,16 +2952,50 @@ function ProfileScreen({ session }) {
       .eq("user_id", session.user.id)
       .order("updated_at", { ascending: false });
     setPreferences(preferenceRows ?? []);
+
+    try {
+      const dashRes = await fetch(apiUrl("/api/referrals/dashboard"), {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      const dashJson = await dashRes.json();
+      if (dashRes.ok) setReferralDash(dashJson);
+    } catch {
+      setReferralDash(null);
+    }
   };
 
   useEffect(() => {
     loadProfile();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, session?.access_token]);
+
+  const startConnectOnboarding = async () => {
+    if (!session?.access_token) return;
+    setConnectLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/stripe/connect-onboarding"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not start Stripe Connect.");
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setConnectLoading(false);
+    }
+  };
 
   if (!session) return <Navigate to="/login" replace />;
-  const referralLink = profile?.referral_code
-    ? `${window.location.origin}/signup?ref=${profile.referral_code}`
-    : "";
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const prettyRefLink =
+    profile?.public_ref_slug && origin ? `${origin}/ref/${profile.public_ref_slug}` : "";
+  const legacyRefLink = profile?.referral_code ? `${origin}/signup?ref=${profile.referral_code}` : "";
+
   const removePreference = async (id) => {
     if (!supabase || !id) return;
     await supabase.from("user_preferences").delete().eq("id", id).eq("user_id", session.user.id);
@@ -2808,14 +3010,61 @@ function ProfileScreen({ session }) {
       <p>Total decisions: {profile?.total_decisions || 0}</p>
       <p className="answer">🔥 Streak: {profile?.current_streak || 0} days</p>
       <p className="meta">Longest streak: {profile?.longest_streak || 0} days</p>
-      {referralLink ? (
-        <>
-          <p className="muted">Referral link</p>
-          <p className="answer">{referralLink}</p>
-          <SharePanel text={referralLink} />
-        </>
-      ) : null}
-      <p className="muted">Referrals earned: {referrals.length}</p>
+
+      <article className="history-item referral-dashboard-card">
+        <p className="hero-kicker">Referrals &amp; affiliates</p>
+        <p className="muted">
+          Earn <strong>50%</strong> recurring on Pro subscriptions from your referrals.{" "}
+          <Link to="/affiliates">Program details</Link> · <Link to="/referrals">Leaderboard</Link>
+        </p>
+        {prettyRefLink ? (
+          <>
+            <p className="muted">Your share link</p>
+            <p className="answer referral-link-break">{prettyRefLink}</p>
+            <SharePanel text={prettyRefLink} />
+          </>
+        ) : (
+          <p className="meta">Generating your link… refresh if this persists.</p>
+        )}
+        {legacyRefLink ? (
+          <p className="meta">
+            Legacy invite URL: <span className="answer">{legacyRefLink}</span>
+          </p>
+        ) : null}
+        {referralDash ? (
+          <div className="referral-dash-grid">
+            <div>
+              <p className="meta">Link clicks</p>
+              <p className="answer">{referralDash.clicks}</p>
+            </div>
+            <div>
+              <p className="meta">Signups</p>
+              <p className="answer">{referralDash.signups}</p>
+            </div>
+            <div>
+              <p className="meta">Paying users</p>
+              <p className="answer">{referralDash.paying_users}</p>
+            </div>
+            <div>
+              <p className="meta">Total earnings</p>
+              <p className="answer">
+                £{((referralDash.total_earnings_pence || 0) / 100).toFixed(2)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="meta">Loading referral stats…</p>
+        )}
+        <button type="button" className="ghost-btn" disabled={connectLoading} onClick={startConnectOnboarding}>
+          {connectLoading ? "Opening Stripe…" : "Connect bank for payouts (Stripe)"}
+        </button>
+        <p className="muted small-print">
+          Connect once so we can pay your commission. Requires a Stripe Express account.
+        </p>
+      </article>
+
+      <p className="muted">Referrals recorded: {referrals.length}</p>
+
       <article className="history-item ai-profile-card">
         <p className="hero-kicker">Your AI knows you</p>
         <p className="muted">Everything your assistant has learned from your decisions, so future advice is instantly personal.</p>
@@ -2853,38 +3102,60 @@ async function ensureProfileAndReferral(user) {
     (typeof user.user_metadata?.name === "string" ? user.user_metadata.name.split(/\s+/)[0] : null) ||
     "user";
 
-  const { data: existing } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
+  const { data: existing } = await supabase.from("profiles").select("id, public_ref_slug").eq("id", user.id).maybeSingle();
   if (!existing) {
     const referralCode = crypto.randomUUID().slice(0, 8);
+    const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
     await supabase.from("profiles").insert({
       id: user.id,
       username,
-      referral_code: referralCode
+      referral_code: referralCode,
+      public_ref_slug: publicRefSlug
     });
+  } else if (!existing.public_ref_slug) {
+    const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
+    await supabase.from("profiles").update({ public_ref_slug: publicRefSlug }).eq("id", user.id);
   }
 
-  const pending = localStorage.getItem("pending_referral_code");
-  if (!pending) return;
-  const { data: referrer } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("referral_code", pending)
-    .maybeSingle();
-  if (!referrer?.id || referrer.id === user.id) return;
+  const pendingSlug = localStorage.getItem("pending_ref_slug");
+  const pendingCode = localStorage.getItem("pending_referral_code");
+
+  let referrerId = null;
+  if (pendingSlug) {
+    const normalized = String(pendingSlug).trim().toLowerCase();
+    const { data: bySlug } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("public_ref_slug", normalized)
+      .maybeSingle();
+    if (bySlug?.id && bySlug.id !== user.id) referrerId = bySlug.id;
+    localStorage.removeItem("pending_ref_slug");
+  }
+  if (!referrerId && pendingCode) {
+    const { data: byCode } = await supabase.from("profiles").select("id").eq("referral_code", pendingCode).maybeSingle();
+    if (byCode?.id && byCode.id !== user.id) referrerId = byCode.id;
+    localStorage.removeItem("pending_referral_code");
+  }
+
+  if (!referrerId) return;
+
+  const { data: me } = await supabase.from("profiles").select("referred_by").eq("id", user.id).maybeSingle();
+  if (me?.referred_by) return;
+
+  await supabase.from("profiles").update({ referred_by: referrerId }).eq("id", user.id);
 
   await supabase.from("referrals").upsert(
     {
-      referrer_id: referrer.id,
+      referrer_id: referrerId,
       referred_id: user.id
     },
     { onConflict: "referred_id" }
   );
 
   await supabase.rpc("grant_referral_bonus", {
-    p_referrer_id: referrer.id,
+    p_referrer_id: referrerId,
     p_referred_id: user.id
   });
-  localStorage.removeItem("pending_referral_code");
 }
 
 function GoogleMark() {
@@ -3027,24 +3298,26 @@ function AuthScreen({ mode }) {
   );
 }
 
-function PlansScreen() {
-  const proPlan = useMemo(
-    () => ({
-      title: "Pro",
-      price: "£4.99"
-    }),
-    []
-  );
+function PlansScreen({ session }) {
+  const { currency, formatMonth, formatYear } = useCommerceCurrency();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const startCheckout = async () => {
+  const startCheckout = async (plan) => {
+    if (!session?.access_token) {
+      setError("Sign in to subscribe.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const response = await fetch(apiUrl("/api/create-checkout-session"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ plan, currency })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
@@ -3059,17 +3332,37 @@ function PlansScreen() {
   return (
     <section className="card">
       <h1>Upgrade to Pro</h1>
-      <div className="plans-grid">
+      <p className="muted">7-day trial, then choose monthly or yearly billing.</p>
+      <div className="plans-grid plans-grid--two">
         <article className="plan-card">
-          <h3>{proPlan.title}</h3>
-          <p className="plan-price">{proPlan.price}/month</p>
+          <h3>Pro · Monthly</h3>
+          <p className="plan-price">
+            {formatMonth()}
+            <span className="plan-period">/month</span>
+          </p>
           <p className="muted">Unlimited decisions and full Life Mode access.</p>
-          <button className="primary-btn" onClick={startCheckout} disabled={loading}>
-            {loading ? "Redirecting to Stripe..." : "Start Pro"}
+          <button className="primary-btn" onClick={() => startCheckout("month")} disabled={loading}>
+            {loading ? "Redirecting…" : `Subscribe · ${formatMonth()}/mo`}
           </button>
-          {error ? <p className="error">{error}</p> : null}
+        </article>
+        <article className="plan-card plan-card--highlight">
+          <h3>Pro · Yearly</h3>
+          <p className="plan-price">
+            {formatYear()}
+            <span className="plan-period">/year</span>
+          </p>
+          <p className="muted">Best value — save vs paying monthly.</p>
+          <button className="primary-btn" onClick={() => startCheckout("year")} disabled={loading}>
+            {loading ? "Redirecting…" : `Subscribe · ${formatYear()}/yr`}
+          </button>
         </article>
       </div>
+      {!session?.access_token ? (
+        <p className="meta">
+          <Link to="/login">Sign in</Link> to start checkout.
+        </p>
+      ) : null}
+      {error ? <p className="error">{error}</p> : null}
     </section>
   );
 }
@@ -3113,43 +3406,48 @@ export default function App() {
   };
 
   return (
-    <Layout session={session} onSignOut={signOut}>
-      {!isSupabaseConfigured ? (
-        <section className="card">
-          <h1>Setup required</h1>
-          <p className="error">Set Supabase env values in `.env` and refresh.</p>
-        </section>
-      ) : null}
-      <Routes>
-        {SEO_LANDING_ROUTES.map((cfg) => (
-          <Route key={cfg.path} path={cfg.path} element={<SeoLandingPage config={cfg} />} />
-        ))}
-        <Route path="/" element={<ChatScreen session={session} />} />
-        <Route path="/explore" element={<ExploreScreen session={session} />} />
-        <Route
-          path="/stats"
-          element={
-            <ProtectedRoute session={session}>
-              <StatsScreen session={session} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            <ProtectedRoute session={session}>
-              <HistoryScreen session={session} />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/group" element={<GroupCreateScreen session={session} />} />
-        <Route path="/group/:shareCode" element={<GroupRoomScreen session={session} />} />
-        <Route path="/leaderboard" element={<LeaderboardScreen session={session} />} />
-        <Route path="/profile" element={<ProfileScreen session={session} />} />
-        <Route path="/plans" element={<PlansScreen />} />
-        <Route path="/login" element={<AuthScreen mode="login" />} />
-        <Route path="/signup" element={<AuthScreen mode="signup" />} />
-      </Routes>
-    </Layout>
+    <CommerceCurrencyProvider>
+      <Layout session={session} onSignOut={signOut}>
+        {!isSupabaseConfigured ? (
+          <section className="card">
+            <h1>Setup required</h1>
+            <p className="error">Set Supabase env values in `.env` and refresh.</p>
+          </section>
+        ) : null}
+        <Routes>
+          {SEO_LANDING_ROUTES.map((cfg) => (
+            <Route key={cfg.path} path={cfg.path} element={<SeoLandingPage config={cfg} />} />
+          ))}
+          <Route path="/" element={<ChatScreen session={session} />} />
+          <Route path="/explore" element={<ExploreScreen session={session} />} />
+          <Route
+            path="/stats"
+            element={
+              <ProtectedRoute session={session}>
+                <StatsScreen session={session} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute session={session}>
+                <HistoryScreen session={session} />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/group" element={<GroupCreateScreen session={session} />} />
+          <Route path="/group/:shareCode" element={<GroupRoomScreen session={session} />} />
+          <Route path="/leaderboard" element={<LeaderboardScreen session={session} />} />
+          <Route path="/referrals" element={<ReferralLeaderboardScreen />} />
+          <Route path="/affiliates" element={<AffiliatesPage />} />
+          <Route path="/ref/:username" element={<RefLandingCapture />} />
+          <Route path="/profile" element={<ProfileScreen session={session} />} />
+          <Route path="/plans" element={<PlansScreen session={session} />} />
+          <Route path="/login" element={<AuthScreen mode="login" />} />
+          <Route path="/signup" element={<AuthScreen mode="signup" />} />
+        </Routes>
+      </Layout>
+    </CommerceCurrencyProvider>
   );
 }

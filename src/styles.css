@@ -1981,6 +1981,73 @@ a.nearby-inline-maps:hover {
   color: #f5e642;
 }
 
+.plan-period {
+  font-size: 0.9rem;
+  color: rgba(220, 226, 255, 0.75);
+  font-weight: 600;
+}
+
+.plans-grid--two {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.plan-card--highlight {
+  border-color: rgba(245, 230, 66, 0.28);
+  box-shadow: 0 0 20px rgba(245, 230, 66, 0.08);
+}
+
+.upgrade-modal-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.upgrade-modal-plans .upgrade-cta {
+  width: 100%;
+}
+
+.referral-dashboard-card {
+  margin: 16px 0;
+}
+
+.referral-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.referral-link-break {
+  word-break: break-all;
+}
+
+.referral-lb-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.affiliates-benefits {
+  text-align: left;
+  max-width: 520px;
+  margin: 0 auto 20px;
+  padding-left: 1.25rem;
+  color: rgba(220, 226, 255, 0.82);
+  line-height: 1.55;
+}
+
+.affiliates-code {
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.small-print {
+  font-size: 0.78rem;
+  margin-top: 8px;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));

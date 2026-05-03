@@ -10,6 +10,15 @@ import {
   runStreakReminders,
   trySendWelcomeForUser
 } from "./notifications.js";
+import { getBearerUser } from "./authUser.js";
+import {
+  createCheckoutSessionHandler,
+  createConnectAccountLinkHandler,
+  fetchReferralDashboard,
+  fetchReferralLeaderboard,
+  handleStripeWebhook,
+  recordReferralClick
+} from "./stripeAffiliate.js";
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -259,11 +268,7 @@ app.get("/api/health/ready", (_req, res) => {
 
 app.use("/api/stripe-webhook", express.raw({ type: "application/json" }));
 
-app.post("/api/stripe-webhook", (req, res) => {
-  // Optional: process subscription events if you store billing state in Supabase.
-  // Implement this once you set STRIPE_WEBHOOK_SECRET and a profiles table.
-  res.status(200).json({ received: true });
-});
+app.post("/api/stripe-webhook", (req, res) => handleStripeWebhook(stripe, req, res));
 
 app.use(express.json({ limit: "12mb" }));
 
@@ -865,34 +870,35 @@ app.post("/api/emails/welcome", async (req, res) => {
   }
 });
 
-app.post("/api/create-checkout-session", async (req, res) => {
-  try {
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "gbp",
-            unit_amount: 499,
-            recurring: { interval: "month" },
-            product_data: {
-              name: "Decide For Me Pro",
-              description: "Unlimited decisions and full Life Mode access"
-            }
-          }
-        }
-      ],
-      subscription_data: {
-        trial_period_days: 7
-      },
-      success_url: `${config.appBaseUrl}/?checkout=success`,
-      cancel_url: `${config.appBaseUrl}/plans?checkout=cancelled`
-    });
+app.post("/api/create-checkout-session", (req, res) =>
+  createCheckoutSessionHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
+);
 
-    return res.json({ url: session.url });
+app.post("/api/stripe/connect-onboarding", (req, res) =>
+  createConnectAccountLinkHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
+);
+
+app.get("/api/referrals/leaderboard", async (_req, res) => {
+  const out = await fetchReferralLeaderboard(50);
+  if (out.error) return res.status(503).json(out);
+  return res.json(out);
+});
+
+app.get("/api/referrals/dashboard", async (req, res) => {
+  const { userId, error } = await getBearerUser(req);
+  if (!userId) return res.status(401).json({ error: error || "Unauthorized." });
+  const out = await fetchReferralDashboard(userId);
+  if (out.error) return res.status(503).json(out);
+  return res.json(out);
+});
+
+app.post("/api/ref/track-click", async (req, res) => {
+  try {
+    const slug = req.body?.slug;
+    const out = await recordReferralClick(slug);
+    return res.json(out);
   } catch (error) {
-    return res.status(500).json({ error: error.message || "Stripe checkout failed." });
+    return res.status(500).json({ ok: false, error: error.message });
   }
 });
 
