@@ -1472,7 +1472,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         ) : null}
         {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
         {nearbyPlaces.length ? (
-          <div className="recommendations-wrap">
+          <div className="recommendations-wrap recommendations-wrap--natural-flow">
             {nearbyPlaces.map((item, idx) => (
               <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
                 <div className="recommend-body">
@@ -1546,26 +1546,28 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       <div className="chat-divider" />
 
       {conversation.length || loading ? (
-        <div className="chat-frame">
-          {lifeModeSession ? (
-            <article className="life-chat-banner">
-              <p className="hero-kicker">Life Mode in control</p>
-              <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
-            </article>
-          ) : null}
-          {conversation.map((msg, idx) => (
-            <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
-              <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
-              <div className={`bubble ${msg.role}`}>
-                {msg.role === "assistant" ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                ) : (
-                  msg.content
-                )}
+        <div className="chat-and-nearby">
+          <div className="chat-frame">
+            {lifeModeSession ? (
+              <article className="life-chat-banner">
+                <p className="hero-kicker">Life Mode in control</p>
+                <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
+              </article>
+            ) : null}
+            {conversation.map((msg, idx) => (
+              <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
+                <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
+                <div className={`bubble ${msg.role}`}>
+                  {msg.role === "assistant" ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          {loading ? <LoadingOrb /> : null}
+            ))}
+            {loading ? <LoadingOrb /> : null}
+          </div>
           {showNearbyFindButton && !loading && conversation.length ? (
             <div className="find-nearby-cta">
               <button
@@ -1580,7 +1582,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           ) : null}
           {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
           {nearbyPlaces.length ? (
-            <div className="recommendations-wrap">
+            <div className="recommendations-wrap recommendations-wrap--natural-flow">
               {nearbyPlaces.map((item, idx) => (
                 <article key={`${item.name}-${item.address}-${idx}`} className="recommend-card">
                   <div className="recommend-body">

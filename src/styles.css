@@ -273,7 +273,7 @@ a {
 .life-mode-fullscreen {
   min-height: calc(100vh - 120px);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 24px;
   background: radial-gradient(circle at 50% 20%, rgba(90, 20, 20, 0.2), rgba(4, 4, 8, 0.98) 56%);
   border: 1px solid rgba(255, 70, 70, 0.32);
@@ -677,8 +677,19 @@ a {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Stack chat + nearby UI in normal document flow so place cards are not trapped in .chat-frame’s scroll box */
+.chat-and-nearby {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.chat-and-nearby .chat-frame {
+  margin: 0;
+}
+
 .find-nearby-cta {
-  margin-top: 4px;
+  margin-top: 0;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
@@ -1011,6 +1022,12 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
+}
+
+.recommendations-wrap--natural-flow {
+  margin-top: 0;
+  overflow: visible;
+  max-height: none;
 }
 
 .recommend-card {
