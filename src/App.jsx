@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { BarChart2, Clock, Flame, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
+import { BarChart2, Clock, Flame, ImagePlus, LogIn, MessageCircle, Trophy, User, Users } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
@@ -107,7 +107,69 @@ function trimDecisionSnippet(text, max) {
 function conversationForApi(messages) {
   return (Array.isArray(messages) ? messages : [])
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: m.content ?? "" }));
+    .map((m) => {
+      const base = { role: m.role, content: m.content ?? "" };
+      if (m.role === "user" && m.imageBase64 && m.imageMediaType) {
+        return { ...base, imageBase64: m.imageBase64, imageMediaType: m.imageMediaType };
+      }
+      return base;
+    });
+}
+
+/** Avoid storing large base64 blobs in Supabase */
+function conversationForStorage(messages) {
+  return (Array.isArray(messages) ? messages : []).map((m) => {
+    if (m.role === "user" && m.imageBase64) {
+      const text = typeof m.content === "string" ? m.content.trim() : "";
+      return { role: "user", content: text || "[Photo]" };
+    }
+    if (m.role === "assistant") {
+      return {
+        role: "assistant",
+        content: m.content ?? "",
+        ...(Array.isArray(m.bookingLinks) && m.bookingLinks.length ? { bookingLinks: m.bookingLinks } : {})
+      };
+    }
+    return { role: m.role, content: m.content ?? "" };
+  });
+}
+
+/** Preference extraction only needs text — omit vision payloads */
+function conversationForPreferenceExtract(messages) {
+  return conversationForApi(messages).map((m) => {
+    if (m.role === "user" && m.imageBase64) {
+      const text = typeof m.content === "string" ? m.content.trim() : "";
+      return { role: "user", content: text ? `${text} [photo]` : "[photo]" };
+    }
+    return m;
+  });
+}
+
+async function compressImageToJpeg(file, maxEdge = 1600, quality = 0.82) {
+  const bitmap = await createImageBitmap(file);
+  const { width: w, height: h } = bitmap;
+  const scale = Math.min(1, maxEdge / Math.max(w, h, 1));
+  const cw = Math.max(1, Math.round(w * scale));
+  const ch = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not read image.");
+  ctx.drawImage(bitmap, 0, 0, cw, ch);
+  bitmap.close();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  if (!blob) throw new Error("Could not process image.");
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(blob);
+  });
+  const comma = String(dataUrl).indexOf(",");
+  const base64 = comma >= 0 ? String(dataUrl).slice(comma + 1) : "";
+  if (!base64) throw new Error("Could not process image.");
+  return { base64, mediaType: "image/jpeg" };
 }
 
 function buildNearbyPickReason({ userPrompt, assistantReply, cuisineType }, index) {
@@ -654,6 +716,8 @@ function ChatScreen({ session }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [crisisSupportActive, setCrisisSupportActive] = useState(false);
+  const [pendingImage, setPendingImage] = useState(null);
+  const attachInputRef = useRef(null);
   const [liveCount, setLiveCount] = useState(0);
   const [learnedPreferences, setLearnedPreferences] = useState([]);
   const [totalDecisions, setTotalDecisions] = useState(0);
@@ -1279,17 +1343,34 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLoading(true);
     setError("");
     setCrisisSupportActive(false);
+    const attachment = pendingImage;
+    setPendingImage(null);
+    if (attachment?.previewUrl) {
+      URL.revokeObjectURL(attachment.previewUrl);
+    }
+
+    const resolvedText =
+      String(content ?? "").trim() || (attachment ? "Help me decide based on this image." : "");
+    if (!resolvedText.trim() && !attachment) {
+      setLoading(false);
+      return;
+    }
+
     setNearbyFetchError("");
     setShowNearbyFindButton(false);
     setNearbyPlacePromptContext("");
-    const userMessage = { role: "user", content };
+    const userMessage = {
+      role: "user",
+      content: resolvedText,
+      ...(attachment ? { imageBase64: attachment.base64, imageMediaType: attachment.mediaType } : {})
+    };
     const updatedConversation = isInitial ? [userMessage] : [...conversation, userMessage];
     if (isInitial) setConversation([userMessage]);
     else setConversation(updatedConversation);
 
     try {
       let locationForRequest = userLocation;
-      if (shouldUseNearby(content) && !locationForRequest && "geolocation" in navigator) {
+      if (shouldUseNearby(resolvedText) && !locationForRequest && "geolocation" in navigator) {
         locationForRequest = await requestUserLocation();
         if (locationForRequest) setUserLocation(locationForRequest);
       }
@@ -1298,7 +1379,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: content,
+          prompt: resolvedText,
           conversation: conversationForApi(updatedConversation),
           userLocation: locationForRequest,
           userPreferences: learnedPreferences.map((item) => item.preference),
@@ -1330,12 +1411,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const finalConversation = [...updatedConversation, aiMessage];
       setConversation(finalConversation);
 
-      if (shouldShowFindPlacesCta(content)) {
+      if (shouldShowFindPlacesCta(resolvedText)) {
         setShowNearbyFindButton(true);
-        setNearbyPlacePromptContext(content);
+        setNearbyPlacePromptContext(resolvedText);
       }
 
-      const changedMind = /actually|instead|not feeling|change/i.test(content) ? 1 : 0;
+      const changedMind = /actually|instead|not feeling|change/i.test(resolvedText) ? 1 : 0;
       setReply("");
 
       if (session?.user?.id && supabase) {
@@ -1345,7 +1426,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           category: "Natural language",
           mood: "Inferred tone",
           answer: finalAssistantText,
-          conversation: finalConversation
+          conversation: conversationForStorage(finalConversation)
         });
         setLiveCount((prev) => prev + 1);
         await touchActivity(session.user.id, { didDecision: true, mindsChanged: changedMind });
@@ -1371,13 +1452,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           await supabase.from("life_mode_decisions").insert({
             session_id: lifeModeSession.id,
             user_id: session.user.id,
-            prompt: content,
+            prompt: resolvedText,
             answer: finalAssistantText
           });
           setLifeModeDecisionFeed((prev) => [
             {
               id: `pending-${Date.now()}`,
-              prompt: content,
+              prompt: resolvedText,
               answer: ensuredLifeModeAnswer,
               created_at: new Date().toISOString()
             },
@@ -1389,7 +1470,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            conversation: conversationForApi(finalConversation),
+            conversation: conversationForPreferenceExtract(finalConversation),
             answer: finalAssistantText
           })
         })
@@ -1501,13 +1582,52 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 ) : null}
               </>
             ) : (
-              msg.content
+              <>
+                {msg.imageBase64 && msg.imageMediaType ? (
+                  <img
+                    className="message-user-image"
+                    alt=""
+                    src={`data:${msg.imageMediaType};base64,${msg.imageBase64}`}
+                  />
+                ) : null}
+                <span className="message-user-text">{msg.content}</span>
+              </>
             )}
           </div>
         </div>
       );
     }
     return null;
+  };
+
+  const clearPendingImage = () => {
+    setPendingImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  };
+
+  const onAttachFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type.startsWith("image/")) return;
+    try {
+      setError("");
+      const { base64, mediaType } = await compressImageToJpeg(file);
+      setPendingImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return { base64, mediaType, previewUrl: URL.createObjectURL(file) };
+      });
+    } catch (err) {
+      setError(err.message || "Could not load image.");
+    }
+  };
+
+  const composerEnterSubmit = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
   };
 
   if (lifeModeSession) {
@@ -1552,15 +1672,42 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           className="form life-mode-input-form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!prompt.trim()) return;
+            if (!prompt.trim() && !pendingImage) return;
             sendToAI(prompt.trim(), !conversation.length);
           }}
         >
+          {pendingImage ? (
+            <div className="pending-attach-preview">
+              <img src={pendingImage.previewUrl} alt="" className="pending-attach-thumb" />
+              <button type="button" className="pending-attach-remove" onClick={clearPendingImage} aria-label="Remove photo">
+                ×
+              </button>
+            </div>
+          ) : null}
           <div className="input-row">
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              aria-hidden
+              tabIndex={-1}
+              onChange={onAttachFile}
+            />
+            <button
+              type="button"
+              className="attach-btn"
+              disabled={loading}
+              aria-label="Add photo"
+              onClick={() => attachInputRef.current?.click()}
+            >
+              <ImagePlus size={20} strokeWidth={2} />
+            </button>
             <textarea
               ref={setPromptRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={composerEnterSubmit}
               className="decision-input"
               placeholder="Report your situation. AI will issue a final decision."
               disabled={loading}
@@ -1677,16 +1824,43 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           className="form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!prompt.trim()) return;
+            if (!prompt.trim() && !pendingImage) return;
             sendToAI(prompt.trim(), true);
           }}
         >
+          {pendingImage ? (
+            <div className="pending-attach-preview">
+              <img src={pendingImage.previewUrl} alt="" className="pending-attach-thumb" />
+              <button type="button" className="pending-attach-remove" onClick={clearPendingImage} aria-label="Remove photo">
+                ×
+              </button>
+            </div>
+          ) : null}
           <div className="input-row">
-              <textarea
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              aria-hidden
+              tabIndex={-1}
+              onChange={onAttachFile}
+            />
+            <button
+              type="button"
+              className="attach-btn"
+              disabled={loading || showUpgradePrompt}
+              aria-label="Add photo"
+              onClick={() => attachInputRef.current?.click()}
+            >
+              <ImagePlus size={20} strokeWidth={2} />
+            </button>
+            <textarea
               ref={setPromptRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-                className="decision-input"
+              onKeyDown={composerEnterSubmit}
+              className="decision-input"
               placeholder={
                 showUpgradePrompt
                   ? "Pro required. Upgrade to continue with unlimited decisions and full Life Mode."
@@ -1705,7 +1879,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           className="form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!reply.trim()) return;
+            if (!reply.trim() && !pendingImage) return;
             sendToAI(reply.trim(), false);
           }}
         >
@@ -1723,12 +1897,39 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               ))}
             </div>
           ) : null}
+          {pendingImage ? (
+            <div className="pending-attach-preview">
+              <img src={pendingImage.previewUrl} alt="" className="pending-attach-thumb" />
+              <button type="button" className="pending-attach-remove" onClick={clearPendingImage} aria-label="Remove photo">
+                ×
+              </button>
+            </div>
+          ) : null}
           <div className="input-row">
-              <textarea
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              aria-hidden
+              tabIndex={-1}
+              onChange={onAttachFile}
+            />
+            <button
+              type="button"
+              className="attach-btn"
+              disabled={loading || showUpgradePrompt}
+              aria-label="Add photo"
+              onClick={() => attachInputRef.current?.click()}
+            >
+              <ImagePlus size={20} strokeWidth={2} />
+            </button>
+            <textarea
               ref={setReplyRef}
               value={reply}
               onChange={(event) => setReply(event.target.value)}
-                className="decision-input"
+              onKeyDown={composerEnterSubmit}
+              className="decision-input"
               placeholder="Reply…"
               disabled={showUpgradePrompt}
               rows={1}

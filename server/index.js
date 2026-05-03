@@ -250,7 +250,7 @@ app.post("/api/stripe-webhook", (req, res) => {
   res.status(200).json({ received: true });
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 
 function parseExtractedPreferences(rawText) {
   const fallback = [];
@@ -433,6 +433,71 @@ function detectMentalHealthCrisis(fullText) {
   return false;
 }
 
+const ALLOWED_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
+function stringifyForCrisisScan(msg) {
+  const text = typeof msg.content === "string" ? msg.content.trim() : "";
+  if (msg.role === "user" && msg.imageBase64) {
+    return text ? `${text} [photo attached]` : "[photo attached]";
+  }
+  return text;
+}
+
+function buildUserMessageContent(msg) {
+  const text = typeof msg.content === "string" ? msg.content.trim() : "";
+  let rawB64 =
+    typeof msg.imageBase64 === "string" ? msg.imageBase64.replace(/\s+/g, "") : "";
+  const dataUrlMatch = rawB64.match(/^data:([^;]+);base64,(.+)$/i);
+  if (dataUrlMatch) {
+    rawB64 = dataUrlMatch[2];
+  }
+  const mediaType = msg.imageMediaType;
+
+  if (rawB64 && mediaType && ALLOWED_IMAGE_MEDIA_TYPES.has(mediaType)) {
+    const approxBytes = Math.floor((rawB64.length * 3) / 4);
+    if (approxBytes > 5 * 1024 * 1024) {
+      const err = new Error("Image too large (max 5MB).");
+      err.statusCode = 400;
+      throw err;
+    }
+    return [
+      {
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: rawB64 }
+      },
+      {
+        type: "text",
+        text: text || "Help me decide based on what you see in this image."
+      }
+    ];
+  }
+
+  if (!text) return null;
+  return text;
+}
+
+function conversationHasImage(conversation) {
+  return (Array.isArray(conversation) ? conversation : []).some(
+    (m) => m.role === "user" && m.imageBase64 && ALLOWED_IMAGE_MEDIA_TYPES.has(m.imageMediaType)
+  );
+}
+
+function conversationToClaudeMessages(conversation) {
+  const list = Array.isArray(conversation) ? conversation : [];
+  const out = [];
+  for (const msg of list) {
+    if (msg.role === "assistant") {
+      const t = String(msg.content ?? "").trim();
+      if (t) out.push({ role: "assistant", content: t });
+    } else if (msg.role === "user") {
+      const content = buildUserMessageContent(msg);
+      if (content === null) continue;
+      out.push({ role: "user", content });
+    }
+  }
+  return out;
+}
+
 app.post("/api/decide", async (req, res) => {
   const {
     prompt,
@@ -443,8 +508,16 @@ app.post("/api/decide", async (req, res) => {
     userPreferences = [],
     lifeMode = false
   } = req.body ?? {};
-  if (!prompt) {
-    return res.status(400).json({ error: "prompt is required." });
+
+  const conv = Array.isArray(conversation) ? conversation : [];
+  const lastUserMsg = [...conv].reverse().find((m) => m.role === "user");
+  const promptTrim = String(prompt ?? "").trim();
+  const hasImage =
+    Boolean(lastUserMsg?.imageBase64) &&
+    ALLOWED_IMAGE_MEDIA_TYPES.has(lastUserMsg?.imageMediaType);
+
+  if (!promptTrim && !hasImage) {
+    return res.status(400).json({ error: "Enter a message or attach an image." });
   }
 
   try {
@@ -455,9 +528,6 @@ app.post("/api/decide", async (req, res) => {
       "Life Coach": "Be wise, supportive, and growth-focused."
     };
 
-    const priorMessages = Array.isArray(conversation)
-      ? conversation.map((msg) => `${msg.role || "user"}: ${msg.content || ""}`).join("\n")
-      : "";
     const knownPreferences = Array.isArray(userPreferences)
       ? userPreferences.map((pref) => String(pref || "").trim()).filter(Boolean).slice(0, 20)
       : [];
@@ -465,8 +535,17 @@ app.post("/api/decide", async (req, res) => {
       ? knownPreferences.map((pref) => `- ${pref}`).join("\n")
       : "No known user preferences yet.";
 
-    const combinedForCrisis = `${prompt}\n${priorMessages}`;
+    const combinedForCrisis =
+      conv.length > 0
+        ? conv.map((m) => `${m.role}: ${stringifyForCrisisScan(m)}`).join("\n")
+        : promptTrim;
+
     if (detectMentalHealthCrisis(combinedForCrisis)) {
+      let crisisTurns = conversationToClaudeMessages(conv);
+      if (!crisisTurns.length) {
+        crisisTurns = [{ role: "user", content: promptTrim }];
+      }
+
       const crisisMessage = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 420,
@@ -479,13 +558,9 @@ You MUST:
 - Your reply MUST clearly include UK Samaritans: call **116 123** (free, confidential, 24/7). Mention that if life is at immediate risk they can call **999** (UK).
 - You may briefly mention NHS **111** or text **SHOUT** to **85258** as extra UK options.
 - Do not claim to be a therapist or diagnosis. Encourage speaking to Samaritans or a GP.
-- About 4–7 short sentences. The Samaritans number 116 123 must appear in the message.`,
-        messages: [
-          {
-            role: "user",
-            content: `Latest message:\n${prompt}\n\nEarlier chat:\n${priorMessages || "None"}\n\nWrite one supportive reply. Include Samaritans 116 123.`
-          }
-        ]
+- About 4–7 short sentences. The Samaritans number 116 123 must appear in the message.
+- If images are included, acknowledge them only in a supportive, safety-focused way; do not analyse visuals in a clinical or graphic manner.`,
+        messages: crisisTurns
       });
       let crisisAnswer =
         crisisMessage.content?.find((part) => part.type === "text")?.text?.trim() ||
@@ -512,7 +587,7 @@ You MUST:
     }
     const bookingLinksMd = travelWeb ? buildBookingLinksMarkdown(prompt) : "";
 
-    const travelWebUserBlock = travelWeb
+    const travelWebContextBlock = travelWeb
       ? `
 
 === Live web search (use for real-world context; paraphrase, do not copy long quotes) ===
@@ -540,12 +615,29 @@ ${bookingLinksMd}`
 - No waffle, no hedging, no rambling.
 - No bullet points, no labels like "Why:", no long explanations.`;
 
+    const visionRules = conversationHasImage(conv)
+      ? `
+- The user shared one or more photos. Examine visible detail (menus, outfits, products, prices, labels, colours, layout) and base your recommendation on what you actually see in the image(s).`
+      : "";
+
+    let messagesForClaude = conversationToClaudeMessages(conv);
+    if (!messagesForClaude.length) {
+      messagesForClaude = [{ role: "user", content: promptTrim }];
+    }
+
+    const hasVision = conversationHasImage(conv);
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: travelWeb ? 520 : 140,
+      max_tokens: travelWeb ? 520 : hasVision ? 450 : 140,
       temperature: 0.55,
-      system:
-        `You are a premium decision assistant. ${personalityGuide[personality] || personalityGuide.Balanced}
+      system: `You are a premium decision assistant. ${personalityGuide[personality] || personalityGuide.Balanced}
+
+Session context:
+- Personality mode: ${personality}
+- Group preferences (if any): ${groupSummary || "None"}
+- Known user preferences (apply when relevant):
+${preferenceContext}
+${travelWebContextBlock}
 Style rules:
 ${baseStyleRules}
 - NEVER ask the user questions. Always make a decision immediately with no follow-up questions. If you don't have enough info, make your best guess and decide anyway.
@@ -558,24 +650,9 @@ ${lifeMode ? "- Never use soft language: do not say 'I suggest', 'maybe', 'consi
 ${lifeMode ? "- Always provide a definitive directive immediately, even with limited context." : ""}
 ${lifeMode ? "- Phrase actions as orders, not advice." : ""}
 ${lifeMode ? `- End every response with exactly: Directive issued.${travelWeb ? " Booking buttons appear below your text — mention them if useful." : ""}` : ""}
+${visionRules}
 Voice: confident friend giving quick advice, not a consultant.`,
-      messages: [
-        {
-          role: "user",
-          content: `User decision request: ${prompt}
-Personality mode: ${personality}
-Group preferences (if any):
-${groupSummary || "None"}
-
-Known user preferences:
-${preferenceContext}
-
-Conversation so far:
-${priorMessages || "No prior messages"}${travelWebUserBlock}
-
-Respond as the assistant in this ongoing chat.`
-        }
-      ]
+      messages: messagesForClaude
     });
 
     const answer =
@@ -585,7 +662,8 @@ Respond as the assistant in this ongoing chat.`
     const bookingLinks = travelWeb ? buildBookingLinks(prompt) : undefined;
     return res.json({ answer, ...(bookingLinks ? { bookingLinks } : {}) });
   } catch (error) {
-    return res.status(500).json({ error: error.message || "Claude API request failed." });
+    const status = error.statusCode === 400 ? 400 : 500;
+    return res.status(status).json({ error: error.message || "Claude API request failed." });
   }
 });
 
