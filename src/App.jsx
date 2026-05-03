@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "react-router-dom";
+import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import {
   ArrowUp,
   BarChart2,
@@ -861,6 +872,27 @@ function ChatScreen({ session }) {
   const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const raw = searchParams.get("q");
+    if (!raw) return;
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw.replace(/\+/g, " "));
+    } catch {
+      /* use raw */
+    }
+    setPrompt(decoded);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("q");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [searchParams, setSearchParams]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
@@ -3089,6 +3121,9 @@ export default function App() {
         </section>
       ) : null}
       <Routes>
+        {SEO_LANDING_ROUTES.map((cfg) => (
+          <Route key={cfg.path} path={cfg.path} element={<SeoLandingPage config={cfg} />} />
+        ))}
         <Route path="/" element={<ChatScreen session={session} />} />
         <Route path="/explore" element={<ExploreScreen session={session} />} />
         <Route

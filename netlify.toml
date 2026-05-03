@@ -5,3 +5,9 @@ publish = "dist"
 [build.environment]
 SECRETS_SCAN_ENABLED = "false"
 
+# SPA fallback so deep links (e.g. /what-should-i-eat-tonight) serve index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
