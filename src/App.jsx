@@ -1,12 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowUp, BarChart2, Clock, Flame, LogIn, MessageCircle, Paperclip, Trophy, User, Users } from "lucide-react";
+import {
+  ArrowUp,
+  BarChart2,
+  Clock,
+  Compass,
+  Flame,
+  LogIn,
+  MessageCircle,
+  Paperclip,
+  Sparkles,
+  Trophy,
+  User,
+  Users
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
+const ONBOARDING_STORAGE_KEY = "decide_for_me_onboarding_done";
+
 const DAILY_LIBRARY = [
   {
     prompt: "Would you rather have unlimited money or unlimited time?",
@@ -302,6 +317,72 @@ function LoadingOrb() {
   );
 }
 
+function LoadingAssistantShimmer() {
+  return (
+    <div className="message-row assistant loading-msg-row" aria-live="polite" aria-busy="true">
+      <div className="avatar assistant avatar-ai-icon" aria-hidden="true">
+        <Sparkles size={15} strokeWidth={2} />
+      </div>
+      <div className="bubble assistant shimmer-bubble">
+        <div className="shimmer-line" />
+        <div className="shimmer-line shimmer-line--medium" />
+        <div className="shimmer-line shimmer-line--short" />
+      </div>
+    </div>
+  );
+}
+
+function OnboardingOverlay({ onComplete }) {
+  const slides = [
+    {
+      title: "Ask anything",
+      body: "Decisions, comparisons, travel, food, style — type it or drop a photo."
+    },
+    {
+      title: "Get a decisive answer",
+      body: "No endless options. One clear call, tuned to how you like to decide."
+    },
+    {
+      title: "Take action with real links",
+      body: "Flights, stays, maps, and booking shortcuts when you need to move fast."
+    }
+  ];
+  const [step, setStep] = useState(0);
+
+  return (
+    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+      <div className="onboarding-card">
+        <button type="button" className="onboarding-skip" onClick={onComplete}>
+          Skip
+        </button>
+        <p className="hero-kicker onboarding-step-label">
+          {step + 1} / {slides.length}
+        </p>
+        <h2 id="onb-title" className="onboarding-title">
+          {slides[step].title}
+        </h2>
+        <p className="muted onboarding-body">{slides[step].body}</p>
+        <div className="onboarding-dots" aria-hidden="true">
+          {slides.map((_, i) => (
+            <span key={i} className={`onboarding-dot ${i === step ? "active" : ""}`} />
+          ))}
+        </div>
+        <div className="onboarding-actions">
+          {step < slides.length - 1 ? (
+            <button type="button" className="primary-btn onboarding-next" onClick={() => setStep((s) => s + 1)}>
+              Next
+            </button>
+          ) : (
+            <button type="button" className="primary-btn onboarding-next" onClick={onComplete}>
+              Get started
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnimatedCounter({ value }) {
   const [display, setDisplay] = useState(0);
 
@@ -363,19 +444,33 @@ function SharePanel({ text, className = "" }) {
 }
 
 function Layout({ session, onSignOut, children }) {
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(ONBOARDING_STORAGE_KEY)) setShowOnboarding(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const finishOnboarding = () => {
+    try {
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setShowOnboarding(false);
+  };
+
   const desktopNavItems = [
     { to: "/", label: "Chat", icon: MessageCircle },
-    { to: "/stats", label: "Stats", icon: BarChart2 },
-    { to: "/group", label: "Group", icon: Users },
-    { to: "/history", label: "History", icon: Clock },
-    { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
+    { to: "/explore", label: "Explore", icon: Compass },
     { to: "/profile", label: "Profile", icon: User }
   ];
   const mobileTabs = [
     { to: "/", label: "Chat", icon: MessageCircle },
-    { to: "/group", label: "Group", icon: Users },
-    { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
-    { to: "/stats", label: "Stats", icon: BarChart2 },
+    { to: "/explore", label: "Explore", icon: Compass },
     { to: "/profile", label: "Profile", icon: User }
   ];
 
@@ -384,6 +479,7 @@ function Layout({ session, onSignOut, children }) {
 
   return (
     <div className="app-shell page-enter">
+      {showOnboarding ? <OnboardingOverlay onComplete={finishOnboarding} /> : null}
       <header className="topbar">
         <Link to="/" className="brand">
           Decide For Me
@@ -1560,7 +1656,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     if (msg.role === "user" || msg.role === "assistant") {
       return (
         <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
-          <div className={`avatar ${msg.role}`}>{msg.role === "assistant" ? "⚡" : "U"}</div>
+          {msg.role === "assistant" ? (
+            <div className="avatar assistant avatar-ai-icon" aria-hidden="true">
+              <Sparkles size={15} strokeWidth={2} />
+            </div>
+          ) : (
+            <div className="avatar user" aria-hidden="true">
+              <User size={14} strokeWidth={2} />
+            </div>
+          )}
           <div className={`bubble ${msg.role}`}>
             {msg.role === "assistant" ? (
               <>
@@ -1728,7 +1832,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <div className="chat-and-nearby life-mode-chat-stack">
             <div className="chat-frame">
               {conversation.map(renderChatMessage)}
-              {loading ? <LoadingOrb /> : null}
+              {loading ? <LoadingAssistantShimmer /> : null}
               {showNearbyFindButton && !loading && conversation.length ? (
                 <div className="find-nearby-cta find-nearby-cta--in-chat">
                   <button
@@ -1751,78 +1855,30 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }
 
   return (
-    <section className="card premium home-card">
-      <div className="hero-glow" />
-      <div className="hero-stack">
-        <p className="hero-kicker">⚡ Decision intelligence</p>
-        <h1 className="hero-title">Stop Overthinking. Just Decide.</h1>
-        <p className="hero-subtitle">What do you need help deciding?</p>
-      </div>
-      <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
-      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
-      {session?.user?.id ? (
-        <p className="meta usage-meter">
-          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
-        </p>
-      ) : (
-        <p className="meta usage-meter">
-          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
-        </p>
-      )}
-      {showFirstTimeNote ? (
-        <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
-      ) : null}
-      {profileDecisionCount >= 5 ? (
-        <article className="history-item decision-profile-card">
-          <p className="hero-kicker">Your Decision Profile</p>
-          {isProUser ? (
-            <div className="history-list">
-              {profileInsights.map((insight) => (
-                <p key={insight} className="answer">
-                  {insight}
-                </p>
-              ))}
-            </div>
+    <section className="card premium home-card home-chat-focused">
+      <div className="home-focus-top">
+        <p className="home-eyebrow">Decide For Me</p>
+        <p className="home-one-liner">What do you want to decide?</p>
+        <div className="home-stats-inline">
+          <span className="home-stat-pill">
+            <AnimatedCounter value={liveCount} /> today
+          </span>
+          <span className="home-stat-pill home-stat-pill--muted">{lifeModeGlobalCount} in Life Mode</span>
+          {session?.user?.id ? (
+            <span className="home-stat-pill home-stat-pill--muted">
+              {dailyUsage}/{DAILY_FREE_LIMIT} free today
+            </span>
           ) : (
-            <>
-              <p className="muted">
-                {profileInsights[0] || "Pattern detected in your decision style."} Unlock full profile insights with Pro.
-              </p>
-              <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
-                Unlock full Decision Profile
-              </button>
-            </>
+            <span className="home-stat-pill home-stat-pill--muted">
+              Guest {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT}
+            </span>
           )}
-        </article>
-      ) : null}
-      <div className="chat-divider" />
-
-      {conversation.length || loading ? (
-        <div className="chat-and-nearby">
-          <div className="chat-frame">
-            {lifeModeSession ? (
-              <article className="life-chat-banner">
-                <p className="hero-kicker">Life Mode in control</p>
-                <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
-              </article>
-            ) : null}
-            {conversation.map(renderChatMessage)}
-            {loading ? <LoadingOrb /> : null}
-            {showNearbyFindButton && !loading && conversation.length ? (
-              <div className="find-nearby-cta find-nearby-cta--in-chat">
-                <button
-                  type="button"
-                  className="ghost-btn find-nearby-btn"
-                  onClick={() => fetchNearbyPlacesForContext()}
-                  disabled={nearbyPlacesLoading}
-                >
-                  {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
-                </button>
-              </div>
-            ) : null}
-          </div>
-          {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
         </div>
+      </div>
+      {showFirstTimeNote ? (
+        <p className="personalization-note personalization-note--compact">
+          The more you use Decide For Me, the better it knows you.
+        </p>
       ) : null}
 
       {!conversation.length ? (
@@ -1958,6 +2014,35 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </form>
       )}
+
+      {conversation.length || loading ? (
+        <div className="chat-and-nearby">
+          <div className="chat-frame">
+            {lifeModeSession ? (
+              <article className="life-chat-banner">
+                <p className="hero-kicker">Life Mode in control</p>
+                <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
+              </article>
+            ) : null}
+            {conversation.map(renderChatMessage)}
+            {loading ? <LoadingAssistantShimmer /> : null}
+            {showNearbyFindButton && !loading && conversation.length ? (
+              <div className="find-nearby-cta find-nearby-cta--in-chat">
+                <button
+                  type="button"
+                  className="ghost-btn find-nearby-btn"
+                  onClick={() => fetchNearbyPlacesForContext()}
+                  disabled={nearbyPlacesLoading}
+                >
+                  {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
+        </div>
+      ) : null}
+
       {!lifeModeSession ? (
         <button className="life-mode-btn" type="button" onClick={openLifeModePrompt} onTouchEnd={openLifeModePrompt}>
           <span className="life-mode-title">🎲 Let AI Run My Life</span>
@@ -2037,19 +2122,54 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           ))}
         </div>
       ) : null}
-      <div className="home-insights">
-        <article className="streak-spotlight">
-          <div className="streak-head">
-            <span className="streak-icon">
-              <Flame size={16} />
-            </span>
-            <p className="hero-kicker">Momentum</p>
+      <details className="home-secondary-details">
+        <summary className="home-secondary-summary">Profile, momentum &amp; community</summary>
+        <div className="home-secondary-body">
+          {profileDecisionCount >= 5 ? (
+            <article className="history-item decision-profile-card">
+              <p className="hero-kicker">Your Decision Profile</p>
+              {isProUser ? (
+                <div className="history-list">
+                  {profileInsights.map((insight) => (
+                    <p key={insight} className="answer">
+                      {insight}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <div className="profile-upsell-teaser">
+                  {profileInsights[0] ? <p className="answer profile-insight-visible">{profileInsights[0]}</p> : null}
+                  <div className="profile-insight-locked-wrap">
+                    <p className="answer profile-insight-blurred" aria-hidden="true">
+                      {profileInsights[1] ||
+                        "How you trade off time vs. money when plans change — and two more traits Pro unlocks from your history."}
+                    </p>
+                    <div className="profile-upsell-cta">
+                      <p className="meta profile-upsell-hint">You’re one insight away from a full read on your style.</p>
+                      <button type="button" className="primary-btn profile-full-cta" onClick={() => setShowUpgradePrompt(true)}>
+                        See your full profile
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </article>
+          ) : null}
+          <div className="home-insights home-insights--nested">
+            <article className="streak-spotlight">
+              <div className="streak-head">
+                <span className="streak-icon">
+                  <Flame size={16} />
+                </span>
+                <p className="hero-kicker">Momentum</p>
+              </div>
+              <h3>{currentStreak} day streak</h3>
+              <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
+            </article>
+            <DailyDilemmaCard session={session} />
           </div>
-          <h3>{currentStreak} day streak</h3>
-          <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
-        </article>
-        <DailyDilemmaCard session={session} />
-      </div>
+        </div>
+      </details>
       {conversation.length ? (
         <SharePanel
           text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}
@@ -2190,6 +2310,58 @@ function StatsScreen({ session }) {
           <SharePanel text={`My weekly Decide For Me recap:\n- ${weeklyRecap.join("\n- ")}`} />
         </article>
       ) : null}
+    </section>
+  );
+}
+
+function ExploreScreen({ session }) {
+  return (
+    <section className="card premium explore-hub">
+      <header className="explore-hub-head">
+        <h1>Explore</h1>
+        <p className="muted">Groups, leaderboard, and your numbers.</p>
+      </header>
+      <div className="explore-tiles">
+        <Link to="/group" className="explore-tile">
+          <span className="explore-tile-icon" aria-hidden="true">
+            <Users size={22} strokeWidth={1.75} />
+          </span>
+          <span className="explore-tile-title">Group decisions</span>
+          <span className="explore-tile-desc">Collect votes, one final call</span>
+        </Link>
+        <Link to="/leaderboard" className="explore-tile">
+          <span className="explore-tile-icon" aria-hidden="true">
+            <Trophy size={22} strokeWidth={1.75} />
+          </span>
+          <span className="explore-tile-title">Leaderboard</span>
+          <span className="explore-tile-desc">See how you rank</span>
+        </Link>
+        {session?.user?.id ? (
+          <>
+            <Link to="/stats" className="explore-tile">
+              <span className="explore-tile-icon" aria-hidden="true">
+                <BarChart2 size={22} strokeWidth={1.75} />
+              </span>
+              <span className="explore-tile-title">Stats &amp; streaks</span>
+              <span className="explore-tile-desc">Your momentum &amp; recap</span>
+            </Link>
+            <Link to="/history" className="explore-tile">
+              <span className="explore-tile-icon" aria-hidden="true">
+                <Clock size={22} strokeWidth={1.75} />
+              </span>
+              <span className="explore-tile-title">History</span>
+              <span className="explore-tile-desc">Past decisions</span>
+            </Link>
+          </>
+        ) : (
+          <p className="explore-guest-hint muted">
+            <Link to="/login" className="answer">
+              Sign in
+            </Link>{" "}
+            for personal stats and history.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -2783,6 +2955,7 @@ export default function App() {
       ) : null}
       <Routes>
         <Route path="/" element={<ChatScreen session={session} />} />
+        <Route path="/explore" element={<ExploreScreen session={session} />} />
         <Route
           path="/stats"
           element={
