@@ -135,8 +135,15 @@ function mapNearbyRequestTypeToIncludedTypes(type) {
   return map[t] || ["restaurant"];
 }
 
+function normalizeNearbyRadiusMeters(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return 1600;
+  // Places API (New) circle radius: practical range 1–50 km
+  return Math.min(50000, Math.max(1, Math.round(n)));
+}
+
 /** Places API (New): POST places:searchNearby — returns normalized place rows */
-async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
+async function searchNearbyPlacesNew({ lat, lng, includedTypes, radiusMeters }) {
   if (!googlePlacesKey) {
     return { places: [], error: "Missing GOOGLE_PLACES_API_KEY." };
   }
@@ -147,6 +154,7 @@ async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
   }
 
   const types = Array.isArray(includedTypes) && includedTypes.length ? includedTypes : ["restaurant"];
+  const radius = normalizeNearbyRadiusMeters(radiusMeters);
 
   const body = {
     includedTypes: types,
@@ -155,7 +163,7 @@ async function searchNearbyPlacesNew({ lat, lng, includedTypes }) {
     locationRestriction: {
       circle: {
         center: { latitude, longitude },
-        radius: 5000
+        radius
       }
     }
   };
@@ -669,9 +677,9 @@ Voice: confident friend giving quick advice, not a consultant.`,
 
 app.post("/api/nearby-places", async (req, res) => {
   try {
-    const { lat, lng, type } = req.body ?? {};
+    const { lat, lng, type, radiusMeters } = req.body ?? {};
     const includedTypes = mapNearbyRequestTypeToIncludedTypes(type);
-    const result = await searchNearbyPlacesNew({ lat, lng, includedTypes });
+    const result = await searchNearbyPlacesNew({ lat, lng, includedTypes, radiusMeters });
     if (result.error && (!result.places || result.places.length === 0)) {
       return res.status(502).json({ error: result.error, places: [] });
     }

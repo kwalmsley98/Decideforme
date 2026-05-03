@@ -22,6 +22,13 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 const ONBOARDING_STORAGE_KEY = "decide_for_me_onboarding_done";
 
+const NEARBY_RADIUS_OPTIONS = [
+  { label: "0.5 miles", meters: 800 },
+  { label: "1 mile", meters: 1600 },
+  { label: "5 miles", meters: 8000 }
+];
+const DEFAULT_NEARBY_RADIUS_METERS = 1600;
+
 const DAILY_LIBRARY = [
   {
     prompt: "Would you rather have unlimited money or unlimited time?",
@@ -812,6 +819,7 @@ function ChatScreen({ session }) {
   const [showNearbyFindButton, setShowNearbyFindButton] = useState(false);
   const [nearbyPlacePromptContext, setNearbyPlacePromptContext] = useState("");
   const [nearbyFetchError, setNearbyFetchError] = useState("");
+  const [nearbyRadiusMeters, setNearbyRadiusMeters] = useState(DEFAULT_NEARBY_RADIUS_METERS);
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1283,7 +1291,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         body: JSON.stringify({
           lat: pos.lat,
           lng: pos.lng,
-          type: inferNearbyPlaceType(ctx)
+          type: inferNearbyPlaceType(ctx),
+          radiusMeters: nearbyRadiusMeters
         })
       });
       const rawText = await nr.text();
@@ -1839,6 +1848,22 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               {loading ? <LoadingAssistantShimmer /> : null}
               {showNearbyFindButton && !loading && conversation.length ? (
                 <div className="find-nearby-cta find-nearby-cta--in-chat">
+                  <div className="nearby-radius-pills" role="group" aria-label="Search radius">
+                    {NEARBY_RADIUS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.meters}
+                        type="button"
+                        className={
+                          "nearby-radius-pill" +
+                          (nearbyRadiusMeters === opt.meters ? " nearby-radius-pill--active" : "")
+                        }
+                        onClick={() => setNearbyRadiusMeters(opt.meters)}
+                        disabled={nearbyPlacesLoading}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     className="ghost-btn find-nearby-btn"
@@ -1919,6 +1944,22 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             {loading ? <LoadingAssistantShimmer /> : null}
             {showNearbyFindButton && !loading && conversation.length ? (
               <div className="find-nearby-cta find-nearby-cta--in-chat">
+                <div className="nearby-radius-pills" role="group" aria-label="Search radius">
+                  {NEARBY_RADIUS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.meters}
+                      type="button"
+                      className={
+                        "nearby-radius-pill" +
+                        (nearbyRadiusMeters === opt.meters ? " nearby-radius-pill--active" : "")
+                      }
+                      onClick={() => setNearbyRadiusMeters(opt.meters)}
+                      disabled={nearbyPlacesLoading}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   className="ghost-btn find-nearby-btn"
