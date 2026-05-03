@@ -12,7 +12,8 @@ import {
   Sparkles,
   Trophy,
   User,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -2149,8 +2150,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       )}
       {showUpgradePrompt ? (
-        <div className="upgrade-modal-overlay">
-          <article className="upgrade-modal-card">
+        <div
+          className="upgrade-modal-overlay"
+          role="presentation"
+          onClick={() => setShowUpgradePrompt(false)}
+        >
+          <article className="upgrade-modal-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="upgrade-modal-close"
+              onClick={() => setShowUpgradePrompt(false)}
+              aria-label="Close"
+            >
+              <X size={20} strokeWidth={2.25} />
+            </button>
             <p className="hero-kicker">{upgradePromptReason === "feature" ? "Premium feature" : "Daily limit reached"}</p>
             <h2>Upgrade to Pro</h2>
             <p className="plan-price">{PRO_PLAN_PRICE}/month</p>

@@ -1809,6 +1809,7 @@ a.nearby-inline-maps:hover {
 }
 
 .upgrade-modal-card {
+  position: relative;
   width: min(560px, 100%);
   border-radius: 20px;
   padding: 22px;
@@ -1816,6 +1817,34 @@ a.nearby-inline-maps:hover {
   background: linear-gradient(145deg, rgba(10, 10, 16, 0.97), rgba(22, 16, 36, 0.97));
   text-align: center;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.6), 0 0 28px rgba(245, 230, 66, 0.2);
+}
+
+.upgrade-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.upgrade-modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.upgrade-modal-close:focus-visible {
+  outline: 2px solid rgba(245, 230, 66, 0.85);
+  outline-offset: 2px;
 }
 
 .upgrade-modal-card h2 {
