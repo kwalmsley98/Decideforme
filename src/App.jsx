@@ -1859,33 +1859,79 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }
 
   return (
-    <section className="card premium home-card home-chat-focused">
-      <div className="home-focus-top">
-        <div className="home-brand-block">
-          <h1 className="home-brand-title">Decide For Me</h1>
-          <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
-        </div>
-        <p className="home-prompt-hint">What do you want to decide?</p>
-        <div className="home-stats-inline">
-          <span className="home-stat-pill">
-            <AnimatedCounter value={liveCount} /> today
-          </span>
-          <span className="home-stat-pill home-stat-pill--muted">{lifeModeGlobalCount} in Life Mode</span>
-          {session?.user?.id ? (
-            <span className="home-stat-pill home-stat-pill--muted">
-              {dailyUsage}/{DAILY_FREE_LIMIT} free today
-            </span>
-          ) : (
-            <span className="home-stat-pill home-stat-pill--muted">
-              Guest {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT}
-            </span>
-          )}
-        </div>
+    <section className="card premium home-card">
+      <div className="hero-glow" />
+      <div className="hero-stack">
+        <p className="hero-kicker">⚡ Decision intelligence</p>
+        <h1 className="hero-title">Decide For Me</h1>
+        <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
+        <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
-      {showFirstTimeNote ? (
-        <p className="personalization-note personalization-note--compact">
-          The more you use Decide For Me, the better it knows you.
+      <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
+      {session?.user?.id ? (
+        <p className="meta usage-meter">
+          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
         </p>
+      ) : (
+        <p className="meta usage-meter">
+          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
+        </p>
+      )}
+      {showFirstTimeNote ? (
+        <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
+      ) : null}
+      {profileDecisionCount >= 5 ? (
+        <article className="history-item decision-profile-card">
+          <p className="hero-kicker">Your Decision Profile</p>
+          {isProUser ? (
+            <div className="history-list">
+              {profileInsights.map((insight) => (
+                <p key={insight} className="answer">
+                  {insight}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <>
+              <p className="muted">
+                {profileInsights[0] || "Pattern detected in your decision style."} Unlock full profile insights with Pro.
+              </p>
+              <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
+                Unlock full Decision Profile
+              </button>
+            </>
+          )}
+        </article>
+      ) : null}
+      <div className="chat-divider" />
+
+      {conversation.length || loading ? (
+        <div className="chat-and-nearby">
+          <div className="chat-frame">
+            {lifeModeSession ? (
+              <article className="life-chat-banner">
+                <p className="hero-kicker">Life Mode in control</p>
+                <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
+              </article>
+            ) : null}
+            {conversation.map(renderChatMessage)}
+            {loading ? <LoadingAssistantShimmer /> : null}
+            {showNearbyFindButton && !loading && conversation.length ? (
+              <div className="find-nearby-cta find-nearby-cta--in-chat">
+                <button
+                  type="button"
+                  className="ghost-btn find-nearby-btn"
+                  onClick={() => fetchNearbyPlacesForContext()}
+                  disabled={nearbyPlacesLoading}
+                >
+                  {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
+        </div>
       ) : null}
 
       {!conversation.length ? (
@@ -2022,34 +2068,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </form>
       )}
 
-      {conversation.length || loading ? (
-        <div className="chat-and-nearby">
-          <div className="chat-frame">
-            {lifeModeSession ? (
-              <article className="life-chat-banner">
-                <p className="hero-kicker">Life Mode in control</p>
-                <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} left</p>
-              </article>
-            ) : null}
-            {conversation.map(renderChatMessage)}
-            {loading ? <LoadingAssistantShimmer /> : null}
-            {showNearbyFindButton && !loading && conversation.length ? (
-              <div className="find-nearby-cta find-nearby-cta--in-chat">
-                <button
-                  type="button"
-                  className="ghost-btn find-nearby-btn"
-                  onClick={() => fetchNearbyPlacesForContext()}
-                  disabled={nearbyPlacesLoading}
-                >
-                  {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
-                </button>
-              </div>
-            ) : null}
-          </div>
-          {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
-        </div>
-      ) : null}
-
       {!lifeModeSession ? (
         <button className="life-mode-btn" type="button" onClick={openLifeModePrompt} onTouchEnd={openLifeModePrompt}>
           <span className="life-mode-title">🎲 Let AI Run My Life</span>
@@ -2080,46 +2098,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </article>
         </div>
       ) : null}
-      {lifeModeRecap ? (
-        <article className="life-recap-card">
-          <p className="hero-kicker">Life Mode Recap</p>
-          <h3>{lifeModeRecap.totalDecisions || 0} decisions in 24 hours</h3>
-          <p className="muted">{lifeModeRecap.verdict}</p>
-          <div className="history-list">
-            {(lifeModeRecap.highlights || []).slice(0, 3).map((item, idx) => (
-              <article key={`${item.created_at || idx}-${idx}`} className="history-item">
-                <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
-                <p>{item.prompt}</p>
-                <p className="answer">{item.answer}</p>
-              </article>
-            ))}
-          </div>
-          <div className="life-share-row">
-            <a
-              className="share-btn wa"
-              href={`https://wa.me/?text=${encodeURIComponent(`${lifeModeCaption}\n${lifeModeRecap.verdict}`)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              W
-            </a>
-            <a
-              className="share-btn x"
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${lifeModeCaption}\n${lifeModeRecap.verdict}`)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              X
-            </a>
-            <button className="share-btn copy" type="button" onClick={copyLifeModeCaption}>
-              {copiedLifeCaption ? "OK" : "IG"}
-            </button>
-            <button className="share-btn native" type="button" onClick={copyLifeModeCaption}>
-              {copiedLifeCaption ? "OK" : "TT"}
-            </button>
-          </div>
-        </article>
-      ) : null}
       {!conversation.length ? (
         <div className="quick-category-scroll">
           <div className="quick-category-row">
@@ -2131,54 +2109,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
       ) : null}
-      <details className="home-secondary-details">
-        <summary className="home-secondary-summary">Profile, momentum &amp; community</summary>
-        <div className="home-secondary-body">
-          {profileDecisionCount >= 5 ? (
-            <article className="history-item decision-profile-card">
-              <p className="hero-kicker">Your Decision Profile</p>
-              {isProUser ? (
-                <div className="history-list">
-                  {profileInsights.map((insight) => (
-                    <p key={insight} className="answer">
-                      {insight}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <div className="profile-upsell-teaser">
-                  {profileInsights[0] ? <p className="answer profile-insight-visible">{profileInsights[0]}</p> : null}
-                  <div className="profile-insight-locked-wrap">
-                    <p className="answer profile-insight-blurred" aria-hidden="true">
-                      {profileInsights[1] ||
-                        "How you trade off time vs. money when plans change — and two more traits Pro unlocks from your history."}
-                    </p>
-                    <div className="profile-upsell-cta">
-                      <p className="meta profile-upsell-hint">You’re one insight away from a full read on your style.</p>
-                      <button type="button" className="primary-btn profile-full-cta" onClick={() => setShowUpgradePrompt(true)}>
-                        See your full profile
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </article>
-          ) : null}
-          <div className="home-insights home-insights--nested">
-            <article className="streak-spotlight">
-              <div className="streak-head">
-                <span className="streak-icon">
-                  <Flame size={16} />
-                </span>
-                <p className="hero-kicker">Momentum</p>
-              </div>
-              <h3>{currentStreak} day streak</h3>
-              <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
-            </article>
-            <DailyDilemmaCard session={session} />
+      <div className="home-insights">
+        <article className="streak-spotlight">
+          <div className="streak-head">
+            <span className="streak-icon">
+              <Flame size={16} />
+            </span>
+            <p className="hero-kicker">Momentum</p>
           </div>
-        </div>
-      </details>
+          <h3>{currentStreak} day streak</h3>
+          <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
+        </article>
+        <DailyDilemmaCard session={session} />
+      </div>
       {conversation.length ? (
         <SharePanel
           text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}

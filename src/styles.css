@@ -184,6 +184,8 @@ a {
 }
 
 .home-card {
+  position: relative;
+  overflow: visible;
   padding-top: 22px;
   padding-bottom: 22px;
   display: grid;
@@ -213,7 +215,7 @@ a {
 }
 
 .hero-title {
-  margin: 6px 0;
+  margin: 6px 0 0;
   font-size: clamp(1.5rem, 3.2vw, 2.625rem);
   line-height: 1.08;
   letter-spacing: -0.01em;
@@ -223,8 +225,18 @@ a {
   text-shadow: 0 0 12px rgba(255, 255, 255, 0.09);
 }
 
+.hero-stack .home-brand-tagline {
+  margin: 8px auto 2px;
+  max-width: 28rem;
+  font-size: clamp(0.92rem, 2.4vw, 1.06rem);
+  font-weight: 500;
+  color: rgba(215, 222, 245, 0.92);
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
 .hero-subtitle {
-  margin: 0 0 2px;
+  margin: 10px 0 2px;
   color: #b9bfd6;
 }
 
