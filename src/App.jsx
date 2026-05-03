@@ -824,6 +824,8 @@ function ChatScreen({ session }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [crisisSupportActive, setCrisisSupportActive] = useState(false);
+  const [samaritansBannerActive, setSamaritansBannerActive] = useState(false);
+  const [followUpSuggestions, setFollowUpSuggestions] = useState([]);
   const [pendingImage, setPendingImage] = useState(null);
   const attachInputRef = useRef(null);
   const [liveCount, setLiveCount] = useState(0);
@@ -1452,6 +1454,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLoading(true);
     setError("");
     setCrisisSupportActive(false);
+    setSamaritansBannerActive(false);
+    setFollowUpSuggestions([]);
     const attachment = pendingImage;
     setPendingImage(null);
     if (attachment?.previewUrl) {
@@ -1498,6 +1502,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI failed.");
       setCrisisSupportActive(Boolean(data.crisisSupport));
+      if (data.crisisSupport) {
+        setSamaritansBannerActive(false);
+        setFollowUpSuggestions([]);
+      } else {
+        setSamaritansBannerActive(Boolean(data.showSamaritansBanner));
+        const raw = Array.isArray(data.followUpSuggestions) ? data.followUpSuggestions : [];
+        setFollowUpSuggestions(raw.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 3));
+      }
       const assistantTurnsSoFar = conversationForApi(updatedConversation).filter((item) => item.role === "assistant")
         .length;
       const ensuredLifeModeAnswer =
@@ -1626,6 +1638,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       }
     } catch (err) {
       setError(err.message);
+      setFollowUpSuggestions([]);
+      setSamaritansBannerActive(false);
     } finally {
       setLoading(false);
     }
@@ -2045,11 +2059,16 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             sendToAI(reply.trim(), false);
           }}
         >
-          {!crisisSupportActive ? (
+          {crisisSupportActive || samaritansBannerActive ? (
+            <p className="samaritans-resources-strip" role="note">
+              If you need someone to talk to: <strong>Samaritans 116 123</strong> (UK, free, 24/7). Immediate danger:{" "}
+              <strong>999</strong>.
+            </p>
+          ) : followUpSuggestions.length ? (
             <div className="suggestion-row">
-              {["Not feeling it 👎", "Something cheaper 💰", "Give me a wild option 🎲"].map((text) => (
+              {followUpSuggestions.map((text, i) => (
                 <button
-                  key={text}
+                  key={`${i}-${text}`}
                   type="button"
                   className="suggestion-chip"
                   onClick={() => setReply(text)}

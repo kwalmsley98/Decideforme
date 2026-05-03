@@ -506,6 +506,76 @@ function conversationToClaudeMessages(conversation) {
   return out;
 }
 
+function fallbackFollowUps(lifeMode) {
+  if (lifeMode) {
+    return ["Push harder", "Different angle", "Surprise me"];
+  }
+  return ["Try another angle", "Surprise me", "Something cheaper"];
+}
+
+function parseFollowUpsPayload(text) {
+  let raw = String(text || "")
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  const brace = raw.match(/\{[\s\S]*\}/);
+  if (brace) raw = brace[0];
+  try {
+    const data = JSON.parse(raw);
+    const banner = Boolean(data.showSamaritansBanner);
+    let arr = Array.isArray(data.followUps) ? data.followUps : [];
+    arr = arr.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 3);
+    if (banner) return { followUps: [], showSamaritansBanner: true };
+    return { followUps: arr, showSamaritansBanner: false };
+  } catch {
+    return { followUps: [], showSamaritansBanner: false };
+  }
+}
+
+async function generateFollowUpSuggestionsPayload({ userPrompt, assistantAnswer, lifeMode, personality }) {
+  const up = String(userPrompt || "").trim();
+  const ans = String(assistantAnswer || "").trim();
+  if (!up || !ans) {
+    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+  }
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 220,
+      temperature: 0.35,
+      system: `You output ONLY a single JSON object (no markdown fence, no other text) for a decision assistant app:
+{"followUps":["...","...","..."],"showSamaritansBanner":false}
+
+Rules for followUps (when showSamaritansBanner is false):
+- Provide exactly 2 or 3 strings. Each under 48 characters, UK English, suitable as tappable short replies.
+- Match the decision domain implied by the user message and assistant reply: food/dining, travel, nightlife, shopping, work, relationships, fitness, entertainment, etc.
+- Examples of good directions: healthier / quicker / cheaper / surprise / different vibe / quieter / warmer destination / longer trip — only when they fit the topic.
+
+Personality mode from session: ${String(personality || "Balanced")}. Keep chip wording consistent with that tone (never cruel or abusive).
+
+Life Mode: ${lifeMode ? "on — chips may sound slightly more commanding or bold." : "off — friendly decisive tone."}
+
+Set showSamaritansBanner to true and followUps to [] when the exchange is about mental health support, therapy, depression, anxiety, self-harm, suicide, eating disorders, or serious emotional crisis — whenever playful decision chips would be inappropriate. The app will show the Samaritans helpline instead.
+
+When showSamaritansBanner is false, followUps must always have 2 or 3 items.`,
+      messages: [
+        {
+          role: "user",
+          content: `Latest user message:\n${up}\n\nAssistant reply:\n${ans}\n\nReturn JSON only.`
+        }
+      ]
+    });
+    const text = msg.content?.find((p) => p.type === "text")?.text?.trim() || "";
+    const parsed = parseFollowUpsPayload(text);
+    if (parsed.showSamaritansBanner) return parsed;
+    if (parsed.followUps.length >= 2) return parsed;
+    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+  } catch (e) {
+    console.error("[followUpSuggestions]", e);
+    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+  }
+}
+
 app.post("/api/decide", async (req, res) => {
   const {
     prompt,
@@ -668,7 +738,18 @@ Voice: confident friend giving quick advice, not a consultant.`,
       "Go with the boldest option available right now.";
 
     const bookingLinks = travelWeb ? buildBookingLinks(prompt) : undefined;
-    return res.json({ answer, ...(bookingLinks ? { bookingLinks } : {}) });
+    const followPayload = await generateFollowUpSuggestionsPayload({
+      userPrompt: promptTrim,
+      assistantAnswer: answer,
+      lifeMode: Boolean(lifeMode),
+      personality
+    });
+    return res.json({
+      answer,
+      ...(bookingLinks ? { bookingLinks } : {}),
+      followUpSuggestions: followPayload.showSamaritansBanner ? [] : followPayload.followUps,
+      showSamaritansBanner: followPayload.showSamaritansBanner
+    });
   } catch (error) {
     const status = error.statusCode === 400 ? 400 : 500;
     return res.status(status).json({ error: error.message || "Claude API request failed." });
