@@ -1375,16 +1375,16 @@ a.nearby-inline-maps:hover {
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.88);
+  background: #f5e642;
+  color: #171717;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
 }
 
 .chat-composer-send:hover:not(:disabled) {
-  background: rgba(245, 230, 66, 0.22);
-  color: #fffbeb;
+  background: #ffef72;
+  color: #121212;
 }
 
 .chat-composer-send:active:not(:disabled) {
@@ -1441,7 +1441,7 @@ a.nearby-inline-maps:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .suggestion-chip {
@@ -1452,10 +1452,15 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.05);
   color: #dce2ff;
-  padding: 6px 9px;
+  padding: 8px 12px;
   font-size: 0.76rem;
   cursor: pointer;
   transition: all 0.18s ease;
+}
+
+.followup-form {
+  margin-top: 8px;
+  gap: 8px;
 }
 
 .suggestion-chip:hover {

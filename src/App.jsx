@@ -2219,7 +2219,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </form>
       ) : (
         <form
-          className="form"
+          className="form followup-form"
           onSubmit={(event) => {
             event.preventDefault();
             if (!reply.trim() && !pendingImage) return;
@@ -2277,7 +2277,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               onChange={(event) => setReply(event.target.value)}
               onKeyDown={composerEnterSubmit}
               className="chat-composer-input"
-              placeholder="Reply…"
+              placeholder="Ask a follow-up..."
               disabled={showUpgradePrompt}
               rows={1}
             />

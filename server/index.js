@@ -701,13 +701,16 @@ ${bookingLinksMd}`
       : "";
 
     const baseStyleRules = travelWeb
-      ? `- Be direct and decisive: one clear travel/stay recommendation plus grounded reasoning from search excerpts.
-- Give a short punchy reason that connects to the user's goal.
-- No waffle.`
-      : `- Maximum 2-3 sentences total.
+      ? `- Use exactly 2 lines.
+- Line 1: bold decisive answer in 1-5 words (example: **The Grand Budapest Hotel.**).
+- Line 2: one punchy reason sentence, max 15 words.
+- Be direct and decisive: one clear travel/stay recommendation grounded in search excerpts.
+- Never hedge, never waffle, never ramble.`
+      : `- Use exactly 2 lines.
+- Line 1: bold decisive answer in 1-5 words.
+- Line 2: one punchy reason sentence, max 15 words.
 - Be direct and decisive: make one clear decision.
-- Give one short punchy reason why.
-- No waffle, no hedging, no rambling.
+- Never hedge, never waffle, never ramble.
 - No bullet points, no labels like "Why:", no long explanations.`;
 
     const visionRules = conversationHasImage(conv)
