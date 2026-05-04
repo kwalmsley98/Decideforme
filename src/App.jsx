@@ -2073,9 +2073,45 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="hero-kicker">⚡ Decision intelligence</p>
         <h1 className="hero-title">Decide For Me</h1>
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
-        <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
+      <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
+      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
+      {session?.user?.id ? (
+        <p className="meta usage-meter">
+          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
+        </p>
+      ) : (
+        <p className="meta usage-meter">
+          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
+        </p>
+      )}
+      {showFirstTimeNote ? (
+        <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
+      ) : null}
+      {profileDecisionCount >= 5 ? (
+        <article className="history-item decision-profile-card">
+          <p className="hero-kicker">Your Decision Profile</p>
+          {isProUser ? (
+            <div className="history-list">
+              {profileInsights.map((insight) => (
+                <p key={insight} className="answer">
+                  {insight}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <>
+              <p className="muted">
+                Your full decision style revealed — see what drives every choice you make.
+              </p>
+              <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
+                Unlock full Decision Profile
+              </button>
+            </>
+          )}
+        </article>
+      ) : null}
       <div className="chat-divider" />
 
       {conversation.length || loading ? (
@@ -2336,8 +2372,21 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
             </article>
           )}
+          <DailyDilemmaCard session={session} />
         </>
       ) : null}
+      <div className="home-insights">
+        <article className="streak-spotlight">
+          <div className="streak-head">
+            <span className="streak-icon">
+              <Flame size={16} />
+            </span>
+            <p className="hero-kicker">Momentum</p>
+          </div>
+          <h3>{currentStreak} day streak</h3>
+          <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
+        </article>
+      </div>
       {conversation.length ? (
         <SharePanel
           text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}
@@ -2552,7 +2601,6 @@ function ExploreScreen({ session }) {
           </p>
         )}
       </div>
-      <DailyDilemmaCard session={session} />
     </section>
   );
 }
