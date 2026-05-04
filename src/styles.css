@@ -1,15 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
-* { box-sizing: border-box; max-width: 100%; }
 
 :root {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: #f6f7ff;
 }
 
-#root {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -76,10 +73,6 @@ a {
 
 .app-shell {
   min-height: 100vh;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
   padding: 28px 24px 40px;
 }
 
@@ -99,7 +92,7 @@ a {
 }
 
 .topbar {
-  max-width: 100%;
+  max-width: 1120px;
   margin: 0 auto 28px;
   display: flex;
   justify-content: space-between;
@@ -171,13 +164,10 @@ a {
 }
 
 .content {
-  width: 100%;
-  max-width: 100%;
+  max-width: 1120px;
   margin: 0 auto;
-  box-sizing: border-box;
   padding-left: 4px;
   padding-right: 4px;
-  overflow-x: hidden;
 }
 
 .mobile-tabbar {
@@ -185,8 +175,6 @@ a {
 }
 
 .card {
-  width: 100%;
-  max-width: 100%;
   background: rgba(14, 16, 24, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
@@ -197,18 +185,11 @@ a {
 
 .home-card {
   position: relative;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
   overflow: visible;
   padding-top: 22px;
   padding-bottom: 22px;
   display: grid;
   gap: 8px;
-}
-
-.card.premium.home-card {
-  width: 100%;
 }
 
 .premium {
@@ -218,7 +199,7 @@ a {
 
 .hero-stack {
   text-align: center;
-  max-width: 100%;
+  max-width: 760px;
   margin: 0 auto 4px;
   position: relative;
   z-index: 2;
@@ -246,7 +227,7 @@ a {
 
 .hero-stack .home-brand-tagline {
   margin: 8px auto 2px;
-  max-width: 100%;
+  max-width: 28rem;
   font-size: clamp(0.92rem, 2.4vw, 1.06rem);
   font-weight: 500;
   color: rgba(215, 222, 245, 0.92);
@@ -261,13 +242,11 @@ a {
 
 .hero-glow {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   top: 70px;
-  width: 100%;
-  max-width: 100%;
+  width: min(720px, 88vw);
   height: 220px;
-  transform: none;
+  transform: translateX(-50%);
   background: radial-gradient(circle at center, rgba(80, 108, 255, 0.28) 0%, rgba(126, 57, 212, 0.2) 45%,
       rgba(0, 0, 0, 0) 76%);
   filter: blur(6px);
@@ -503,7 +482,7 @@ a {
 
 .personalization-note {
   margin: 0 auto 12px;
-  max-width: 100%;
+  max-width: 640px;
   text-align: center;
   color: #f9ef9e;
   border: 1px solid rgba(245, 230, 66, 0.35);
@@ -535,8 +514,6 @@ a {
   cursor: pointer;
   transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
   position: relative;
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 .daily-vote-btn.option-a {
@@ -645,8 +622,8 @@ a {
 
 .quick-category-scroll {
   margin-top: 6px;
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: -4px;
+  margin-right: -4px;
   padding: 4px 4px 8px;
   mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
@@ -782,13 +759,10 @@ a.booking-pill:hover {
 }
 
 .chat-frame {
-  width: 100%;
-  max-width: 100%;
   margin: 20px 0;
   min-height: 220px;
   max-height: 420px;
   overflow: auto;
-  overflow-x: hidden;
   border-radius: 20px;
   padding: 16px;
   background: rgba(8, 10, 16, 0.62);
@@ -1173,8 +1147,6 @@ a.nearby-inline-maps:hover {
   display: grid;
   gap: 12px;
   width: 100%;
-  max-width: 100%;
-  min-width: 0;
   margin-top: 6px;
 }
 
@@ -1250,8 +1222,6 @@ a.nearby-inline-maps:hover {
   align-items: flex-end;
   gap: 2px;
   width: 100%;
-  max-width: 100%;
-  min-width: 0;
   padding: 6px 8px 6px 6px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1514,7 +1484,7 @@ a.nearby-inline-maps:hover {
 .recommendations-wrap {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 
@@ -1580,7 +1550,7 @@ a.nearby-inline-maps:hover {
   height: 52px;
   flex: 0 0 52px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   background: #1a1a1a;
   color: #fff;
   display: inline-flex;
@@ -1588,19 +1558,6 @@ a.nearby-inline-maps:hover {
   justify-content: center;
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.18s ease, transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.share-icon-btn:hover {
-  border-color: rgba(255, 255, 255, 0.34);
-  background: #202020;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
-}
-
-.share-icon-btn:active {
-  transform: translateY(0);
-  box-shadow: none;
 }
 
 .share-icon-btn svg {
@@ -1613,22 +1570,11 @@ a.nearby-inline-maps:hover {
   width: 100%;
   min-height: 42px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background: #1a1a1a;
   color: #f3f5ff;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
-}
-
-.share-native-btn:hover {
-  border-color: rgba(255, 255, 255, 0.32);
-  background: #202020;
-  transform: translateY(-1px);
-}
-
-.share-native-btn:active {
-  transform: translateY(0);
 }
 
 .history-list {
@@ -1638,16 +1584,13 @@ a.nearby-inline-maps:hover {
 }
 
 .vote-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 10px;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .vote-row .daily-vote-btn {
-  width: 100%;
+  flex: 1 1 140px;
   min-width: 0;
   text-align: left;
 }
@@ -2109,7 +2052,7 @@ a.nearby-inline-maps:hover {
 
 .affiliates-benefits {
   text-align: left;
-  max-width: 100%;
+  max-width: 520px;
   margin: 0 auto 20px;
   padding-left: 1.25rem;
   color: rgba(220, 226, 255, 0.82);
