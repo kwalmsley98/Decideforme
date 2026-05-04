@@ -2906,8 +2906,14 @@ function AffiliatesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const hasSafeClass = Boolean(document.querySelector(".affiliates-program-content"));
+    console.log("[AffiliatesPage] affiliates-program-content applied:", hasSafeClass);
+  }, []);
+
   return (
-    <section className="card premium seo-landing referrals-page-safe">
+    <section className="card premium seo-landing affiliates-program-content">
       <p className="hero-kicker">Partners</p>
       <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
       <p className="answer seo-landing-lede">

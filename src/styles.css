@@ -1614,6 +1614,11 @@ a.nearby-inline-maps:hover {
   padding-bottom: 200px;
 }
 
+.affiliates-program-content {
+  overflow-y: auto;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+}
+
 .leaderboard-head {
   display: flex;
   justify-content: space-between;
