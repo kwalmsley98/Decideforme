@@ -1615,8 +1615,13 @@ a.nearby-inline-maps:hover {
 }
 
 .affiliates-program-content {
+  max-height: none;
+}
+
+.affiliates-program-scroll {
   overflow-y: auto;
-  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  max-height: none;
+  padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
 }
 
 .leaderboard-head {

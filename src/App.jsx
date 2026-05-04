@@ -2924,25 +2924,27 @@ function AffiliatesPage() {
 
   return (
     <section className="card premium seo-landing affiliates-program-content">
-      <p className="hero-kicker">Partners</p>
-      <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
-      <p className="answer seo-landing-lede">
-        Share Decide For Me with your audience and earn <strong>half of every Pro subscription</strong> you refer (
-        {formatMonth()}/month or {formatYear()}/year plans). Top performers hit the public leaderboard;
-        payouts go straight to your bank via Stripe Connect.
-      </p>
-      <ul className="affiliates-benefits">
-        <li>Clean link: <code className="affiliates-code">decideforme.org/ref/yourname</code></li>
-        <li>Live dashboard: clicks, signups, paying users, total earnings</li>
-        <li>We handle billing; you promote a product people actually use</li>
-      </ul>
-      <div className="seo-landing-cta-row">
-        <Link to="/signup" className="primary-btn seo-landing-cta">
-          Sign up &amp; get your link
-        </Link>
-        <Link to="/referrals" className="ghost-btn seo-landing-secondary">
-          View leaderboard
-        </Link>
+      <div className="affiliates-program-scroll">
+        <p className="hero-kicker">Partners</p>
+        <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
+        <p className="answer seo-landing-lede">
+          Share Decide For Me with your audience and earn <strong>half of every Pro subscription</strong> you refer (
+          {formatMonth()}/month or {formatYear()}/year plans). Top performers hit the public leaderboard;
+          payouts go straight to your bank via Stripe Connect.
+        </p>
+        <ul className="affiliates-benefits">
+          <li>Clean link: <code className="affiliates-code">decideforme.org/ref/yourname</code></li>
+          <li>Live dashboard: clicks, signups, paying users, total earnings</li>
+          <li>We handle billing; you promote a product people actually use</li>
+        </ul>
+        <div className="seo-landing-cta-row">
+          <Link to="/signup" className="primary-btn seo-landing-cta">
+            Sign up &amp; get your link
+          </Link>
+          <Link to="/referrals" className="ghost-btn seo-landing-secondary">
+            View leaderboard
+          </Link>
+        </div>
       </div>
     </section>
   );
