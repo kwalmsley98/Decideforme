@@ -1,12 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+* { box-sizing: border-box; max-width: 100%; }
 
 :root {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: #f6f7ff;
-}
-
-* {
-  box-sizing: border-box;
 }
 
 #root {
@@ -264,11 +261,13 @@ a {
 
 .hero-glow {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   top: 70px;
   width: 100%;
+  max-width: 100%;
   height: 220px;
-  transform: translateX(-50%);
+  transform: none;
   background: radial-gradient(circle at center, rgba(80, 108, 255, 0.28) 0%, rgba(126, 57, 212, 0.2) 45%,
       rgba(0, 0, 0, 0) 76%);
   filter: blur(6px);
@@ -1174,6 +1173,8 @@ a.nearby-inline-maps:hover {
   display: grid;
   gap: 12px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 6px;
 }
 
@@ -1249,6 +1250,8 @@ a.nearby-inline-maps:hover {
   align-items: flex-end;
   gap: 2px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 6px 8px 6px 6px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1638,6 +1641,9 @@ a.nearby-inline-maps:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .vote-row .daily-vote-btn {
