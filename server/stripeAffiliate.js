@@ -327,6 +327,44 @@ export async function getAffiliateDashboardHandler(req, res, getUser) {
 }
 
 /**
+ * POST /api/affiliate/conversion
+ * Records a successful referred Pro conversion.
+ */
+export async function recordAffiliateConversionHandler(req, res, getUser) {
+  const { userId, error: authError } = await getUser();
+  if (!userId) return res.status(401).json({ error: authError || "Unauthorized." });
+
+  const referralCode = String(req.body?.referral_code || "")
+    .trim()
+    .toLowerCase();
+  if (!referralCode) return res.status(400).json({ error: "Missing referral_code." });
+
+  const service = getServiceClient();
+  if (!service) return res.status(503).json({ error: "Database not configured." });
+
+  try {
+    const { data: refRow, error: findErr } = await service
+      .from("referrals")
+      .select("referrer_id")
+      .eq("referral_code", referralCode)
+      .limit(1)
+      .maybeSingle();
+    if (findErr) return res.status(400).json({ error: findErr.message });
+    if (!refRow?.referrer_id) return res.status(404).json({ error: "Referral code not found." });
+    if (refRow.referrer_id === userId) return res.status(400).json({ error: "Self-referrals are not allowed." });
+
+    await service.rpc("record_affiliate_conversion", {
+      p_referrer_id: refRow.referrer_id,
+      p_increment_pence: 749
+    });
+
+    return res.json({ ok: true, referrer_id: refRow.referrer_id, commission_pence: 749 });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Could not record conversion." });
+  }
+}
+
+/**
  * @param {import("stripe").Stripe} stripe
  */
 export async function handleStripeWebhook(stripe, req, res) {

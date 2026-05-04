@@ -607,6 +607,7 @@ alter table public.referrals add column if not exists clicks int not null defaul
 alter table public.referrals add column if not exists referral_code text;
 alter table public.referrals add column if not exists stripe_account_id text;
 alter table public.referrals add column if not exists total_earnings_pence int not null default 0;
+alter table public.referrals add column if not exists paying_users int not null default 0;
 
 -- Backfill missing referral codes on existing referral rows from profiles.
 update public.referrals r
@@ -663,3 +664,20 @@ $$;
 
 revoke all on function public.reset_referrer_total_earnings(uuid) from public;
 grant execute on function public.reset_referrer_total_earnings(uuid) to service_role;
+
+create or replace function public.record_affiliate_conversion(p_referrer_id uuid, p_increment_pence int default 749)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.referrals
+  set paying_users = coalesce(paying_users, 0) + 1,
+      total_earnings_pence = coalesce(total_earnings_pence, 0) + greatest(coalesce(p_increment_pence, 0), 0)
+  where referrer_id = p_referrer_id;
+end;
+$$;
+
+revoke all on function public.record_affiliate_conversion(uuid, int) from public;
+grant execute on function public.record_affiliate_conversion(uuid, int) to service_role;

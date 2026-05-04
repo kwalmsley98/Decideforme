@@ -2879,6 +2879,7 @@ function RefLandingCapture() {
     if (referralCode) {
       localStorage.setItem("pending_ref_slug", referralCode);
       localStorage.setItem("pending_referral_code", referralCode);
+      localStorage.setItem("referral_code", referralCode);
       fetch(apiUrl("/api/ref/track-click"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3302,6 +3303,36 @@ function ProfileScreen({ session }) {
     setPreferences((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const renderedPreferences = useMemo(() => {
+    const output = [];
+    for (const item of preferences) {
+      const text = String(item?.preference || "");
+      const clean = text.replace(/```json|```/gi, "").trim();
+      if (!clean) continue;
+      try {
+        const parsed = JSON.parse(clean);
+        if (Array.isArray(parsed)) {
+          parsed
+            .map((entry) => String(entry || "").trim())
+            .filter(Boolean)
+            .forEach((entry, idx) => output.push({ key: `${item.id}-${idx}`, sourceId: item.id, label: entry }));
+          continue;
+        }
+        if (Array.isArray(parsed?.preferences)) {
+          parsed.preferences
+            .map((entry) => String(entry || "").trim())
+            .filter(Boolean)
+            .forEach((entry, idx) => output.push({ key: `${item.id}-${idx}`, sourceId: item.id, label: entry }));
+          continue;
+        }
+      } catch {
+        // Fall through to raw cleaned text when JSON parsing fails.
+      }
+      output.push({ key: String(item.id), sourceId: item.id, label: clean });
+    }
+    return output;
+  }, [preferences]);
+
   return (
     <section className="card">
       <h1>Profile</h1>
@@ -3364,16 +3395,16 @@ function ProfileScreen({ session }) {
       <article className="history-item ai-profile-card">
         <p className="hero-kicker">Your AI knows you</p>
         <p className="muted">Everything your assistant has learned from your decisions, so future advice is instantly personal.</p>
-        {preferences.length ? (
+        {renderedPreferences.length ? (
           <div className="learned-preferences">
-            {preferences.map((item) => (
-              <div key={item.id} className="learned-preference-item">
-                <p>{item.preference}</p>
+            {renderedPreferences.map((item) => (
+              <div key={item.key} className="learned-preference-item">
+                <p>{item.label}</p>
                 <button
                   type="button"
                   className="pref-remove-btn"
-                  aria-label={`Remove preference ${item.preference}`}
-                  onClick={() => removePreference(item.id)}
+                  aria-label={`Remove preference ${item.label}`}
+                  onClick={() => removePreference(item.sourceId)}
                 >
                   ×
                 </button>
@@ -3671,6 +3702,7 @@ function PlansScreen({ session }) {
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (!supabase) return;
@@ -3701,6 +3733,33 @@ export default function App() {
       cancelled = true;
     };
   }, [session?.user?.id, session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const search = new URLSearchParams(location.search || "");
+    if (search.get("checkout") !== "success") return;
+    const referralCode = String(localStorage.getItem("referral_code") || "")
+      .trim()
+      .toLowerCase();
+    if (!referralCode) return;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/affiliate/conversion"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ referral_code: referralCode })
+        });
+        if (res.ok) {
+          localStorage.removeItem("referral_code");
+        }
+      } catch {
+        /* non-blocking */
+      }
+    })();
+  }, [location.search, session?.access_token]);
 
   const signOut = async () => {
     if (!supabase) return;
