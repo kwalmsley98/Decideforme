@@ -560,9 +560,19 @@ function Layout({ session, onSignOut, children }) {
         </nav>
       </header>
       <main className="content">{children}</main>
-      <nav className="mobile-tabbar" aria-label="Primary tabs">
+      <nav
+        className="mobile-tabbar"
+        aria-label="Primary tabs"
+        style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", justifyContent: "space-evenly", width: "100%" }}
+      >
         {mobileTabs.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `mobile-tab ${isActive ? "active" : ""}`}>
+          <NavLink
+            key={to}
+            to={to}
+            end={to === "/"}
+            className={({ isActive }) => `mobile-tab ${isActive ? "active" : ""}`}
+            style={{ flex: 1 }}
+          >
             <span className="mobile-tab-icon" aria-hidden="true">
               <Icon size={24} strokeWidth={1.5} />
             </span>
