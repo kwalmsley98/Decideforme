@@ -1800,10 +1800,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const displayedGuestDailyUsage = Math.min(guestDailyUsage, GUEST_DAILY_FREE_LIMIT);
   const universalAssistantBubbleStyle = {
-    fontSize: "14px",
-    maxHeight: "200px",
-    overflowY: "auto",
-    overflowX: "hidden"
+    fontSize: "14px"
   };
 
   const getFollowUpEmoji = (text) => {

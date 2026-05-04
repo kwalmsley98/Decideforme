@@ -828,7 +828,7 @@ a.booking-pill:hover {
 .chat-and-nearby {
   display: grid;
   gap: 12px;
-  margin: 20px 0;
+  margin: 20px 0 8px;
 }
 
 .chat-and-nearby .chat-frame {
@@ -1085,24 +1085,11 @@ a.nearby-inline-maps:hover {
   line-height: 1.55;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(8, 10, 16, 0.42), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  max-height: 200px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
 }
 
 .bubble.assistant::before {
-  content: "";
-  position: sticky;
-  display: block;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin-top: -18px;
-  height: 18px;
-  border-radius: 0 0 16px 16px;
-  background: linear-gradient(180deg, rgba(16, 18, 28, 0), rgba(18, 20, 30, 0.92));
-  pointer-events: none;
+  display: none;
 }
 
 .bubble.assistant p {
