@@ -2036,7 +2036,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }
 
   return (
-    <section className="card premium home-card">
+    <section className="card premium home-screen">
+      <div className="home-card">
       <div className="hero-glow" />
       <div className="hero-stack">
         <p className="hero-kicker">⚡ Decision intelligence</p>
@@ -2370,6 +2371,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }
