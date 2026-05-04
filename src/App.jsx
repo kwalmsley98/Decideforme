@@ -800,7 +800,7 @@ function DailyDilemmaCard({ session }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `${dilemma.question}. Choose one option only: ${dilemma.option_a} or ${dilemma.option_b}.`
+          prompt: `${dilemma.question}\nOptions: A) ${dilemma.option_a} B) ${dilemma.option_b}\nReturn only the verdict text in 1-2 short, punchy sentences. Maximum 20 words total. Be decisive and opinionated. Do not use markdown.`
         })
       });
       const data = await response.json();
