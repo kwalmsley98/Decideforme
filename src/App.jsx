@@ -3053,9 +3053,27 @@ function AffiliatesPage() {
   }, []);
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const hasSafeClass = Boolean(document.querySelector(".affiliates-program-content"));
-    console.log("[AffiliatesPage] affiliates-program-content applied:", hasSafeClass);
+    let cancelled = false;
+    (async () => {
+      if (!supabase) return;
+      const {
+        data: { session: authSession }
+      } = await supabase.auth.getSession();
+      const user = authSession?.user || null;
+      const accessToken = authSession?.access_token || "";
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("referral_code").eq("id", user.id).maybeSingle();
+      const code = String(profile?.referral_code || "").trim().toLowerCase();
+      if (!cancelled && code) {
+        setRefLink(`https://decideforme.org/ref/${code}`);
+      }
+      if (!cancelled) {
+        await fetchConnectStatus(accessToken);
+      }
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -3186,9 +3204,7 @@ function ProfileScreen({ session }) {
   if (!session) return <Navigate to="/login" replace />;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const prettyRefLink =
-    profile?.public_ref_slug && origin ? `${origin}/ref/${profile.public_ref_slug}` : "";
-  const legacyRefLink = profile?.referral_code ? `${origin}/signup?ref=${profile.referral_code}` : "";
+  const prettyRefLink = profile?.referral_code && origin ? `${origin}/ref/${String(profile.referral_code).toLowerCase()}` : "";
 
   const removePreference = async (id) => {
     if (!supabase || !id) return;
@@ -3220,11 +3236,6 @@ function ProfileScreen({ session }) {
         ) : (
           <p className="meta">Generating your link… refresh if this persists.</p>
         )}
-        {legacyRefLink ? (
-          <p className="meta">
-            Legacy invite URL: <span className="answer">{legacyRefLink}</span>
-          </p>
-        ) : null}
         {referralDash ? (
           <div className="referral-dash-grid">
             <div>
