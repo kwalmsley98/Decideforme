@@ -2073,6 +2073,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="hero-kicker">⚡ Decision intelligence</p>
         <h1 className="hero-title">Decide For Me</h1>
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
+        <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       <div className="chat-divider" />
