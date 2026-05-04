@@ -1610,6 +1610,10 @@ a.nearby-inline-maps:hover {
   overflow: hidden;
 }
 
+.referrals-page-safe {
+  padding-bottom: 200px;
+}
+
 .leaderboard-head {
   display: flex;
   justify-content: space-between;
@@ -2051,9 +2055,6 @@ a.nearby-inline-maps:hover {
 @media (max-width: 760px) {
   .app-shell {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
-  }
-  .referrals-page-safe {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
   .topbar {
     align-items: flex-start;

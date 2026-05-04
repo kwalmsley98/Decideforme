@@ -2848,8 +2848,14 @@ function ReferralLeaderboardScreen() {
       .catch((e) => setError(e.message));
   }, []);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const hasSafeClass = Boolean(document.querySelector(".leaderboard-card.referrals-page-safe"));
+    console.log("[ReferralLeaderboardScreen] referrals-page-safe applied:", hasSafeClass);
+  }, []);
+
   return (
-    <section className="card premium leaderboard-card">
+    <section className="card premium leaderboard-card referrals-page-safe">
       <div className="leaderboard-head">
         <h1 className="leaderboard-title">🏅 Referral leaderboard</h1>
       </div>
@@ -2901,7 +2907,7 @@ function AffiliatesPage() {
   }, []);
 
   return (
-    <section className="card premium seo-landing">
+    <section className="card premium seo-landing referrals-page-safe">
       <p className="hero-kicker">Partners</p>
       <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
       <p className="answer seo-landing-lede">
