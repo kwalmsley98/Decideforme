@@ -2031,18 +2031,16 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }
 
   return (
-    <section className="card premium home-card" style={{ maxWidth: "100vw", overflowX: "hidden" }}>
+    <section className="card premium home-card">
       <div className="hero-glow" />
-      <div className="hero-stack" style={{ maxWidth: "100%", width: "100%" }}>
+      <div className="hero-stack">
         <p className="hero-kicker">⚡ Decision intelligence</p>
         <h1 className="hero-title">Decide For Me</h1>
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
-      <p className="meta life-global-count" style={{ maxWidth: "100%", overflowX: "hidden" }}>
-        {lifeModeGlobalCount} people currently living AI-controlled lives 🎲
-      </p>
+      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
       {session?.user?.id ? (
         <p className="meta usage-meter">
           Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
