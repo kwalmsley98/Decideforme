@@ -1081,14 +1081,28 @@ a.nearby-inline-maps:hover {
   background: linear-gradient(140deg, rgba(16, 18, 28, 0.96), rgba(20, 21, 31, 0.95));
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #f3f5ff;
-  font-size: 0.98rem;
+  font-size: 14px;
   line-height: 1.55;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(8, 10, 16, 0.42), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
 }
 
 .bubble.assistant::before {
-  display: none;
+  content: "";
+  position: sticky;
+  display: block;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-top: -18px;
+  height: 18px;
+  border-radius: 0 0 16px 16px;
+  background: linear-gradient(180deg, rgba(16, 18, 28, 0), rgba(18, 20, 30, 0.92));
+  pointer-events: none;
 }
 
 .bubble.assistant p {
@@ -1438,8 +1452,8 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.05);
   color: #dce2ff;
-  padding: 8px 11px;
-  font-size: 0.82rem;
+  padding: 6px 9px;
+  font-size: 0.76rem;
   cursor: pointer;
   transition: all 0.18s ease;
 }
