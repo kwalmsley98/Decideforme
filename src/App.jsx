@@ -3200,21 +3200,30 @@ function ProfileScreen({ session }) {
     setPreferences(preferenceRows ?? []);
 
     try {
-      const dashRes = await fetch(apiUrl("/api/referrals/dashboard"), {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      const dashJson = await dashRes.json();
-      if (dashRes.ok) {
-        setReferralDash({
-          clicks: Number(dashJson.clicks || 0),
-          signups: Number(dashJson.signups || 0),
-          paying_users: Number(dashJson.paying_users || 0),
-          total_earnings_pence: Number(dashJson.total_earnings_pence || 0)
-        });
-        setReferralDashError("");
-      } else {
+      const {
+        data: { session: authSession }
+      } = await supabase.auth.getSession();
+      const token = authSession?.access_token;
+      if (!token) {
         setReferralDash(EMPTY_REFERRAL_DASH);
-        setReferralDashError(dashJson.error || "Could not load referral stats.");
+        setReferralDashError("Missing auth token for referral dashboard.");
+      } else {
+        const dashRes = await fetch(apiUrl("/api/affiliate/dashboard"), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const dashJson = await dashRes.json();
+        if (dashRes.ok) {
+          setReferralDash({
+            clicks: Number(dashJson.clicks || 0),
+            signups: Number(dashJson.signups || 0),
+            paying_users: Number(dashJson.paying_users || 0),
+            total_earnings_pence: Number(dashJson.total_earnings_pence || 0)
+          });
+          setReferralDashError("");
+        } else {
+          setReferralDash(EMPTY_REFERRAL_DASH);
+          setReferralDashError(dashJson.error || "Could not load referral stats.");
+        }
       }
     } catch {
       setReferralDash(EMPTY_REFERRAL_DASH);

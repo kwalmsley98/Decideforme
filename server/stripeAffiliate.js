@@ -302,6 +302,27 @@ export async function runAffiliatePayoutHandler(stripe, req, res) {
 }
 
 /**
+ * GET /api/affiliate/dashboard
+ * Authenticated affiliate stats endpoint.
+ */
+export async function getAffiliateDashboardHandler(req, res, getUser) {
+  const { userId, error: authError } = await getUser();
+  if (!userId) {
+    const msg =
+      authError === "Missing bearer token."
+        ? "Missing Authorization bearer token."
+        : authError === "Invalid token."
+          ? "Invalid or expired auth token."
+          : authError || "Unauthorized.";
+    return res.status(401).json({ error: msg });
+  }
+
+  const out = await fetchReferralDashboard(userId);
+  if (out.error) return res.status(503).json({ error: out.error });
+  return res.json(out);
+}
+
+/**
  * @param {import("stripe").Stripe} stripe
  */
 export async function handleStripeWebhook(stripe, req, res) {

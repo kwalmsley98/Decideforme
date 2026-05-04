@@ -13,6 +13,7 @@ import {
 import { getBearerUser } from "./authUser.js";
 import {
   createAffiliateConnectHandler,
+  getAffiliateDashboardHandler,
   createCheckoutSessionHandler,
   createConnectAccountLinkHandler,
   fetchReferralDashboard,
@@ -890,6 +891,8 @@ app.get("/api/affiliate/connect/status", (req, res) =>
 );
 
 app.post("/api/affiliate/payout", (req, res) => runAffiliatePayoutHandler(stripe, req, res));
+
+app.get("/api/affiliate/dashboard", (req, res) => getAffiliateDashboardHandler(req, res, () => getBearerUser(req)));
 
 app.get("/api/referrals/leaderboard", async (_req, res) => {
   const out = await fetchReferralLeaderboard(50);
