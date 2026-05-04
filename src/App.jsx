@@ -2819,23 +2819,24 @@ function LeaderboardScreen({ session }) {
 }
 
 function RefLandingCapture() {
-  const { username } = useParams();
+  const { username: code } = useParams();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const slug = String(username || "")
+    const referralCode = String(code || "")
       .trim()
       .toLowerCase();
-    if (slug) {
-      localStorage.setItem("pending_ref_slug", slug);
+    if (referralCode) {
+      localStorage.setItem("pending_ref_slug", referralCode);
+      localStorage.setItem("pending_referral_code", referralCode);
       fetch(apiUrl("/api/ref/track-click"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug })
+        body: JSON.stringify({ code: referralCode })
       }).catch(() => {});
     }
     navigate("/signup", { replace: true });
-  }, [username, navigate]);
+  }, [code, navigate]);
 
   return (
     <section className="card">
@@ -2899,6 +2900,91 @@ function ReferralLeaderboardScreen() {
 
 function AffiliatesPage() {
   const { formatMonth, formatYear } = useCommerceCurrency();
+  const navigate = useNavigate();
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState("");
+  const [refLink, setRefLink] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const buildReferralCodeBase = (email) => {
+    const local = String(email || "user")
+      .split("@")[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    return (local || "user").slice(0, 12);
+  };
+
+  const reserveReferralCode = async (userId, email) => {
+    const base = buildReferralCodeBase(email);
+    for (let i = 0; i < 12; i++) {
+      const suffix = i === 0 ? `${Math.floor(100 + Math.random() * 900)}` : `${Math.floor(100 + Math.random() * 900)}${i}`;
+      const candidate = `${base}${suffix}`.slice(0, 20);
+      const { data: taken } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
+      if (!taken || taken.id === userId) return candidate;
+    }
+    return `${base}${Math.floor(1000 + Math.random() * 9000)}`.slice(0, 20);
+  };
+
+  const ensureReferralLink = async () => {
+    if (!supabase) {
+      setLinkError("Sign in is unavailable right now.");
+      return;
+    }
+    setLinkLoading(true);
+    setLinkError("");
+    try {
+      const {
+        data: { session: authSession }
+      } = await supabase.auth.getSession();
+      const user = authSession?.user || null;
+      if (!user) {
+        navigate("/login", { replace: false });
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, email, username, referral_code, public_ref_slug")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const username =
+        profile?.username ||
+        user.email?.split("@")[0] ||
+        (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name.split(/\s+/)[0] : null) ||
+        "user";
+
+      let referralCode = String(profile?.referral_code || "").trim().toLowerCase();
+      let publicRefSlug = String(profile?.public_ref_slug || "").trim().toLowerCase();
+      const updates = {};
+
+      if (!referralCode) {
+        referralCode = await reserveReferralCode(user.id, user.email || profile?.email);
+        updates.referral_code = referralCode;
+      }
+      if (!publicRefSlug) {
+        publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
+        updates.public_ref_slug = publicRefSlug;
+      }
+      if (Object.keys(updates).length) {
+        await supabase.from("profiles").upsert({ id: user.id, ...updates }, { onConflict: "id" });
+      }
+
+      setRefLink(`https://decideforme.org/ref/${referralCode}`);
+    } catch (err) {
+      setLinkError(err?.message || "Could not generate your referral link.");
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const copyRefLink = async () => {
+    if (!refLink) return;
+    await copyText(refLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+
   useEffect(() => {
     document.title = "Affiliate Program | Decide For Me";
     let el = document.querySelector('meta[name="description"]');
@@ -2938,13 +3024,23 @@ function AffiliatesPage() {
           <li>We handle billing; you promote a product people actually use</li>
         </ul>
         <div className="seo-landing-cta-row">
-          <Link to="/signup" className="primary-btn seo-landing-cta">
-            Sign up &amp; get your link
-          </Link>
+          <button type="button" className="primary-btn seo-landing-cta" onClick={ensureReferralLink} disabled={linkLoading}>
+            {linkLoading ? "Checking account…" : "Sign up & get your link"}
+          </button>
           <Link to="/referrals" className="ghost-btn seo-landing-secondary">
             View leaderboard
           </Link>
         </div>
+        {refLink ? (
+          <div className="history-item">
+            <p className="meta">Your referral link</p>
+            <p className="answer referral-link-break">{refLink}</p>
+            <button type="button" className="ghost-btn" onClick={copyRefLink}>
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+          </div>
+        ) : null}
+        {linkError ? <p className="error">{linkError}</p> : null}
       </div>
     </section>
   );
@@ -2956,6 +3052,7 @@ function ProfileScreen({ session }) {
   const [preferences, setPreferences] = useState([]);
   const [referralDash, setReferralDash] = useState(null);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
 
   const loadProfile = async () => {
     if (!supabase || !session?.user?.id) return;
@@ -2986,6 +3083,20 @@ function ProfileScreen({ session }) {
     } catch {
       setReferralDash(null);
     }
+
+    try {
+      const statusRes = await fetch(apiUrl("/api/affiliate/connect/status"), {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      const statusJson = await statusRes.json();
+      if (statusRes.ok) {
+        setConnectStatus({ connected: Boolean(statusJson.connected), onboarded: Boolean(statusJson.onboarded) });
+      } else {
+        setConnectStatus({ connected: false, onboarded: false });
+      }
+    } catch {
+      setConnectStatus({ connected: false, onboarded: false });
+    }
   };
 
   useEffect(() => {
@@ -2996,7 +3107,7 @@ function ProfileScreen({ session }) {
     if (!session?.access_token) return;
     setConnectLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/stripe/connect-onboarding"), {
+      const res = await fetch(apiUrl("/api/affiliate/connect"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3079,9 +3190,13 @@ function ProfileScreen({ session }) {
         ) : (
           <p className="meta">Loading referral stats…</p>
         )}
-        <button type="button" className="ghost-btn" disabled={connectLoading} onClick={startConnectOnboarding}>
-          {connectLoading ? "Opening Stripe…" : "Connect bank for payouts (Stripe)"}
-        </button>
+        {connectStatus.onboarded ? (
+          <p className="answer">✅ Bank account connected</p>
+        ) : (
+          <button type="button" className="ghost-btn" disabled={connectLoading} onClick={startConnectOnboarding}>
+            {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
+          </button>
+        )}
         <p className="muted small-print">
           Connect once so we can pay your commission. Requires a Stripe Express account.
         </p>

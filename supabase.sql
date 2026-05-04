@@ -602,3 +602,55 @@ create table if not exists public.referral_commissions (
 
 create index if not exists referral_commissions_referrer_idx on public.referral_commissions (referrer_id);
 alter table public.referral_commissions enable row level security;
+
+alter table public.referrals add column if not exists clicks int not null default 0;
+alter table public.referrals add column if not exists stripe_account_id text;
+alter table public.referrals add column if not exists total_earnings_pence int not null default 0;
+
+create or replace function public.increment_referral_clicks_for_referrer(p_referrer_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.referrals
+  set clicks = coalesce(clicks, 0) + 1
+  where referrer_id = p_referrer_id;
+end;
+$$;
+
+revoke all on function public.increment_referral_clicks_for_referrer(uuid) from public;
+grant execute on function public.increment_referral_clicks_for_referrer(uuid) to service_role;
+
+create or replace function public.increment_referrer_total_earnings(p_referrer_id uuid, p_increment_pence int)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.referrals
+  set total_earnings_pence = coalesce(total_earnings_pence, 0) + greatest(coalesce(p_increment_pence, 0), 0)
+  where referrer_id = p_referrer_id;
+end;
+$$;
+
+revoke all on function public.increment_referrer_total_earnings(uuid, int) from public;
+grant execute on function public.increment_referrer_total_earnings(uuid, int) to service_role;
+
+create or replace function public.reset_referrer_total_earnings(p_referrer_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.referrals
+  set total_earnings_pence = 0
+  where referrer_id = p_referrer_id;
+end;
+$$;
+
+revoke all on function public.reset_referrer_total_earnings(uuid) from public;
+grant execute on function public.reset_referrer_total_earnings(uuid) to service_role;

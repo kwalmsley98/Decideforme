@@ -12,12 +12,15 @@ import {
 } from "./notifications.js";
 import { getBearerUser } from "./authUser.js";
 import {
+  createAffiliateConnectHandler,
   createCheckoutSessionHandler,
   createConnectAccountLinkHandler,
   fetchReferralDashboard,
   fetchReferralLeaderboard,
+  getAffiliateConnectStatusHandler,
   handleStripeWebhook,
-  recordReferralClick
+  recordReferralClick,
+  runAffiliatePayoutHandler
 } from "./stripeAffiliate.js";
 
 const app = express();
@@ -878,6 +881,16 @@ app.post("/api/stripe/connect-onboarding", (req, res) =>
   createConnectAccountLinkHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
 );
 
+app.post("/api/affiliate/connect", (req, res) =>
+  createAffiliateConnectHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
+);
+
+app.get("/api/affiliate/connect/status", (req, res) =>
+  getAffiliateConnectStatusHandler(stripe, req, res, () => getBearerUser(req))
+);
+
+app.post("/api/affiliate/payout", (req, res) => runAffiliatePayoutHandler(stripe, req, res));
+
 app.get("/api/referrals/leaderboard", async (_req, res) => {
   const out = await fetchReferralLeaderboard(50);
   if (out.error) return res.status(503).json(out);
@@ -894,8 +907,8 @@ app.get("/api/referrals/dashboard", async (req, res) => {
 
 app.post("/api/ref/track-click", async (req, res) => {
   try {
-    const slug = req.body?.slug;
-    const out = await recordReferralClick(slug);
+    const codeOrSlug = req.body?.code || req.body?.slug;
+    const out = await recordReferralClick(codeOrSlug);
     return res.json(out);
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });

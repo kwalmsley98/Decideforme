@@ -139,6 +139,169 @@ export async function createConnectAccountLinkHandler(stripe, req, res, appBaseU
 }
 
 /**
+ * POST /api/affiliate/connect
+ * Creates (or reuses) Stripe Connect Express account and returns onboarding URL.
+ */
+export async function createAffiliateConnectHandler(stripe, req, res, appBaseUrl, getUser) {
+  const { userId, error: authError } = await getUser();
+  if (!userId) return res.status(401).json({ error: authError || "Sign in required." });
+
+  const service = getServiceClient();
+  if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
+
+  try {
+    const { data: profile, error: pErr } = await service
+      .from("profiles")
+      .select("stripe_connect_account_id")
+      .eq("id", userId)
+      .single();
+    if (pErr) return res.status(400).json({ error: pErr.message });
+
+    let accountId = profile?.stripe_connect_account_id;
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "GB",
+        capabilities: { transfers: { requested: true } },
+        metadata: { supabase_user_id: userId },
+        business_profile: {
+          url: appBaseUrl.replace(/\/$/, ""),
+          mcc: "5734"
+        }
+      });
+      accountId = account.id;
+      await service.from("profiles").update({ stripe_connect_account_id: accountId }).eq("id", userId);
+    }
+
+    // Keep referrals table in sync for affiliate-specific queries.
+    await service.from("referrals").update({ stripe_account_id: accountId }).eq("referrer_id", userId);
+
+    const link = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${appBaseUrl}/profile?connect=refresh`,
+      return_url: `${appBaseUrl}/profile?connect=return`,
+      type: "account_onboarding"
+    });
+
+    return res.json({ url: link.url, stripe_account_id: accountId });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Connect onboarding failed." });
+  }
+}
+
+/**
+ * GET /api/affiliate/connect/status
+ * Returns whether the logged-in user's Stripe Connect account is fully onboarded.
+ */
+export async function getAffiliateConnectStatusHandler(stripe, req, res, getUser) {
+  const { userId, error: authError } = await getUser();
+  if (!userId) return res.status(401).json({ error: authError || "Sign in required." });
+
+  const service = getServiceClient();
+  if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
+
+  try {
+    const { data: profile, error: pErr } = await service
+      .from("profiles")
+      .select("stripe_connect_account_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (pErr) return res.status(400).json({ error: pErr.message });
+
+    const accountId = profile?.stripe_connect_account_id || null;
+    if (!accountId) {
+      return res.json({ connected: false, onboarded: false });
+    }
+
+    const account = await stripe.accounts.retrieve(accountId);
+    const onboarded = Boolean(account.details_submitted && account.payouts_enabled);
+    return res.json({ connected: true, onboarded, stripe_account_id: accountId });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Could not check connect status." });
+  }
+}
+
+/**
+ * POST /api/affiliate/payout
+ * Transfers all unpaid commissions to connected & onboarded affiliates.
+ */
+export async function runAffiliatePayoutHandler(stripe, req, res) {
+  const service = getServiceClient();
+  if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
+
+  try {
+    const { data: unpaid, error: uErr } = await service
+      .from("referral_commissions")
+      .select("id, referrer_id, commission_pence, stripe_invoice_id")
+      .is("stripe_transfer_id", null);
+    if (uErr) return res.status(400).json({ error: uErr.message });
+
+    const byReferrer = new Map();
+    for (const row of unpaid || []) {
+      const key = row.referrer_id;
+      if (!byReferrer.has(key)) byReferrer.set(key, { total: 0, rows: [] });
+      const slot = byReferrer.get(key);
+      slot.total += Number(row.commission_pence || 0);
+      slot.rows.push(row);
+    }
+
+    let paidReferrers = 0;
+    let paidRows = 0;
+    let skipped = 0;
+    for (const [referrerId, payload] of byReferrer.entries()) {
+      if (payload.total < 1) {
+        skipped += 1;
+        continue;
+      }
+
+      const { data: profile } = await service
+        .from("profiles")
+        .select("stripe_connect_account_id")
+        .eq("id", referrerId)
+        .maybeSingle();
+      const accountId = profile?.stripe_connect_account_id;
+      if (!accountId) {
+        skipped += 1;
+        continue;
+      }
+
+      const account = await stripe.accounts.retrieve(accountId);
+      const onboarded = Boolean(account.details_submitted && account.payouts_enabled);
+      if (!onboarded) {
+        skipped += 1;
+        continue;
+      }
+
+      const transfer = await stripe.transfers.create({
+        amount: payload.total,
+        currency: "gbp",
+        destination: accountId,
+        metadata: {
+          referrer_id: referrerId,
+          payout_batch_size: String(payload.rows.length),
+          payout_type: "monthly_affiliate_commission"
+        }
+      });
+
+      for (const row of payload.rows) {
+        await service
+          .from("referral_commissions")
+          .update({ stripe_transfer_id: transfer.id })
+          .eq("id", row.id);
+      }
+      await service.rpc("reset_referrer_total_earnings", { p_referrer_id: referrerId }).catch(() => {});
+
+      paidReferrers += 1;
+      paidRows += payload.rows.length;
+    }
+
+    return res.json({ ok: true, paid_referrers: paidReferrers, paid_commissions: paidRows, skipped_referrers: skipped });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || "Payout run failed." });
+  }
+}
+
+/**
  * @param {import("stripe").Stripe} stripe
  */
 export async function handleStripeWebhook(stripe, req, res) {
@@ -238,33 +401,11 @@ async function processCommissionForInvoice(stripe, service, invoice) {
 
   const referrerId = payProfile.referred_by;
 
-  const { data: refProf } = await service
-    .from("profiles")
-    .select("stripe_connect_account_id")
-    .eq("id", referrerId)
-    .maybeSingle();
-
   const commission = Math.floor(amountPaid * COMMISSION_RATE);
   if (commission < 1) return;
 
-  let transferId = null;
-  if (refProf?.stripe_connect_account_id) {
-    try {
-      const transfer = await stripe.transfers.create({
-        amount: commission,
-        currency: invoice.currency || "gbp",
-        destination: refProf.stripe_connect_account_id,
-        metadata: {
-          referred_user_id: userId,
-          referrer_id: referrerId,
-          invoice_id: invoice.id
-        }
-      });
-      transferId = transfer.id;
-    } catch (e) {
-      console.error("[stripe transfer failed]", e.message);
-    }
-  }
+  // Monthly payout job handles transfers; keep commission rows unpaid until batch payout.
+  const transferId = null;
 
   let planInterval = "month";
   try {
@@ -289,6 +430,14 @@ async function processCommissionForInvoice(stripe, service, invoice) {
 
   if (insErr && !String(insErr.message || "").includes("duplicate")) {
     console.error("[referral_commissions insert]", insErr);
+  }
+
+  if (!insErr) {
+    // Keep denormalized running balance in referrals for payout/status queries.
+    await service.rpc("increment_referrer_total_earnings", {
+      p_referrer_id: referrerId,
+      p_increment_pence: commission
+    }).catch(() => {});
   }
 }
 
@@ -377,17 +526,22 @@ export async function fetchReferralDashboard(userId) {
   };
 }
 
-export async function recordReferralClick(slug) {
+export async function recordReferralClick(codeOrSlug) {
   const service = getServiceClient();
   if (!service) return { ok: false, error: "Server misconfigured." };
-  const normalized = String(slug || "")
+  const normalized = String(codeOrSlug || "")
     .trim()
     .toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]{0,48}$/.test(normalized)) return { ok: false, error: "Invalid slug." };
 
-  const { data: prof } = await service.from("profiles").select("id").eq("public_ref_slug", normalized).maybeSingle();
+  let { data: prof } = await service.from("profiles").select("id").eq("public_ref_slug", normalized).maybeSingle();
+  if (!prof?.id) {
+    const { data: byCode } = await service.from("profiles").select("id").eq("referral_code", normalized).maybeSingle();
+    prof = byCode || null;
+  }
   if (!prof?.id) return { ok: false, error: "Not found." };
 
   await service.from("referral_link_clicks").insert({ referrer_id: prof.id });
+  await service.rpc("increment_referral_clicks_for_referrer", { p_referrer_id: prof.id }).catch(() => {});
   return { ok: true };
 }
