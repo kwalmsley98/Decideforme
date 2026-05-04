@@ -890,6 +890,12 @@ a.booking-pill:hover {
   margin-top: 8px;
 }
 
+.nearby-cta-label {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: rgba(214, 222, 255, 0.86);
+}
+
 .nearby-inline-row {
   align-items: flex-start;
 }
@@ -1046,10 +1052,10 @@ a.nearby-inline-maps:hover {
 }
 
 .avatar-ai-icon {
-  background: linear-gradient(145deg, rgba(76, 94, 220, 0.55), rgba(140, 72, 220, 0.45));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #eef2ff;
-  box-shadow: 0 0 14px rgba(120, 140, 255, 0.35);
+  background: linear-gradient(145deg, rgba(245, 230, 66, 0.28), rgba(198, 146, 20, 0.22));
+  border: 1px solid rgba(245, 230, 66, 0.45);
+  color: #f5e642;
+  box-shadow: 0 0 14px rgba(245, 210, 66, 0.24);
 }
 
 .bubble {
@@ -1071,27 +1077,18 @@ a.nearby-inline-maps:hover {
 
 .bubble.assistant {
   position: relative;
-  padding-left: 18px;
-  background: linear-gradient(128deg, rgba(18, 20, 34, 0.98), rgba(26, 20, 40, 0.96));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 14px;
+  background: linear-gradient(140deg, rgba(16, 18, 28, 0.96), rgba(20, 21, 31, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #f3f5ff;
-  font-size: 1.07rem;
+  font-size: 0.98rem;
   line-height: 1.55;
-  box-shadow: 0 10px 32px rgba(20, 25, 55, 0.45), inset 0 0 0 1px rgba(100, 120, 200, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(8, 10, 16, 0.42), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 .bubble.assistant::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: 18px 0 0 18px;
-  background: linear-gradient(180deg, rgba(150, 175, 255, 0.95) 0%, rgba(120, 90, 220, 0.75) 50%, rgba(200, 130, 255, 0.55) 100%);
-  box-shadow: 0 0 20px rgba(130, 150, 255, 0.55), 0 0 40px rgba(100, 80, 200, 0.25);
-  pointer-events: none;
+  display: none;
 }
 
 .bubble.assistant p {
@@ -1281,6 +1278,7 @@ a.nearby-inline-maps:hover {
   padding: 6px 8px 6px 6px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(8, 10, 18, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -1433,6 +1431,9 @@ a.nearby-inline-maps:hover {
 }
 
 .suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.05);

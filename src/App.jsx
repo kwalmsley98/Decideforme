@@ -21,7 +21,7 @@ import {
   LogIn,
   MessageCircle,
   Paperclip,
-  Sparkles,
+  Zap,
   Trophy,
   User,
   Users,
@@ -392,7 +392,7 @@ function LoadingAssistantShimmer() {
   return (
     <div className="message-row assistant loading-msg-row" aria-live="polite" aria-busy="true">
       <div className="avatar assistant avatar-ai-icon" aria-hidden="true">
-        <Sparkles size={15} strokeWidth={2} />
+        <Zap size={15} strokeWidth={2.2} />
       </div>
       <div className="bubble assistant shimmer-bubble">
         <div className="shimmer-line" />
@@ -1794,6 +1794,17 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const displayedGuestDailyUsage = Math.min(guestDailyUsage, GUEST_DAILY_FREE_LIMIT);
 
+  const getFollowUpEmoji = (text) => {
+    const v = String(text || "").toLowerCase();
+    if (/(money|budget|save|cost|price|invest)/.test(v)) return "💸";
+    if (/(food|eat|dinner|lunch|breakfast|restaurant|cafe|drink|coffee)/.test(v)) return "🍽️";
+    if (/(gym|workout|fitness|run|health|sleep)/.test(v)) return "💪";
+    if (/(trip|travel|holiday|vacation|flight|hotel)/.test(v)) return "✈️";
+    if (/(date|friend|party|social|text|call|relationship)/.test(v)) return "💬";
+    if (/(work|career|job|study|exam|project)/.test(v)) return "🧠";
+    return "⚡";
+  };
+
   const renderChatMessage = (msg, idx) => {
     if (msg.role === "nearby" && Array.isArray(msg.places)) {
       return (
@@ -1832,7 +1843,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <div key={idx} className={`message-row ${msg.role}`} style={{ animationDelay: `${idx * 45}ms` }}>
           {msg.role === "assistant" ? (
             <div className="avatar assistant avatar-ai-icon" aria-hidden="true">
-              <Sparkles size={15} strokeWidth={2} />
+              <Zap size={15} strokeWidth={2.2} />
             </div>
           ) : (
             <div className="avatar user" aria-hidden="true">
@@ -2009,6 +2020,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               {loading ? <LoadingAssistantShimmer /> : null}
               {showNearbyFindButton && !loading && conversation.length ? (
                 <div className="find-nearby-cta find-nearby-cta--in-chat">
+                  <p className="nearby-cta-label">📍 Find places nearby:</p>
                   <div className="nearby-radius-pills" role="group" aria-label="Search radius">
                     {NEARBY_RADIUS_OPTIONS.map((opt) => (
                       <button
@@ -2106,6 +2118,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             {loading ? <LoadingAssistantShimmer /> : null}
             {showNearbyFindButton && !loading && conversation.length ? (
               <div className="find-nearby-cta find-nearby-cta--in-chat">
+                <p className="nearby-cta-label">📍 Find places nearby:</p>
                 <div className="nearby-radius-pills" role="group" aria-label="Search radius">
                   {NEARBY_RADIUS_OPTIONS.map((opt) => (
                     <button
@@ -2221,7 +2234,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                   className="suggestion-chip"
                   onClick={() => setReply(text)}
                 >
-                  {text}
+                  <span aria-hidden="true">{getFollowUpEmoji(text)}</span> {text}
                 </button>
               ))}
             </div>
