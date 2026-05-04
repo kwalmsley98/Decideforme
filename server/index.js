@@ -530,6 +530,23 @@ function fallbackFollowUps(lifeMode) {
   return ["Try another angle", "Surprise me", "Something cheaper"];
 }
 
+function smartFallbackFollowUps(userPrompt, assistantAnswer, lifeMode) {
+  const text = `${String(userPrompt || "")} ${String(assistantAnswer || "")}`.toLowerCase();
+  if (/(portugal|lisbon|porto|flight|trip|holiday|vacation|travel)/.test(text)) {
+    return ["Best time to visit?", "Budget breakdown", "Lisbon or Porto?"];
+  }
+  if (/(restaurant|dinner|lunch|food|bar|pub|cafe)/.test(text)) {
+    return ["Best option under £30?", "Book now or walk-in?", "Quieter alternative nearby?"];
+  }
+  if (/(job|career|work|interview|salary)/.test(text)) {
+    return ["Best next step today?", "How to pitch this choice?", "Fastest way to execute?"];
+  }
+  if (/(gym|fitness|workout|health|diet)/.test(text)) {
+    return ["Best plan for this week?", "Home vs gym version?", "How to stay consistent?"];
+  }
+  return fallbackFollowUps(lifeMode);
+}
+
 function parseFollowUpsPayload(text) {
   let raw = String(text || "")
     .replace(/^```(?:json)?\s*/i, "")
@@ -549,11 +566,17 @@ function parseFollowUpsPayload(text) {
   }
 }
 
-async function generateFollowUpSuggestionsPayload({ userPrompt, assistantAnswer, lifeMode, personality }) {
+async function generateFollowUpSuggestionsPayload({ userPrompt, assistantAnswer, lifeMode, personality, conversation }) {
   const up = String(userPrompt || "").trim();
   const ans = String(assistantAnswer || "").trim();
+  const conv = Array.isArray(conversation) ? conversation : [];
+  const contextTurns = conv
+    .filter((m) => m && (m.role === "user" || m.role === "assistant"))
+    .slice(-6)
+    .map((m) => `${m.role}: ${String(m.content || "").trim()}`)
+    .join("\n");
   if (!up || !ans) {
-    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+    return { followUps: smartFallbackFollowUps(up, ans, lifeMode), showSamaritansBanner: false };
   }
   try {
     const msg = await anthropic.messages.create({
@@ -565,8 +588,9 @@ async function generateFollowUpSuggestionsPayload({ userPrompt, assistantAnswer,
 
 Rules for followUps (when showSamaritansBanner is false):
 - Provide exactly 2 or 3 strings. Each under 48 characters, UK English, suitable as tappable short replies.
-- Match the decision domain implied by the user message and assistant reply: food/dining, travel, nightlife, shopping, work, relationships, fitness, entertainment, etc.
-- Examples of good directions: healthier / quicker / cheaper / surprise / different vibe / quieter / warmer destination / longer trip — only when they fit the topic.
+- Make each chip highly specific to the assistant's decision and entities mentioned (place, city, product, route, budget, timeline, comparison).
+- Avoid generic chips like "Try another angle", "Surprise me", "Different vibe" unless they are explicitly grounded in this exact recommendation.
+- Prefer concrete next-step chips: budget, timing, side-by-side comparison, execution detail, location-specific fork.
 
 Personality mode from session: ${String(personality || "Balanced")}. Keep chip wording consistent with that tone (never cruel or abusive).
 
@@ -578,7 +602,7 @@ When showSamaritansBanner is false, followUps must always have 2 or 3 items.`,
       messages: [
         {
           role: "user",
-          content: `Latest user message:\n${up}\n\nAssistant reply:\n${ans}\n\nReturn JSON only.`
+          content: `Recent conversation context:\n${contextTurns || "None"}\n\nLatest user message:\n${up}\n\nAssistant reply:\n${ans}\n\nReturn JSON only.`
         }
       ]
     });
@@ -586,10 +610,10 @@ When showSamaritansBanner is false, followUps must always have 2 or 3 items.`,
     const parsed = parseFollowUpsPayload(text);
     if (parsed.showSamaritansBanner) return parsed;
     if (parsed.followUps.length >= 2) return parsed;
-    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+    return { followUps: smartFallbackFollowUps(up, ans, lifeMode), showSamaritansBanner: false };
   } catch (e) {
     console.error("[followUpSuggestions]", e);
-    return { followUps: fallbackFollowUps(lifeMode), showSamaritansBanner: false };
+    return { followUps: smartFallbackFollowUps(up, ans, lifeMode), showSamaritansBanner: false };
   }
 }
 
@@ -703,14 +727,16 @@ ${bookingLinksMd}`
     const baseStyleRules = travelWeb
       ? `- Use exactly 2 lines.
 - Line 1: bold decisive answer in 1-5 words (example: **The Grand Budapest Hotel.**).
-- Line 2: one punchy reason sentence, max 15 words.
+- Line 2: exactly one punchy reason sentence, max 15 words.
 - Be direct and decisive: one clear travel/stay recommendation grounded in search excerpts.
-- Never hedge, never waffle, never ramble.`
+- Never hedge, never waffle, never ramble.
+- Never use filler openers like "certainly", "great question", or "absolutely".`
       : `- Use exactly 2 lines.
 - Line 1: bold decisive answer in 1-5 words.
-- Line 2: one punchy reason sentence, max 15 words.
+- Line 2: exactly one punchy reason sentence, max 15 words.
 - Be direct and decisive: make one clear decision.
 - Never hedge, never waffle, never ramble.
+- Never use filler openers like "certainly", "great question", or "absolutely".
 - No bullet points, no labels like "Why:", no long explanations.`;
 
     const visionRules = conversationHasImage(conv)
@@ -740,6 +766,8 @@ Style rules:
 ${baseStyleRules}
 - NEVER ask the user questions. Always make a decision immediately with no follow-up questions. If you don't have enough info, make your best guess and decide anyway.
 - ${lifeMode ? "Do NOT ask the user any questions. Never request clarification or more information." : "Do NOT ask follow-up questions unless absolutely necessary to avoid a clearly unsafe or impossible recommendation."}
+- Respect conversation continuity: treat latest user message as follow-up to prior turns when present.
+- If the user changes direction or asks for an alternative, do not repeat the previous recommendation; give a new decisive recommendation.
 ${travelWebSystemRules}
 ${lifeMode && !travelWeb ? "- No bullet points, no labels like \"Why:\", no long explanations." : ""}
 ${lifeMode ? "- Life Mode is active: be extra bold, decisive, slightly dramatic, and take control with immediate concrete actions." : ""}
@@ -762,7 +790,8 @@ Voice: confident friend giving quick advice, not a consultant.`,
       userPrompt: promptTrim,
       assistantAnswer: answer,
       lifeMode: Boolean(lifeMode),
-      personality
+      personality,
+      conversation: conv
     });
     return res.json({
       answer,

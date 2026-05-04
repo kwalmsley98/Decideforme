@@ -117,19 +117,25 @@ function shouldUseNearby(text) {
 /** Whether to show “Find places near me” after this user message (food / drink / activity). */
 function shouldShowFindPlacesCta(text) {
   const v = String(text || "").toLowerCase();
-  if (shouldUseNearby(v)) return true;
-  if (
-    /\b(food|restaurant|dinner|lunch|breakfast|brunch|bar|pub|cafe|coffee|meal|snack|eat|takeout|takeaway|delivery|bistro|brewery|winery|nightlife)\b/i.test(
+  const localIntent =
+    shouldUseNearby(v) ||
+    /\b(near me|nearby|around here|in my area|close by|walking distance|local|locally)\b/.test(v) ||
+    /\b(in|around|near)\s+(london|manchester|birmingham|leeds|glasgow|edinburgh|bristol|liverpool|my city|town|area|neighborhood|neighbourhood)\b/.test(
       v
-    )
-  ) {
-    return true;
-  }
-  if (/\b(activity|activities)\b/i.test(v)) return true;
-  if (/things to do|something to do|what to do|where to go|places to go/i.test(v)) return true;
-  if (/\b(gym|workout|cinema|movie|shopping|mall|hotel|museum|park)\b/i.test(v)) return true;
-  if (/\b(pizza|sushi|burger|drinks?)\b/i.test(v)) return true;
-  return false;
+    );
+  if (!localIntent) return false;
+
+  const placeTopic =
+    /\b(restaurant|bar|pub|cafe|coffee shop|nightlife|things to do|activity|activities|attraction|museum|park|cinema|movie theater|shopping|mall|gym|venue|spot|place)\b/.test(
+      v
+    ) || /\b(where should i go|where to go|what should i do nearby|what to do nearby)\b/.test(v);
+  if (!placeTopic) return false;
+
+  const nonLocalOrHomeContext =
+    /\b(at home|cook at home|home recipe|recipe|cook|cooking|stream|netflix|prime video|disney\+|movie night|film recommendation|travel itinerary|flight|country|abroad|road trip)\b/.test(
+      v
+    );
+  return !nonLocalOrHomeContext;
 }
 
 /** Maps user prompt to server /api/nearby-places `type` for Places includedTypes */
