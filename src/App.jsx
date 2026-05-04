@@ -2241,7 +2241,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                   key={`${i}-${text}`}
                   type="button"
                   className="suggestion-chip"
-                  onClick={() => setReply(text)}
+                  onClick={() => {
+                    if (loading || showUpgradePrompt) return;
+                    sendToAI(text, false);
+                  }}
+                  disabled={loading || showUpgradePrompt}
                 >
                   <span aria-hidden="true">{getFollowUpEmoji(text)}</span> {text}
                 </button>
