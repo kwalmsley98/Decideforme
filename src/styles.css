@@ -9,6 +9,14 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -73,6 +81,9 @@ a {
 
 .app-shell {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   padding: 28px 24px 40px;
 }
 
@@ -164,11 +175,12 @@ a {
 }
 
 .content {
+  width: 100%;
   max-width: 1120px;
   margin: 0 auto;
   padding-left: 4px;
   padding-right: 4px;
-  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .mobile-tabbar {
@@ -176,6 +188,8 @@ a {
 }
 
 .card {
+  width: 100%;
+  max-width: 100%;
   background: rgba(14, 16, 24, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
@@ -184,15 +198,13 @@ a {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* Outer shell: same pattern as Explore (section.card.premium + inner body). */
-.card.premium.home-screen {
-  padding-top: 22px;
-  padding-bottom: 22px;
-}
-
 .home-card {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   overflow: visible;
+  padding-top: 22px;
+  padding-bottom: 22px;
   display: grid;
   gap: 8px;
 }
@@ -247,13 +259,11 @@ a {
 
 .hero-glow {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   top: 70px;
-  width: 100%;
-  max-width: 100%;
+  width: min(720px, 88vw);
   height: 220px;
-  transform: none;
+  transform: translateX(-50%);
   background: radial-gradient(circle at center, rgba(80, 108, 255, 0.28) 0%, rgba(126, 57, 212, 0.2) 45%,
       rgba(0, 0, 0, 0) 76%);
   filter: blur(6px);
@@ -629,8 +639,8 @@ a {
 
 .quick-category-scroll {
   margin-top: 6px;
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: -4px;
+  margin-right: -4px;
   padding: 4px 4px 8px;
   mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
@@ -766,10 +776,13 @@ a.booking-pill:hover {
 }
 
 .chat-frame {
+  width: 100%;
+  max-width: 100%;
   margin: 20px 0;
   min-height: 220px;
   max-height: 420px;
   overflow: auto;
+  overflow-x: hidden;
   border-radius: 20px;
   padding: 16px;
   background: rgba(8, 10, 16, 0.62);
@@ -1557,7 +1570,7 @@ a.nearby-inline-maps:hover {
   height: 52px;
   flex: 0 0 52px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background: #1a1a1a;
   color: #fff;
   display: inline-flex;
@@ -1565,6 +1578,19 @@ a.nearby-inline-maps:hover {
   justify-content: center;
   cursor: pointer;
   text-decoration: none;
+  transition: border-color 0.18s ease, transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.share-icon-btn:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: #202020;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.share-icon-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .share-icon-btn svg {
@@ -1577,11 +1603,22 @@ a.nearby-inline-maps:hover {
   width: 100%;
   min-height: 42px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background: #1a1a1a;
   color: #f3f5ff;
   font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+.share-native-btn:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: #202020;
+  transform: translateY(-1px);
+}
+
+.share-native-btn:active {
+  transform: translateY(0);
 }
 
 .history-list {
@@ -2094,11 +2131,6 @@ a.nearby-inline-maps:hover {
 }
 
 @media (max-width: 760px) {
-  .content {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
   .app-shell {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
   }
@@ -2117,12 +2149,9 @@ a.nearby-inline-maps:hover {
     padding: 22px 18px;
     border-radius: 22px;
   }
-  .card.premium.home-screen {
+  .home-card {
     padding-top: 18px;
     padding-bottom: 18px;
-  }
-
-  .home-card {
     gap: 14px;
   }
   .hero-title {
@@ -2149,6 +2178,7 @@ a.nearby-inline-maps:hover {
   }
 
   .chat-composer-input {
+    font-size: 16px;
     min-height: 46px;
     padding-top: 12px;
     padding-bottom: 12px;

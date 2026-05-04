@@ -957,11 +957,6 @@ function ChatScreen({ session }) {
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
 
   const [searchParams, setSearchParams] = useSearchParams();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
   useEffect(() => {
     const raw = searchParams.get("q");
     if (!raw) return;
@@ -2036,8 +2031,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }
 
   return (
-    <section className="card premium home-screen">
-      <div className="home-card">
+    <section className="card premium home-card">
       <div className="hero-glow" />
       <div className="hero-stack">
         <p className="hero-kicker">⚡ Decision intelligence</p>
@@ -2371,7 +2365,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
       ) : null}
-      </div>
     </section>
   );
 }
