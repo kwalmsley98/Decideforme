@@ -13,7 +13,7 @@ html,
 body,
 #root {
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   overflow-x: hidden;
 }
 
@@ -82,9 +82,10 @@ a {
 .app-shell {
   min-height: 100vh;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   overflow-x: hidden;
   padding: 28px 24px 40px;
+  box-sizing: border-box;
 }
 
 .page-enter {
@@ -181,6 +182,7 @@ a {
   padding-left: 4px;
   padding-right: 4px;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .mobile-tabbar {
@@ -198,13 +200,18 @@ a {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
+/* Match Explore: outer section.card.premium.home-hub, inner .home-card body (see .explore-hub + tiles). */
+.card.premium.home-hub {
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+
 .home-card {
   position: relative;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow: visible;
-  padding-top: 22px;
-  padding-bottom: 22px;
   display: grid;
   gap: 8px;
 }
@@ -259,11 +266,13 @@ a {
 
 .hero-glow {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   top: 70px;
-  width: min(720px, 88vw);
+  width: 100%;
+  max-width: 100%;
   height: 220px;
-  transform: translateX(-50%);
+  transform: none;
   background: radial-gradient(circle at center, rgba(80, 108, 255, 0.28) 0%, rgba(126, 57, 212, 0.2) 45%,
       rgba(0, 0, 0, 0) 76%);
   filter: blur(6px);
@@ -639,9 +648,11 @@ a {
 
 .quick-category-scroll {
   margin-top: 6px;
-  margin-left: -4px;
-  margin-right: -4px;
+  margin-left: 0;
+  margin-right: 0;
   padding: 4px 4px 8px;
+  max-width: 100%;
+  min-width: 0;
   mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
 }
@@ -1167,6 +1178,8 @@ a.nearby-inline-maps:hover {
   display: grid;
   gap: 12px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 6px;
 }
 
@@ -1242,6 +1255,8 @@ a.nearby-inline-maps:hover {
   align-items: flex-end;
   gap: 2px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 6px 8px 6px 6px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1628,13 +1643,16 @@ a.nearby-inline-maps:hover {
 }
 
 .vote-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .vote-row .daily-vote-btn {
-  flex: 1 1 140px;
+  width: 100%;
   min-width: 0;
   text-align: left;
 }
@@ -2131,6 +2149,11 @@ a.nearby-inline-maps:hover {
 }
 
 @media (max-width: 760px) {
+  .content {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
   .app-shell {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
   }
@@ -2149,9 +2172,12 @@ a.nearby-inline-maps:hover {
     padding: 22px 18px;
     border-radius: 22px;
   }
-  .home-card {
+  .card.premium.home-hub {
     padding-top: 18px;
     padding-bottom: 18px;
+  }
+
+  .home-card {
     gap: 14px;
   }
   .hero-title {
