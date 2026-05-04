@@ -102,7 +102,7 @@ a {
 }
 
 .topbar {
-  max-width: 1120px;
+  max-width: 100%;
   margin: 0 auto 28px;
   display: flex;
   justify-content: space-between;
@@ -175,7 +175,7 @@ a {
 
 .content {
   width: 100%;
-  max-width: 1120px;
+  max-width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
   padding-left: 4px;
@@ -266,7 +266,7 @@ a {
   position: absolute;
   left: 50%;
   top: 70px;
-  width: min(720px, 88vw);
+  width: 100%;
   height: 220px;
   transform: translateX(-50%);
   background: radial-gradient(circle at center, rgba(80, 108, 255, 0.28) 0%, rgba(126, 57, 212, 0.2) 45%,
@@ -2103,7 +2103,7 @@ a.nearby-inline-maps:hover {
 
 .affiliates-benefits {
   text-align: left;
-  max-width: 520px;
+  max-width: 100%;
   margin: 0 auto 20px;
   padding-left: 1.25rem;
   color: rgba(220, 226, 255, 0.82);
