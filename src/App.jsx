@@ -2751,7 +2751,7 @@ function LeaderboardScreen({ session }) {
   };
 
   return (
-    <section className="card premium leaderboard-card">
+    <section className="card premium leaderboard-card referrals-page-safe">
       <div className="leaderboard-head">
         <h1 className="leaderboard-title">🏆 Leaderboard</h1>
         <div className="tab-row">

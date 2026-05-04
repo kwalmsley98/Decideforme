@@ -2052,6 +2052,9 @@ a.nearby-inline-maps:hover {
   .app-shell {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
   }
+  .referrals-page-safe {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
   .topbar {
     align-items: flex-start;
     flex-direction: column;
