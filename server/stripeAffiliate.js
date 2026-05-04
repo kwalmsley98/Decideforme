@@ -194,6 +194,8 @@ export async function createAffiliateConnectHandler(stripe, req, res, appBaseUrl
  * Returns whether the logged-in user's Stripe Connect account is fully onboarded.
  */
 export async function getAffiliateConnectStatusHandler(stripe, req, res, getUser) {
+  const header = req.headers?.authorization || "";
+  console.log("[affiliate/connect/status] auth header present:", Boolean(header), "prefix:", header.slice(0, 12));
   const { userId, error: authError } = await getUser();
   if (!userId) return res.status(401).json({ error: authError || "Sign in required." });
 
@@ -306,6 +308,8 @@ export async function runAffiliatePayoutHandler(stripe, req, res) {
  * Authenticated affiliate stats endpoint.
  */
 export async function getAffiliateDashboardHandler(req, res, getUser) {
+  const header = req.headers?.authorization || "";
+  console.log("[affiliate/dashboard] auth header present:", Boolean(header), "prefix:", header.slice(0, 12));
   const { userId, error: authError } = await getUser();
   if (!userId) {
     const msg =

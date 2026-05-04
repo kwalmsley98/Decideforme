@@ -1475,6 +1475,12 @@ a.nearby-inline-maps:hover {
   gap: 10px;
 }
 
+.share-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .recommendations-wrap {
   margin-top: 14px;
   display: grid;
@@ -1539,41 +1545,36 @@ a.nearby-inline-maps:hover {
   flex-wrap: wrap;
 }
 
-.share-pill {
-  width: 100%;
-  min-height: 46px;
+.share-icon-btn {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: #1a1a1a;
   color: #fff;
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   cursor: pointer;
   text-decoration: none;
 }
 
-.share-pill-icon {
-  font-size: 0.95rem;
-  line-height: 1;
+.share-icon-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
-.share-pill.wa {
-  background: #25d366;
-}
-.share-pill.fb {
-  background: #1877f2;
-}
-.share-pill.x {
-  background: #111;
-}
-.share-pill.copy {
-  background: #f5e642;
-  color: #171717;
-}
-.share-pill.native {
-  background: #ff6b6b;
+.share-native-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #1a1a1a;
+  color: #f3f5ff;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .history-list {
