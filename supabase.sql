@@ -604,8 +604,17 @@ create index if not exists referral_commissions_referrer_idx on public.referral_
 alter table public.referral_commissions enable row level security;
 
 alter table public.referrals add column if not exists clicks int not null default 0;
+alter table public.referrals add column if not exists referral_code text;
 alter table public.referrals add column if not exists stripe_account_id text;
 alter table public.referrals add column if not exists total_earnings_pence int not null default 0;
+
+-- Backfill missing referral codes on existing referral rows from profiles.
+update public.referrals r
+set referral_code = lower(p.referral_code)
+from public.profiles p
+where r.referrer_id = p.id
+  and p.referral_code is not null
+  and (r.referral_code is null or btrim(r.referral_code) = '');
 
 create or replace function public.increment_referral_clicks_for_referrer(p_referrer_id uuid)
 returns void

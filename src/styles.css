@@ -1469,11 +1469,10 @@ a.nearby-inline-maps:hover {
   }
 }
 
-.share-row {
+.share-stack {
   margin-top: 12px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 10px;
 }
 
 .recommendations-wrap {
@@ -1540,31 +1539,40 @@ a.nearby-inline-maps:hover {
   flex-wrap: wrap;
 }
 
-.share-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: none;
+.share-pill {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
   font-weight: 700;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.share-btn.wa {
+.share-pill-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.share-pill.wa {
   background: #25d366;
 }
-.share-btn.fb {
+.share-pill.fb {
   background: #1877f2;
 }
-.share-btn.x {
-  background: #101010;
+.share-pill.x {
+  background: #111;
 }
-.share-btn.copy {
-  background: #646cff;
+.share-pill.copy {
+  background: #f5e642;
+  color: #171717;
 }
-.share-btn.native {
+.share-pill.native {
   background: #ff6b6b;
 }
 

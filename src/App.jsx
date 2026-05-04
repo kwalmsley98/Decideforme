@@ -53,6 +53,41 @@ async function generateUniquePublicRefSlug(supabaseClient, baseName) {
   }
   return `${base}-${crypto.randomUUID().slice(0, 10)}`;
 }
+
+const EMPTY_REFERRAL_DASH = {
+  clicks: 0,
+  signups: 0,
+  paying_users: 0,
+  total_earnings_pence: 0
+};
+
+function buildCleanReferralCodeBase(email) {
+  const local = String(email || "user")
+    .split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  return (local || "user").slice(0, 16);
+}
+
+function looksLikeLegacyReferralCode(code, email) {
+  const clean = String(code || "")
+    .trim()
+    .toLowerCase();
+  if (!clean) return true;
+  const base = buildCleanReferralCodeBase(email);
+  if (clean === base) return false;
+  return !new RegExp(`^${base}[2-9][0-9]*$`).test(clean);
+}
+
+async function reserveCleanReferralCode(userId, email) {
+  const base = buildCleanReferralCodeBase(email);
+  for (let i = 0; i < 80; i++) {
+    const candidate = i === 0 ? base : `${base}${i + 1}`;
+    const { data: taken } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
+    if (!taken || taken.id === userId) return candidate;
+  }
+  return `${base}2`;
+}
 /** Once set, onboarding overlay is never shown again on this device. */
 const DFM_ONBOARDED_KEY = "dfm_onboarded";
 const LEGACY_ONBOARDING_KEY = "decide_for_me_onboarding_done";
@@ -458,29 +493,36 @@ function SharePanel({ text, className = "" }) {
     }
   };
   return (
-    <div className={`share-row ${className}`.trim()}>
-      <a className="share-btn wa" href={urls.whatsapp} target="_blank" rel="noreferrer">
-        W
+    <div className={`share-stack ${className}`.trim()}>
+      <a className="share-pill wa" href={urls.whatsapp} target="_blank" rel="noreferrer">
+        <span className="share-pill-icon">💬</span>
+        <span>WhatsApp</span>
       </a>
-      <a className="share-btn fb" href={urls.facebook} target="_blank" rel="noreferrer">
-        f
+      <a className="share-pill fb" href={urls.facebook} target="_blank" rel="noreferrer">
+        <span className="share-pill-icon">f</span>
+        <span>Facebook</span>
       </a>
-      <a className="share-btn x" href={urls.x} target="_blank" rel="noreferrer">
-        X
+      <a className="share-pill x" href={urls.x} target="_blank" rel="noreferrer">
+        <span className="share-pill-icon">𝕏</span>
+        <span>X / Twitter</span>
       </a>
       <button
-        className="share-btn copy"
+        className="share-pill copy"
         onClick={async () => {
           await copyText(text);
           setCopied(true);
           setTimeout(() => setCopied(false), 1200);
         }}
       >
-        {copied ? "OK" : "C"}
+        <span className="share-pill-icon">⧉</span>
+        <span>{copied ? "Copied" : "Copy link"}</span>
       </button>
-      <button className="share-btn native" onClick={nativeShare} disabled={!navigator.share}>
-        S
-      </button>
+      {navigator.share ? (
+        <button className="share-pill native" onClick={nativeShare}>
+          <span className="share-pill-icon">↗</span>
+          <span>Share</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -2908,24 +2950,6 @@ function AffiliatesPage() {
   const [copied, setCopied] = useState(false);
   const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
 
-  const buildReferralCodeBase = (email) => {
-    const local = String(email || "user")
-      .split("@")[0]
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "");
-    return (local || "user").slice(0, 12);
-  };
-
-  const reserveReferralCode = async (userId, email) => {
-    const base = buildReferralCodeBase(email);
-    for (let i = 0; i < 50; i++) {
-      const candidate = i === 0 ? base : `${base}${i + 1}`.slice(0, 20);
-      const { data: taken } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
-      if (!taken || taken.id === userId) return candidate;
-    }
-    return `${base}${Date.now().toString().slice(-1)}`.slice(0, 20);
-  };
-
   const fetchConnectStatus = async (accessToken) => {
     if (!accessToken) return;
     try {
@@ -2977,8 +3001,8 @@ function AffiliatesPage() {
       let publicRefSlug = String(profile?.public_ref_slug || "").trim().toLowerCase();
       const updates = {};
 
-      if (!referralCode) {
-        referralCode = await reserveReferralCode(user.id, user.email || profile?.email);
+      if (!referralCode || looksLikeLegacyReferralCode(referralCode, user.email || profile?.email)) {
+        referralCode = await reserveCleanReferralCode(user.id, user.email || profile?.email);
         updates.referral_code = referralCode;
       }
       if (!publicRefSlug) {
@@ -2988,6 +3012,7 @@ function AffiliatesPage() {
       if (Object.keys(updates).length) {
         await supabase.from("profiles").upsert({ id: user.id, ...updates }, { onConflict: "id" });
       }
+      await supabase.from("referrals").update({ referral_code: referralCode }).eq("referrer_id", user.id);
 
       setRefLink(`https://decideforme.org/ref/${referralCode}`);
       await fetchConnectStatus(accessToken);
@@ -3062,8 +3087,15 @@ function AffiliatesPage() {
       const user = authSession?.user || null;
       const accessToken = authSession?.access_token || "";
       if (!user) return;
+      const { data: refRows } = await supabase
+        .from("referrals")
+        .select("referral_code")
+        .eq("referrer_id", user.id)
+        .not("referral_code", "is", null)
+        .limit(1);
+      const tableCode = String(refRows?.[0]?.referral_code || "").trim().toLowerCase();
       const { data: profile } = await supabase.from("profiles").select("referral_code").eq("id", user.id).maybeSingle();
-      const code = String(profile?.referral_code || "").trim().toLowerCase();
+      const code = tableCode || String(profile?.referral_code || "").trim().toLowerCase();
       if (!cancelled && code) {
         setRefLink(`https://decideforme.org/ref/${code}`);
       }
@@ -3126,8 +3158,10 @@ function AffiliatesPage() {
 function ProfileScreen({ session }) {
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
+  const [referralCodeFromReferrals, setReferralCodeFromReferrals] = useState("");
   const [preferences, setPreferences] = useState([]);
-  const [referralDash, setReferralDash] = useState(null);
+  const [referralDash, setReferralDash] = useState(EMPTY_REFERRAL_DASH);
+  const [referralDashError, setReferralDashError] = useState("");
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
 
@@ -3138,12 +3172,26 @@ function ProfileScreen({ session }) {
       .select("*")
       .eq("id", session.user.id)
       .single();
-    setProfile(profileData);
+    let normalizedProfile = profileData;
+    const existingCode = String(profileData?.referral_code || "").trim().toLowerCase();
+    if (!existingCode || looksLikeLegacyReferralCode(existingCode, session.user.email)) {
+      const cleanedCode = await reserveCleanReferralCode(session.user.id, session.user.email);
+      const { data: updated } = await supabase
+        .from("profiles")
+        .update({ referral_code: cleanedCode })
+        .eq("id", session.user.id)
+        .select("*")
+        .single();
+      if (updated) normalizedProfile = updated;
+    }
+    setProfile(normalizedProfile);
     const { data: refData } = await supabase
       .from("referrals")
       .select("*")
       .eq("referrer_id", session.user.id);
     setReferrals(refData ?? []);
+    const tableCode = String((refData || []).find((row) => row?.referral_code)?.referral_code || "").trim().toLowerCase();
+    if (tableCode) setReferralCodeFromReferrals(tableCode);
     const { data: preferenceRows } = await supabase
       .from("user_preferences")
       .select("id, preference")
@@ -3156,9 +3204,21 @@ function ProfileScreen({ session }) {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       const dashJson = await dashRes.json();
-      if (dashRes.ok) setReferralDash(dashJson);
+      if (dashRes.ok) {
+        setReferralDash({
+          clicks: Number(dashJson.clicks || 0),
+          signups: Number(dashJson.signups || 0),
+          paying_users: Number(dashJson.paying_users || 0),
+          total_earnings_pence: Number(dashJson.total_earnings_pence || 0)
+        });
+        setReferralDashError("");
+      } else {
+        setReferralDash(EMPTY_REFERRAL_DASH);
+        setReferralDashError(dashJson.error || "Could not load referral stats.");
+      }
     } catch {
-      setReferralDash(null);
+      setReferralDash(EMPTY_REFERRAL_DASH);
+      setReferralDashError("Could not load referral stats.");
     }
 
     try {
@@ -3204,7 +3264,8 @@ function ProfileScreen({ session }) {
   if (!session) return <Navigate to="/login" replace />;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const prettyRefLink = profile?.referral_code && origin ? `${origin}/ref/${String(profile.referral_code).toLowerCase()}` : "";
+  const canonicalCode = referralCodeFromReferrals || String(profile?.referral_code || "").toLowerCase();
+  const prettyRefLink = canonicalCode && origin ? `${origin}/ref/${canonicalCode}` : "";
 
   const removePreference = async (id) => {
     if (!supabase || !id) return;
@@ -3236,30 +3297,27 @@ function ProfileScreen({ session }) {
         ) : (
           <p className="meta">Generating your link… refresh if this persists.</p>
         )}
-        {referralDash ? (
-          <div className="referral-dash-grid">
-            <div>
-              <p className="meta">Link clicks</p>
-              <p className="answer">{referralDash.clicks}</p>
-            </div>
-            <div>
-              <p className="meta">Signups</p>
-              <p className="answer">{referralDash.signups}</p>
-            </div>
-            <div>
-              <p className="meta">Paying users</p>
-              <p className="answer">{referralDash.paying_users}</p>
-            </div>
-            <div>
-              <p className="meta">Total earnings</p>
-              <p className="answer">
-                £{((referralDash.total_earnings_pence || 0) / 100).toFixed(2)}
-              </p>
-            </div>
+        <div className="referral-dash-grid">
+          <div>
+            <p className="meta">Link clicks</p>
+            <p className="answer">{referralDash.clicks}</p>
           </div>
-        ) : (
-          <p className="meta">Loading referral stats…</p>
-        )}
+          <div>
+            <p className="meta">Signups</p>
+            <p className="answer">{referralDash.signups}</p>
+          </div>
+          <div>
+            <p className="meta">Paying users</p>
+            <p className="answer">{referralDash.paying_users}</p>
+          </div>
+          <div>
+            <p className="meta">Total earnings</p>
+            <p className="answer">
+              £{((referralDash.total_earnings_pence || 0) / 100).toFixed(2)}
+            </p>
+          </div>
+        </div>
+        {referralDashError ? <p className="meta">{referralDashError} Showing zeros.</p> : null}
         {connectStatus.onboarded ? (
           <p className="answer">✅ Bank account connected</p>
         ) : (
