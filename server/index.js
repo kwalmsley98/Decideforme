@@ -898,16 +898,19 @@ app.post("/api/affiliate/conversion", (req, res) => recordAffiliateConversionHan
 
 app.get("/api/referrals/leaderboard", async (_req, res) => {
   const out = await fetchReferralLeaderboard(50);
-  if (out.error) return res.status(503).json(out);
-  return res.json(out);
+  return res.json({ rows: Array.isArray(out.rows) ? out.rows : [] });
 });
 
 app.get("/api/referrals/dashboard", async (req, res) => {
   const { userId, error } = await getBearerUser(req);
   if (!userId) return res.status(401).json({ error: error || "Unauthorized." });
   const out = await fetchReferralDashboard(userId);
-  if (out.error) return res.status(503).json(out);
-  return res.json(out);
+  return res.json({
+    clicks: out.clicks ?? 0,
+    signups: out.signups ?? 0,
+    paying_users: out.paying_users ?? 0,
+    total_earnings_pence: out.total_earnings_pence ?? 0
+  });
 });
 
 app.post("/api/ref/track-click", async (req, res) => {

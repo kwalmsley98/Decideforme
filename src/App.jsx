@@ -2900,22 +2900,26 @@ function RefLandingCapture() {
 
 function ReferralLeaderboardScreen() {
   const [rows, setRows] = useState([]);
-  const [error, setError] = useState("");
 
   useEffect(() => {
+    const parseLeaderboardPayload = (raw) => {
+      if (!raw || typeof raw !== "string") return [];
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith("{")) return [];
+      try {
+        const d = JSON.parse(trimmed);
+        return Array.isArray(d.rows) ? d.rows : [];
+      } catch {
+        return [];
+      }
+    };
+
     fetch(apiUrl("/api/referrals/leaderboard"))
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) setError(d.error);
-        else setRows(Array.isArray(d.rows) ? d.rows : []);
+      .then(async (res) => {
+        const text = await res.text();
+        setRows(parseLeaderboardPayload(text));
       })
-      .catch((e) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const hasSafeClass = Boolean(document.querySelector(".leaderboard-card.referrals-page-safe"));
-    console.log("[ReferralLeaderboardScreen] referrals-page-safe applied:", hasSafeClass);
+      .catch(() => setRows([]));
   }, []);
 
   return (
@@ -2924,7 +2928,6 @@ function ReferralLeaderboardScreen() {
         <h1 className="leaderboard-title">🏅 Referral leaderboard</h1>
       </div>
       <p className="muted">Ranked by total affiliate earnings, then paying referrals.</p>
-      {error ? <p className="error">{error}</p> : null}
       <div className="leader-list">
         {rows.length ? (
           rows.map((r, i) => (
@@ -3235,7 +3238,12 @@ function ProfileScreen({ session }) {
           setReferralDashError("");
         } else {
           setReferralDash(EMPTY_REFERRAL_DASH);
-          setReferralDashError(dashJson.error || "Could not load referral stats.");
+          const msg = String(dashJson.error || "").trim();
+          if (msg && !/database not configured/i.test(msg)) {
+            setReferralDashError("Could not load referral stats.");
+          } else {
+            setReferralDashError("");
+          }
         }
       }
     } catch {

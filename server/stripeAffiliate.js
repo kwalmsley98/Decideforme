@@ -322,8 +322,12 @@ export async function getAffiliateDashboardHandler(req, res, getUser) {
   }
 
   const out = await fetchReferralDashboard(userId);
-  if (out.error) return res.status(503).json({ error: out.error });
-  return res.json(out);
+  return res.json({
+    clicks: out.clicks ?? 0,
+    signups: out.signups ?? 0,
+    paying_users: out.paying_users ?? 0,
+    total_earnings_pence: out.total_earnings_pence ?? 0
+  });
 }
 
 /**
@@ -504,52 +508,85 @@ async function processCommissionForInvoice(stripe, service, invoice) {
   }
 }
 
-/** Referral leaderboard + dashboard queries — requires service client */
+/** Referral leaderboard — uses service role (see getServiceClient / SUPABASE_SERVICE_ROLE_KEY). */
 export async function fetchReferralLeaderboard(limit = 50) {
   const service = getServiceClient();
-  if (!service) return { error: "Database not configured." };
+  if (!service) {
+    console.warn("[fetchReferralLeaderboard] Missing SUPABASE_URL or service role key (SUPABASE_SERVICE_ROLE_KEY).");
+    return { rows: [] };
+  }
 
-  const { data: commRows, error: cErr } = await service
+  const { data: refRows, error: refErr } = await service
+    .from("referrals")
+    .select("referrer_id, total_earnings_pence, paying_users");
+  if (refErr) {
+    console.error("[fetchReferralLeaderboard] referrals select", refErr);
+    return { rows: [] };
+  }
+
+  const { data: commRows, error: commErr } = await service
     .from("referral_commissions")
     .select("referrer_id, referred_user_id, commission_pence");
-  if (cErr) return { error: cErr.message };
-
-  const { data: refRows, error: rErr } = await service.from("referrals").select("referrer_id");
-  if (rErr) return { error: rErr.message };
+  if (commErr) {
+    console.error("[fetchReferralLeaderboard] referral_commissions select", commErr);
+  }
 
   const byReferrer = new Map();
-  for (const row of commRows || []) {
+
+  for (const row of refRows || []) {
     const rid = row.referrer_id;
+    if (!rid) continue;
     if (!byReferrer.has(rid)) {
-      byReferrer.set(rid, { commissionTotal: 0, payingUserIds: new Set(), signups: 0 });
+      byReferrer.set(rid, {
+        signups: 0,
+        tableEarningsPence: 0,
+        tablePayingUsers: 0,
+        commTotalPence: 0,
+        payingUserIdsFromComm: new Set()
+      });
     }
     const agg = byReferrer.get(rid);
-    agg.commissionTotal += row.commission_pence || 0;
-    agg.payingUserIds.add(row.referred_user_id);
+    agg.signups += 1;
+    agg.tableEarningsPence = Math.max(agg.tableEarningsPence, row.total_earnings_pence || 0);
+    agg.tablePayingUsers = Math.max(agg.tablePayingUsers, row.paying_users || 0);
   }
 
-  const signupBy = new Map();
-  for (const row of refRows || []) {
-    signupBy.set(row.referrer_id, (signupBy.get(row.referrer_id) || 0) + 1);
+  for (const row of commRows || []) {
+    const rid = row.referrer_id;
+    if (!rid) continue;
+    if (!byReferrer.has(rid)) {
+      byReferrer.set(rid, {
+        signups: 0,
+        tableEarningsPence: 0,
+        tablePayingUsers: 0,
+        commTotalPence: 0,
+        payingUserIdsFromComm: new Set()
+      });
+    }
+    const agg = byReferrer.get(rid);
+    agg.commTotalPence += row.commission_pence || 0;
+    if (row.referred_user_id) agg.payingUserIdsFromComm.add(row.referred_user_id);
   }
 
-  const allIds = new Set([...byReferrer.keys(), ...signupBy.keys()]);
+  const ids = [...byReferrer.keys()];
+  if (!ids.length) return { rows: [] };
+
+  const { data: profs, error: profErr } = await service.from("profiles").select("id, username, public_ref_slug").in("id", ids);
+  if (profErr) console.error("[fetchReferralLeaderboard] profiles select", profErr);
+  const profById = new Map((profs || []).map((p) => [p.id, p]));
+
   const enriched = [];
-  for (const referrerId of allIds) {
-    const agg = byReferrer.get(referrerId) || {
-      commissionTotal: 0,
-      payingUserIds: new Set(),
-      signups: 0
-    };
-    const signups = signupBy.get(referrerId) || 0;
-    const { data: prof } = await service.from("profiles").select("username, public_ref_slug").eq("id", referrerId).maybeSingle();
+  for (const [referrerId, agg] of byReferrer) {
+    const totalCommissionPence = Math.max(agg.tableEarningsPence, agg.commTotalPence);
+    const payingUsers = Math.max(agg.tablePayingUsers, agg.payingUserIdsFromComm.size);
+    const prof = profById.get(referrerId);
     enriched.push({
       referrer_id: referrerId,
       username: prof?.username || "Creator",
       public_ref_slug: prof?.public_ref_slug || "",
-      signups,
-      paying_users: agg.payingUserIds.size,
-      total_commission_pence: agg.commissionTotal
+      signups: agg.signups,
+      paying_users: payingUsers,
+      total_commission_pence: totalCommissionPence
     });
   }
 
@@ -564,7 +601,9 @@ export async function fetchReferralLeaderboard(limit = 50) {
 
 export async function fetchReferralDashboard(userId) {
   const service = getServiceClient();
-  if (!service) return { error: "Database not configured." };
+  if (!service) {
+    return { clicks: 0, signups: 0, paying_users: 0, total_earnings_pence: 0 };
+  }
 
   const { count: clickCount } = await service
     .from("referral_link_clicks")
