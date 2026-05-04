@@ -239,29 +239,30 @@ a {
 }
 
 .hero-title {
-  margin: 6px 0 0;
-  font-size: clamp(1.5rem, 3.2vw, 2.625rem);
+  margin: 4px 0 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.6rem);
   line-height: 1.08;
   letter-spacing: -0.01em;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: none;
-  color: #ffffff;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.09);
+  color: rgba(240, 244, 255, 0.92);
+  text-shadow: none;
 }
 
 .hero-stack .home-brand-tagline {
-  margin: 8px auto 2px;
+  margin: 6px auto 2px;
   max-width: 28rem;
-  font-size: clamp(0.92rem, 2.4vw, 1.06rem);
+  font-size: clamp(0.84rem, 1.8vw, 0.96rem);
   font-weight: 500;
-  color: rgba(215, 222, 245, 0.92);
+  color: rgba(199, 208, 236, 0.85);
   line-height: 1.4;
   letter-spacing: 0.01em;
 }
 
 .hero-subtitle {
-  margin: 10px 0 2px;
-  color: #b9bfd6;
+  margin: 6px 0 2px;
+  font-size: 0.9rem;
+  color: rgba(183, 192, 220, 0.9);
 }
 
 .hero-glow {

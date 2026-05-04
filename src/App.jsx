@@ -2075,43 +2075,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
-      <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
-      <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
-      {session?.user?.id ? (
-        <p className="meta usage-meter">
-          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
-        </p>
-      ) : (
-        <p className="meta usage-meter">
-          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
-        </p>
-      )}
-      {showFirstTimeNote ? (
-        <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
-      ) : null}
-      {profileDecisionCount >= 5 ? (
-        <article className="history-item decision-profile-card">
-          <p className="hero-kicker">Your Decision Profile</p>
-          {isProUser ? (
-            <div className="history-list">
-              {profileInsights.map((insight) => (
-                <p key={insight} className="answer">
-                  {insight}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <>
-              <p className="muted">
-                Your full decision style revealed — see what drives every choice you make.
-              </p>
-              <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
-                Unlock full Decision Profile
-              </button>
-            </>
-          )}
-        </article>
-      ) : null}
       <div className="chat-divider" />
 
       {conversation.length || loading ? (
@@ -2302,17 +2265,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </form>
       )}
 
-      {!lifeModeSession ? (
-        <button className="life-mode-btn" type="button" onClick={openLifeModePrompt} onTouchEnd={openLifeModePrompt}>
-          <span className="life-mode-title">🎲 Let AI Run My Life</span>
-          <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
-        </button>
-      ) : (
-        <article className="life-mode-banner">
-          <p className="hero-kicker">Life Mode active</p>
-          <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
-        </article>
-      )}
       {showUpgradePrompt ? (
         <div
           className="upgrade-modal-overlay"
@@ -2372,19 +2324,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
       ) : null}
-      <div className="home-insights">
-        <article className="streak-spotlight">
-          <div className="streak-head">
-            <span className="streak-icon">
-              <Flame size={16} />
-            </span>
-            <p className="hero-kicker">Momentum</p>
-          </div>
-          <h3>{currentStreak} day streak</h3>
-          <p className="muted">Stay consistent with one decision today and keep your decision engine hot.</p>
-        </article>
-        <DailyDilemmaCard session={session} />
-      </div>
       {conversation.length ? (
         <SharePanel
           text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}
@@ -2535,7 +2474,7 @@ function ExploreScreen({ session }) {
     <section className="card premium explore-hub">
       <header className="explore-hub-head">
         <h1>Explore</h1>
-        <p className="muted">Groups, leaderboard, and your numbers.</p>
+        <p className="muted">Discover modes, cards, and deeper decision tools.</p>
       </header>
       <div className="explore-tiles">
         <Link to="/group" className="explore-tile">
@@ -2568,6 +2507,27 @@ function ExploreScreen({ session }) {
               <span className="explore-tile-title">History</span>
               <span className="explore-tile-desc">Past decisions</span>
             </Link>
+            <Link to="/profile" className="explore-tile">
+              <span className="explore-tile-icon" aria-hidden="true">
+                <Flame size={22} strokeWidth={1.75} />
+              </span>
+              <span className="explore-tile-title">Momentum</span>
+              <span className="explore-tile-desc">Streaks and consistency signals</span>
+            </Link>
+            <Link to="/profile" className="explore-tile">
+              <span className="explore-tile-icon" aria-hidden="true">
+                <User size={22} strokeWidth={1.75} />
+              </span>
+              <span className="explore-tile-title">Decision Profile</span>
+              <span className="explore-tile-desc">Your style and behavior patterns</span>
+            </Link>
+            <Link to="/profile" className="explore-tile">
+              <span className="explore-tile-icon" aria-hidden="true">
+                <Compass size={22} strokeWidth={1.75} />
+              </span>
+              <span className="explore-tile-title">Let AI Run My Life</span>
+              <span className="explore-tile-desc">Start or manage Life Mode</span>
+            </Link>
           </>
         ) : (
           <p className="explore-guest-hint muted">
@@ -2578,6 +2538,7 @@ function ExploreScreen({ session }) {
           </p>
         )}
       </div>
+      <DailyDilemmaCard session={session} />
     </section>
   );
 }
