@@ -957,6 +957,11 @@ function ChatScreen({ session }) {
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
 
   const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     const raw = searchParams.get("q");
     if (!raw) return;
