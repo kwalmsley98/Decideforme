@@ -2902,9 +2902,11 @@ function AffiliatesPage() {
   const { formatMonth, formatYear } = useCommerceCurrency();
   const navigate = useNavigate();
   const [linkLoading, setLinkLoading] = useState(false);
+  const [connectLoading, setConnectLoading] = useState(false);
   const [linkError, setLinkError] = useState("");
   const [refLink, setRefLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
 
   const buildReferralCodeBase = (email) => {
     const local = String(email || "user")
@@ -2916,13 +2918,29 @@ function AffiliatesPage() {
 
   const reserveReferralCode = async (userId, email) => {
     const base = buildReferralCodeBase(email);
-    for (let i = 0; i < 12; i++) {
-      const suffix = i === 0 ? `${Math.floor(100 + Math.random() * 900)}` : `${Math.floor(100 + Math.random() * 900)}${i}`;
-      const candidate = `${base}${suffix}`.slice(0, 20);
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? base : `${base}${i + 1}`.slice(0, 20);
       const { data: taken } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
       if (!taken || taken.id === userId) return candidate;
     }
-    return `${base}${Math.floor(1000 + Math.random() * 9000)}`.slice(0, 20);
+    return `${base}${Date.now().toString().slice(-1)}`.slice(0, 20);
+  };
+
+  const fetchConnectStatus = async (accessToken) => {
+    if (!accessToken) return;
+    try {
+      const statusRes = await fetch(apiUrl("/api/affiliate/connect/status"), {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const statusJson = await statusRes.json();
+      if (statusRes.ok) {
+        setConnectStatus({ connected: Boolean(statusJson.connected), onboarded: Boolean(statusJson.onboarded) });
+      } else {
+        setConnectStatus({ connected: false, onboarded: false });
+      }
+    } catch {
+      setConnectStatus({ connected: false, onboarded: false });
+    }
   };
 
   const ensureReferralLink = async () => {
@@ -2937,6 +2955,7 @@ function AffiliatesPage() {
         data: { session: authSession }
       } = await supabase.auth.getSession();
       const user = authSession?.user || null;
+      const accessToken = authSession?.access_token || "";
       if (!user) {
         navigate("/login", { replace: false });
         return;
@@ -2971,6 +2990,7 @@ function AffiliatesPage() {
       }
 
       setRefLink(`https://decideforme.org/ref/${referralCode}`);
+      await fetchConnectStatus(accessToken);
     } catch (err) {
       setLinkError(err?.message || "Could not generate your referral link.");
     } finally {
@@ -2983,6 +3003,36 @@ function AffiliatesPage() {
     await copyText(refLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
+  };
+
+  const startConnectOnboarding = async () => {
+    if (!supabase) return;
+    setConnectLoading(true);
+    setLinkError("");
+    try {
+      const {
+        data: { session: authSession }
+      } = await supabase.auth.getSession();
+      const accessToken = authSession?.access_token || "";
+      if (!accessToken) {
+        navigate("/login", { replace: false });
+        return;
+      }
+      const res = await fetch(apiUrl("/api/affiliate/connect"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not start Stripe Connect.");
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      setLinkError(err?.message || "Could not start Stripe Connect.");
+    } finally {
+      setConnectLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -3038,6 +3088,15 @@ function AffiliatesPage() {
             <button type="button" className="ghost-btn" onClick={copyRefLink}>
               {copied ? "Copied!" : "Copy link"}
             </button>
+            <div style={{ marginTop: 10 }}>
+              {connectStatus.onboarded ? (
+                <p className="answer">✅ Bank account connected</p>
+              ) : (
+                <button type="button" className="ghost-btn" onClick={startConnectOnboarding} disabled={connectLoading}>
+                  {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
+                </button>
+              )}
+            </div>
           </div>
         ) : null}
         {linkError ? <p className="error">{linkError}</p> : null}
