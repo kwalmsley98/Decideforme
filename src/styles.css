@@ -2057,6 +2057,21 @@ a.nearby-inline-maps:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.seo-landing-cta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.seo-landing-cta-row .seo-landing-cta,
+.seo-landing-cta-row .seo-landing-secondary {
+  position: static;
+  margin: 0;
+  width: 100%;
+  justify-content: center;
+}
+
 .small-print {
   font-size: 0.78rem;
   margin-top: 8px;
