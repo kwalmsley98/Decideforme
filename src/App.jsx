@@ -61,32 +61,26 @@ const EMPTY_REFERRAL_DASH = {
   total_earnings_pence: 0
 };
 
-function buildCleanReferralCodeBase(email) {
-  const local = String(email || "user")
-    .split("@")[0]
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-  return (local || "user").slice(0, 16);
+function randomReferralCode(length = 6) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let out = "";
+  for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
 }
 
-function looksLikeLegacyReferralCode(code, email) {
-  const clean = String(code || "")
-    .trim()
-    .toLowerCase();
-  if (!clean) return true;
-  const base = buildCleanReferralCodeBase(email);
-  if (clean === base) return false;
-  return !new RegExp(`^${base}[2-9][0-9]*$`).test(clean);
-}
-
-async function reserveCleanReferralCode(userId, email) {
-  const base = buildCleanReferralCodeBase(email);
-  for (let i = 0; i < 80; i++) {
-    const candidate = i === 0 ? base : `${base}${i + 1}`;
-    const { data: taken } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
-    if (!taken || taken.id === userId) return candidate;
+async function reserveRandomReferralCode(userId) {
+  for (let i = 0; i < 120; i++) {
+    const candidate = randomReferralCode(6);
+    const { data: takenInReferrals } = await supabase
+      .from("referrals")
+      .select("referrer_id")
+      .eq("referral_code", candidate)
+      .maybeSingle();
+    if (takenInReferrals && takenInReferrals.referrer_id !== userId) continue;
+    const { data: takenInProfiles } = await supabase.from("profiles").select("id").eq("referral_code", candidate).maybeSingle();
+    if (!takenInProfiles || takenInProfiles.id === userId) return candidate;
   }
-  return `${base}2`;
+  return randomReferralCode(6);
 }
 /** Once set, onboarding overlay is never shown again on this device. */
 const DFM_ONBOARDED_KEY = "dfm_onboarded";
@@ -3016,8 +3010,8 @@ function AffiliatesPage() {
       let publicRefSlug = String(profile?.public_ref_slug || "").trim().toLowerCase();
       const updates = {};
 
-      if (!referralCode || looksLikeLegacyReferralCode(referralCode, user.email || profile?.email)) {
-        referralCode = await reserveCleanReferralCode(user.id, user.email || profile?.email);
+      if (!referralCode) {
+        referralCode = await reserveRandomReferralCode(user.id);
         updates.referral_code = referralCode;
       }
       if (!publicRefSlug) {
@@ -3189,11 +3183,11 @@ function ProfileScreen({ session }) {
       .single();
     let normalizedProfile = profileData;
     const existingCode = String(profileData?.referral_code || "").trim().toLowerCase();
-    if (!existingCode || looksLikeLegacyReferralCode(existingCode, session.user.email)) {
-      const cleanedCode = await reserveCleanReferralCode(session.user.id, session.user.email);
+    if (!existingCode) {
+      const generatedCode = await reserveRandomReferralCode(session.user.id);
       const { data: updated } = await supabase
         .from("profiles")
-        .update({ referral_code: cleanedCode })
+        .update({ referral_code: generatedCode })
         .eq("id", session.user.id)
         .select("*")
         .single();
@@ -3404,9 +3398,13 @@ async function ensureProfileAndReferral(user) {
     (typeof user.user_metadata?.name === "string" ? user.user_metadata.name.split(/\s+/)[0] : null) ||
     "user";
 
-  const { data: existing } = await supabase.from("profiles").select("id, public_ref_slug").eq("id", user.id).maybeSingle();
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id, public_ref_slug, referral_code")
+    .eq("id", user.id)
+    .maybeSingle();
   if (!existing) {
-    const referralCode = crypto.randomUUID().slice(0, 8);
+    const referralCode = await reserveRandomReferralCode(user.id);
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
     await supabase.from("profiles").insert({
       id: user.id,
@@ -3414,9 +3412,11 @@ async function ensureProfileAndReferral(user) {
       referral_code: referralCode,
       public_ref_slug: publicRefSlug
     });
-  } else if (!existing.public_ref_slug) {
+  } else if (!existing.public_ref_slug || !existing.referral_code) {
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
-    await supabase.from("profiles").update({ public_ref_slug: publicRefSlug }).eq("id", user.id);
+    const patch = { public_ref_slug: publicRefSlug };
+    if (!existing.referral_code) patch.referral_code = await reserveRandomReferralCode(user.id);
+    await supabase.from("profiles").update(patch).eq("id", user.id);
   }
 
   const pendingSlug = localStorage.getItem("pending_ref_slug");
