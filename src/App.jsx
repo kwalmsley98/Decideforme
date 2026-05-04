@@ -815,6 +815,19 @@ function DailyDilemmaCard({ session }) {
     }
   };
 
+  const formatAIVerdict = (rawVerdict) => {
+    const plainText = String(rawVerdict || "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[`*_~>#]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!plainText) return "";
+    const sentences = (plainText.match(/[^.!?]+[.!?]?/g) || []).map((item) => item.trim()).filter(Boolean);
+    const concise = (sentences.length ? sentences.slice(0, 2).join(" ") : plainText).trim();
+    if (!concise) return "";
+    return /[.!?]$/.test(concise) ? concise : `${concise}.`;
+  };
+
   if (!dilemma) return null;
   const aVotes = dilemma.votes_a || 0;
   const bVotes = dilemma.votes_b || 0;
@@ -863,9 +876,10 @@ function DailyDilemmaCard({ session }) {
           </div>
           <p className="meta community-split">{aPercent}% vs {bPercent}%</p>
           <p className="meta">Live voters: {aVotes + bVotes}</p>
-          <p className="answer">{majority}</p>
-          <p className="meta">{loadingAi && !aiPick ? "AI verdict is loading..." : "AI verdict"}</p>
-          {aiPick ? <p className="answer">{aiPick}</p> : null}
+          <p className="daily-majority">{majority}</p>
+          <p className="daily-ai-label">⚡ AI Verdict</p>
+          {loadingAi && !aiPick ? <p className="meta">AI verdict is loading...</p> : null}
+          {aiPick ? <p className="daily-ai-verdict">{formatAIVerdict(aiPick)}</p> : null}
         </>
       ) : (
         <p className="meta">You can vote once today. Results unlock right after you vote.</p>
