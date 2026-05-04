@@ -2315,15 +2315,28 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </div>
       ) : null}
       {!conversation.length ? (
-        <div className="quick-category-scroll">
-          <div className="quick-category-row">
-            {quickCategories.map((item) => (
-              <button key={item.label} type="button" className="quick-category-pill" onClick={() => setPrompt(item.value)}>
-                {item.label}
-              </button>
-            ))}
+        <>
+          <div className="quick-category-scroll">
+            <div className="quick-category-row">
+              {quickCategories.map((item) => (
+                <button key={item.label} type="button" className="quick-category-pill" onClick={() => setPrompt(item.value)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+          {!lifeModeSession ? (
+            <button className="life-mode-btn" type="button" onClick={openLifeModePrompt} onTouchEnd={openLifeModePrompt}>
+              <span className="life-mode-title">🎲 Let AI Run My Life</span>
+              <span className="life-mode-subtitle">Hand control to AI for 24 hours</span>
+            </button>
+          ) : (
+            <article className="life-mode-banner">
+              <p className="hero-kicker">Life Mode active</p>
+              <p className="answer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)} remaining</p>
+            </article>
+          )}
+        </>
       ) : null}
       {conversation.length ? (
         <SharePanel
