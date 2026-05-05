@@ -35,14 +35,6 @@ import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCur
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
-function assertApiBaseConfigured() {
-  if (!API_BASE_URL) {
-    throw new Error(
-      "Payment service is not configured: VITE_API_BASE_URL is missing. Set it to your hosted API URL (for example your Render backend) in the frontend host environment and redeploy."
-    );
-  }
-}
-
 function isStripeHostedCheckoutUrl(urlString) {
   try {
     const u = new URL(urlString);
@@ -54,17 +46,28 @@ function isStripeHostedCheckoutUrl(urlString) {
   }
 }
 
-/** Calls POST /api/create-checkout-session; throws with actionable messages if the response is HTML or invalid. */
+/** Calls POST /api/create-checkout-session; throws with actionable messages if the response is HTML or invalid. Empty VITE_API_BASE_URL uses same-origin `/api` (Vite dev proxy or hosting reverse-proxy). */
 async function fetchStripeCheckoutSessionUrl(accessToken, body) {
-  assertApiBaseConfigured();
-  const response = await fetch(apiUrl("/api/create-checkout-session"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`
-    },
-    body: JSON.stringify(body)
-  });
+  let response;
+  try {
+    response = await fetch(apiUrl("/api/create-checkout-session"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e ?? "");
+    const looksNetwork =
+      e instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(msg.toLowerCase());
+    throw new Error(
+      looksNetwork
+        ? "Could not reach the payment server. Check your connection; if this keeps happening, set VITE_API_BASE_URL to your API host (or configure the host to proxy /api to the backend)."
+        : msg || "Could not start checkout."
+    );
+  }
   const rawText = await response.text();
   let data;
   try {
@@ -1036,6 +1039,7 @@ function ChatScreen({ session }) {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradePromptReason, setUpgradePromptReason] = useState("limit");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
   const [lifeModePromptOpen, setLifeModePromptOpen] = useState(false);
@@ -1628,10 +1632,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const startProCheckout = async (plan = "month") => {
     if (!session?.access_token) {
+      setCheckoutError("");
       setError("Sign in to upgrade to Pro.");
       return;
     }
     setCheckoutLoading(true);
+    setCheckoutError("");
     setError("");
     try {
       const url = await fetchStripeCheckoutSessionUrl(session.access_token, {
@@ -1641,9 +1647,10 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       goToStripeCheckout(url, {
         onStuck: () => {
           setCheckoutLoading(false);
-          setError(
-            "Stripe Checkout did not open in this tab. Allow redirects to checkout.stripe.com, or open the site in a normal (non–in-app) browser and try again."
-          );
+          const stuckMsg =
+            "Stripe Checkout did not open in this tab. Allow redirects to checkout.stripe.com, or open the site in a normal (non–in-app) browser and try again.";
+          setCheckoutError(stuckMsg);
+          setError(stuckMsg);
         }
       });
     } catch (err) {
@@ -1653,6 +1660,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           : typeof err === "string"
             ? err
             : "Failed to start Stripe checkout.";
+      setCheckoutError(message);
       setError(message);
       setCheckoutLoading(false);
     }
@@ -2383,13 +2391,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <div
           className="upgrade-modal-overlay"
           role="presentation"
-          onClick={() => setShowUpgradePrompt(false)}
+          onClick={() => {
+            setCheckoutError("");
+            setShowUpgradePrompt(false);
+          }}
         >
           <article className="upgrade-modal-card" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="upgrade-modal-close"
-              onClick={() => setShowUpgradePrompt(false)}
+              onClick={() => {
+                setCheckoutError("");
+                setShowUpgradePrompt(false);
+              }}
               aria-label="Close"
             >
               <X size={20} strokeWidth={2.25} />
@@ -2401,6 +2415,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </p>
             <p className="muted">Unlimited decisions and full Life Mode access.</p>
             {!session?.user?.id ? <p className="meta">Sign in to subscribe. Free tier limits apply to guests and free accounts.</p> : null}
+            {checkoutError ? (
+              <p className="error" role="alert">
+                {checkoutError}
+              </p>
+            ) : null}
             <div className="upgrade-modal-plans">
               <button
                 type="button"
