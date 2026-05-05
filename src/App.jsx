@@ -2413,13 +2413,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             <p className="plan-price">
               {formatMonth()}/mo · {formatYear()}/yr
             </p>
-            <p className="muted">Unlimited decisions and full Life Mode access.</p>
-            {!session?.user?.id ? <p className="meta">Sign in to subscribe. Free tier limits apply to guests and free accounts.</p> : null}
-            {checkoutError ? (
-              <p className="error" role="alert">
-                {checkoutError}
-              </p>
-            ) : null}
             <div className="upgrade-modal-plans">
               <button
                 type="button"
@@ -2438,11 +2431,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 {checkoutLoading ? "Redirecting…" : `Yearly · ${formatYear()}/yr`}
               </button>
             </div>
-            {!session?.user?.id ? (
-              <Link to="/signup" className="ghost-btn upgrade-cta">
-                Create free account instead
-              </Link>
-            ) : null}
           </article>
         </div>
       ) : null}
