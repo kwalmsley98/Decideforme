@@ -135,6 +135,22 @@ const anthropic = new Anthropic({
 });
 
 const stripe = new Stripe(config.stripeSecretKey);
+const stripeKeyMode = config.stripeSecretKey.startsWith("sk_live_")
+  ? "live"
+  : config.stripeSecretKey.startsWith("sk_test_")
+    ? "test"
+    : "unknown";
+console.log(`[stripe] STRIPE_SECRET_KEY mode: ${stripeKeyMode}`);
+if (process.env.NODE_ENV === "production" && stripeKeyMode !== "live") {
+  console.warn(
+    "[stripe] Production should use a live secret key (sk_live_…). Test keys only work with Stripe test cards and will fail for real payments."
+  );
+}
+if (process.env.NODE_ENV === "production" && config.appBaseUrl && !/decideforme\.org/i.test(config.appBaseUrl)) {
+  console.warn(
+    "[stripe] APP_BASE_URL does not look like decideforme.org. Success/cancel URLs should be your public site (e.g. https://decideforme.org) or set STRIPE_CHECKOUT_RETURN_ORIGIN on the server."
+  );
+}
 const googlePlacesKey = normalizeEnvValue(process.env.GOOGLE_PLACES_API_KEY || process.env.VITE_GOOGLE_PLACES_API_KEY);
 
 /** Maps client `type` from inferNearbyPlaceType to Places API (New) includedTypes */

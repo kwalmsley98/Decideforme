@@ -35,6 +35,77 @@ import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCur
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
+function assertApiBaseConfigured() {
+  if (!API_BASE_URL) {
+    throw new Error(
+      "Payment service is not configured: VITE_API_BASE_URL is missing. Set it to your hosted API URL (for example your Render backend) in the frontend host environment and redeploy."
+    );
+  }
+}
+
+function isStripeHostedCheckoutUrl(urlString) {
+  try {
+    const u = new URL(urlString);
+    if (u.protocol !== "https:") return false;
+    const h = u.hostname.toLowerCase();
+    return h === "checkout.stripe.com" || h.endsWith(".stripe.com");
+  } catch {
+    return false;
+  }
+}
+
+/** Calls POST /api/create-checkout-session; throws with actionable messages if the response is HTML or invalid. */
+async function fetchStripeCheckoutSessionUrl(accessToken, body) {
+  assertApiBaseConfigured();
+  const response = await fetch(apiUrl("/api/create-checkout-session"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(body)
+  });
+  const rawText = await response.text();
+  let data;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    const looksLikeHtml = /^\s*</.test(rawText) || /<!DOCTYPE/i.test(rawText);
+    const hint = looksLikeHtml
+      ? "This app is calling the wrong server (often VITE_API_BASE_URL is unset, so the site returns HTML instead of JSON). Set VITE_API_BASE_URL to your API server and redeploy."
+      : `Unexpected response: ${rawText.slice(0, 120).replace(/\s+/g, " ")}`;
+    throw new Error(`Could not start checkout. ${hint}`);
+  }
+  if (!response.ok) {
+    const msg = typeof data?.error === "string" ? data.error : "";
+    throw new Error(msg || `Checkout failed (HTTP ${response.status}). Try again or contact support.`);
+  }
+  const url = data?.url;
+  if (typeof url !== "string" || !isStripeHostedCheckoutUrl(url)) {
+    throw new Error(
+      "Checkout did not return a valid Stripe payment link. Check server logs and that STRIPE_SECRET_KEY is set on the API host."
+    );
+  }
+  return url;
+}
+
+/**
+ * Navigates to Stripe Checkout. If the tab does not unload (blocked redirect), onStuck runs after a delay so the button does not stay stuck on "Redirecting…".
+ */
+function goToStripeCheckout(url, { onStuck }) {
+  try {
+    window.location.assign(url);
+  } catch (e) {
+    const msg = e && typeof e === "object" && "message" in e ? String(e.message) : "";
+    throw new Error(
+      msg || "Could not open Stripe Checkout. Try disabling extensions that block redirects, or use another browser."
+    );
+  }
+  window.setTimeout(() => {
+    onStuck?.();
+  }, 12000);
+}
+
 function slugifyPublicRef(input) {
   const s = String(input || "")
     .toLowerCase()
@@ -1563,20 +1634,26 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setCheckoutLoading(true);
     setError("");
     try {
-      const response = await fetch(apiUrl("/api/create-checkout-session"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ plan: plan === "year" ? "year" : "month", currency })
+      const url = await fetchStripeCheckoutSessionUrl(session.access_token, {
+        plan: plan === "year" ? "year" : "month",
+        currency
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
-      if (!data?.url) throw new Error("Stripe checkout URL missing.");
-      window.location.href = data.url;
+      goToStripeCheckout(url, {
+        onStuck: () => {
+          setCheckoutLoading(false);
+          setError(
+            "Stripe Checkout did not open in this tab. Allow redirects to checkout.stripe.com, or open the site in a normal (non–in-app) browser and try again."
+          );
+        }
+      });
     } catch (err) {
-      setError(err.message || "Failed to start Stripe checkout.");
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Failed to start Stripe checkout.";
+      setError(message);
       setCheckoutLoading(false);
     }
   };
@@ -3717,20 +3794,23 @@ function PlansScreen({ session }) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(apiUrl("/api/create-checkout-session"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ plan, currency })
+      const url = await fetchStripeCheckoutSessionUrl(session.access_token, { plan, currency });
+      goToStripeCheckout(url, {
+        onStuck: () => {
+          setLoading(false);
+          setError(
+            "Stripe Checkout did not open in this tab. Allow redirects to checkout.stripe.com, or try another browser."
+          );
+        }
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Unable to start checkout.");
-      if (!data?.url) throw new Error("Stripe checkout URL missing.");
-      window.location.href = data.url;
     } catch (err) {
-      setError(err.message || "Stripe checkout failed.");
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Stripe checkout failed.";
+      setError(message);
       setLoading(false);
     }
   };

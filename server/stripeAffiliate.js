@@ -26,6 +26,23 @@ function normalizeEnvValue(value) {
   return parts[parts.length - 1];
 }
 
+/** Origin used for Stripe Checkout success/cancel (defaults to APP_BASE_URL; optional STRIPE_CHECKOUT_RETURN_ORIGIN overrides). */
+function checkoutReturnOrigin(appBaseUrl) {
+  const override = normalizeEnvValue(process.env.STRIPE_CHECKOUT_RETURN_ORIGIN);
+  if (override) {
+    try {
+      const o = new URL(override);
+      return `${o.protocol}//${o.host}`;
+    } catch {
+      // fall through to APP_BASE_URL
+    }
+  }
+  const base = String(appBaseUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
+  return base || "https://decideforme.org";
+}
+
 /**
  * @param {import("stripe").Stripe} stripe
  * @param {import("express").Request} req
@@ -51,6 +68,7 @@ export async function createCheckoutSessionHandler(stripe, req, res, appBaseUrl,
   const interval = isYear ? "year" : "month";
   const curUpper = currency.toUpperCase();
   const label = isYear ? `Decide For Me Pro (yearly, ${curUpper})` : `Decide For Me Pro (monthly, ${curUpper})`;
+  const returnOrigin = checkoutReturnOrigin(appBaseUrl);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -75,8 +93,8 @@ export async function createCheckoutSessionHandler(stripe, req, res, appBaseUrl,
         trial_period_days: 7,
         metadata: { supabase_user_id: userId, plan, billing_currency: currency }
       },
-      success_url: `${appBaseUrl}/?checkout=success`,
-      cancel_url: `${appBaseUrl}/plans?checkout=cancelled`
+      success_url: `${returnOrigin}/?checkout=success`,
+      cancel_url: `${returnOrigin}/plans?checkout=cancelled`
     });
 
     return res.json({ url: session.url, plan, currency });
