@@ -3330,6 +3330,7 @@ function AffiliatesPage() {
 }
 
 function ProfileScreen({ session }) {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [referralCodeFromReferrals, setReferralCodeFromReferrals] = useState("");
@@ -3472,6 +3473,15 @@ function ProfileScreen({ session }) {
     setPreferences((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleLogout = async () => {
+    if (!supabase) {
+      navigate("/", { replace: true });
+      return;
+    }
+    await supabase.auth.signOut();
+    navigate("/", { replace: true });
+  };
+
   const renderedPreferences = useMemo(() => {
     const output = [];
     for (const item of preferences) {
@@ -3506,6 +3516,9 @@ function ProfileScreen({ session }) {
     <section className="card">
       <h1>Profile</h1>
       <p className="meta">{session.user.email}</p>
+      <button type="button" className="ghost-btn" onClick={handleLogout}>
+        Log out
+      </button>
       <p>Bonus decisions: {profile?.bonus_decisions || 0}</p>
       <p>Total decisions: {profile?.total_decisions || 0}</p>
       <p className="answer">🔥 Streak: {profile?.current_streak || 0} days</p>
