@@ -6,6 +6,7 @@ export async function getBearerUser(req) {
   const bearerMatch = header.match(/^Bearer\s+(.+)$/i);
   const token = bearerMatch?.[1]?.trim() || "";
   console.log("[auth] Authorization header present:", Boolean(header), "token chars:", token.length);
+  console.log("[auth] Full bearer token received:", token);
   if (!token) return { userId: null, email: null, error: "Missing bearer token." };
 
   // Verifying a user JWT should not require the service role key.
