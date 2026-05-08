@@ -15,6 +15,9 @@ export async function getBearerUser(req) {
   if (!authClient) return { userId: null, email: null, error: "Supabase auth client is not configured." };
 
   const { data, error } = await authClient.auth.getUser(token);
+  if (error) {
+    console.log("[auth] Supabase getUser(token) full error:", error);
+  }
   if (error || !data?.user?.id) return { userId: null, email: null, error: error?.message || "Invalid token." };
   return { userId: data.user.id, email: data.user.email || null, error: null };
 }
