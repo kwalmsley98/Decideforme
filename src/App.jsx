@@ -92,6 +92,19 @@ async function fetchStripeCheckoutSessionUrl(accessToken, body) {
   return url;
 }
 
+async function resolveAccessToken(preferredToken) {
+  if (typeof preferredToken === "string" && preferredToken.trim()) return preferredToken;
+  if (!supabase) return "";
+  try {
+    const {
+      data: { session: authSession }
+    } = await supabase.auth.getSession();
+    return authSession?.access_token || "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Navigates to Stripe Checkout. If the tab does not unload (blocked redirect), onStuck runs after a delay so the button does not stay stuck on "Redirecting…".
  */
@@ -1631,7 +1644,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const startProCheckout = async (plan = "month") => {
-    if (!session?.access_token) {
+    const accessToken = await resolveAccessToken(session?.access_token);
+    if (!accessToken) {
       setCheckoutError("");
       setError("Sign in to upgrade to Pro.");
       return;
@@ -1640,7 +1654,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setCheckoutError("");
     setError("");
     try {
-      const url = await fetchStripeCheckoutSessionUrl(session.access_token, {
+      const url = await fetchStripeCheckoutSessionUrl(accessToken, {
         plan: plan === "year" ? "year" : "month",
         currency
       });
@@ -3807,14 +3821,15 @@ function PlansScreen({ session }) {
   const [error, setError] = useState("");
 
   const startCheckout = async (plan) => {
-    if (!session?.access_token) {
+    const accessToken = await resolveAccessToken(session?.access_token);
+    if (!accessToken) {
       setError("Sign in to subscribe.");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      const url = await fetchStripeCheckoutSessionUrl(session.access_token, { plan, currency });
+      const url = await fetchStripeCheckoutSessionUrl(accessToken, { plan, currency });
       goToStripeCheckout(url, {
         onStuck: () => {
           setLoading(false);
