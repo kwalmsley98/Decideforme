@@ -3186,6 +3186,10 @@ function AffiliatesPage() {
   const [refLink, setRefLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
+  const shareText = refLink
+    ? `I’m using Decide For Me and earning recurring affiliate income. Join with my link: ${refLink}`
+    : "I’m using Decide For Me. Join me at decideforme.org";
+  const shareLinks = shareUrls(shareText);
 
   const fetchConnectStatus = async (accessToken) => {
     console.log("[AffiliatesPage] /api/affiliate/connect/status token present:", Boolean(accessToken), "len:", accessToken?.length || 0);
@@ -3351,16 +3355,46 @@ function AffiliatesPage() {
       <div className="affiliates-program-scroll">
         <p className="hero-kicker">Partners</p>
         <h1 className="seo-landing-title">50% recurring commission — earn while you sleep</h1>
-        <p className="answer seo-landing-lede">
-          Share Decide For Me with your audience and earn <strong>half of every Pro subscription</strong> you refer (
-          {formatMonth()}/month or {formatYear()}/year plans). Top performers hit the public leaderboard;
-          payouts go straight to your bank via Stripe Connect.
+        <p className="affiliates-lede">
+          Share your link. Earn 50% of every Pro subscription — forever.
         </p>
-        <ul className="affiliates-benefits">
-          <li>Clean link: <code className="affiliates-code">decideforme.org/ref/yourname</code></li>
-          <li>Live dashboard: clicks, signups, paying users, total earnings</li>
-          <li>We handle billing; you promote a product people actually use</li>
-        </ul>
+        <div className="affiliates-feature-grid">
+          <article className="affiliates-feature-card">
+            <span className="affiliates-feature-icon" aria-hidden="true">
+              <BadgePercent size={18} />
+            </span>
+            <h3>50% commission</h3>
+            <p>Earn half of every Pro subscription payment from your referrals.</p>
+          </article>
+          <article className="affiliates-feature-card">
+            <span className="affiliates-feature-icon" aria-hidden="true">
+              <Clock size={18} />
+            </span>
+            <h3>Monthly payouts</h3>
+            <p>Payouts are sent to your Stripe Connect account each month.</p>
+          </article>
+          <article className="affiliates-feature-card">
+            <span className="affiliates-feature-icon" aria-hidden="true">
+              <BarChart2 size={18} />
+            </span>
+            <h3>Real-time tracking</h3>
+            <p>See clicks, signups, paying users, and earnings live in your dashboard.</p>
+          </article>
+        </div>
+        <div className="history-item affiliates-link-card">
+          <p className="meta">Your referral link</p>
+          <p className={`${refLink ? "answer" : "affiliates-link-placeholder"} referral-link-break`}>
+            {refLink || "Generate your personal link to start earning commissions."}
+          </p>
+          <div className="affiliates-link-actions">
+            <button type="button" className="primary-btn" onClick={copyRefLink} disabled={!refLink}>
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+            <button type="button" className="ghost-btn" onClick={ensureReferralLink} disabled={linkLoading}>
+              {linkLoading ? "Refreshing…" : refLink ? "Refresh link" : "Generate link"}
+            </button>
+          </div>
+        </div>
         <div className="seo-landing-cta-row">
           <button type="button" className="primary-btn seo-landing-cta" onClick={ensureReferralLink} disabled={linkLoading}>
             {linkLoading ? "Checking account…" : "Sign up & get your link"}
@@ -3369,24 +3403,29 @@ function AffiliatesPage() {
             View leaderboard
           </Link>
         </div>
-        {refLink ? (
-          <div className="history-item">
-            <p className="meta">Your referral link</p>
-            <p className="answer referral-link-break">{refLink}</p>
-            <button type="button" className="ghost-btn" onClick={copyRefLink}>
-              {copied ? "Copied!" : "Copy link"}
+        <div className="history-item affiliates-share-card">
+          <p className="meta">Share your link</p>
+          <div className="affiliates-share-actions" role="group" aria-label="Share referral link">
+            <a className="ghost-btn affiliates-share-btn" href={shareLinks.whatsapp} target="_blank" rel="noreferrer">
+              WhatsApp
+            </a>
+            <a className="ghost-btn affiliates-share-btn" href={shareLinks.x} target="_blank" rel="noreferrer">
+              X
+            </a>
+            <button type="button" className="ghost-btn affiliates-share-btn" onClick={copyRefLink} disabled={!refLink}>
+              Copy link
             </button>
-            <div style={{ marginTop: 10 }}>
-              {connectStatus.onboarded ? (
-                <p className="answer">✅ Bank account connected</p>
-              ) : (
-                <button type="button" className="ghost-btn" onClick={startConnectOnboarding} disabled={connectLoading}>
-                  {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
-                </button>
-              )}
-            </div>
           </div>
-        ) : null}
+        </div>
+        <div className="history-item">
+          {connectStatus.onboarded ? (
+            <p className="answer">✅ Bank account connected</p>
+          ) : (
+            <button type="button" className="ghost-btn" onClick={startConnectOnboarding} disabled={connectLoading}>
+              {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
+            </button>
+          )}
+        </div>
         {linkError ? <p className="error">{linkError}</p> : null}
       </div>
     </section>
