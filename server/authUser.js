@@ -1,7 +1,9 @@
-import { getAnonClient, getServiceClient } from "./notifications.js";
+import { getAnonClient, getNotificationConfig, getServiceClient } from "./notifications.js";
 
 /** Resolve Supabase user id from `Authorization: Bearer <access_token>`. */
 export async function getBearerUser(req) {
+  const notificationConfig = getNotificationConfig();
+  console.log("[auth] Supabase URL in use:", notificationConfig.supabaseUrl || "(missing)");
   const header = req.headers?.authorization || "";
   const bearerMatch = header.match(/^Bearer\s+(.+)$/i);
   const token = bearerMatch?.[1]?.trim() || "";
@@ -15,9 +17,8 @@ export async function getBearerUser(req) {
   if (!authClient) return { userId: null, email: null, error: "Supabase auth client is not configured." };
 
   const { data, error } = await authClient.auth.getUser(token);
-  if (error) {
-    console.log("[auth] Supabase getUser(token) full error:", error);
-  }
+  console.log("[auth] Supabase getUser(token) data:", data);
+  console.log("[auth] Supabase getUser(token) error:", error);
   if (error || !data?.user?.id) return { userId: null, email: null, error: error?.message || "Invalid token." };
   return { userId: data.user.id, email: data.user.email || null, error: null };
 }
