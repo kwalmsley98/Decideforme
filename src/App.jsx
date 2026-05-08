@@ -1053,6 +1053,7 @@ function ChatScreen({ session }) {
   const [upgradePromptReason, setUpgradePromptReason] = useState("limit");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutNotice, setCheckoutNotice] = useState("");
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
   const [lifeModePromptOpen, setLifeModePromptOpen] = useState(false);
@@ -1079,6 +1080,24 @@ function ChatScreen({ session }) {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete("q");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    if (!checkout) return;
+    if (checkout === "success") {
+      setCheckoutNotice("Payment successful. Pro is now active on your account.");
+    } else if (checkout === "cancelled") {
+      setCheckoutNotice("Checkout was cancelled. No charge was made.");
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("checkout");
         return next;
       },
       { replace: true }
@@ -2740,6 +2759,7 @@ function GroupCreateScreen({ session }) {
         <button className="primary-btn">Create group room</button>
       </form>
       {error ? <p className="error">{error}</p> : null}
+      {checkoutNotice ? <p className="answer">{checkoutNotice}</p> : null}
     </section>
   );
 }
@@ -3059,8 +3079,10 @@ function RefLandingCapture() {
   );
 }
 
-function ReferralLeaderboardScreen() {
+function ReferralLeaderboardScreen({ session }) {
   const [rows, setRows] = useState([]);
+  const [proGateLoading, setProGateLoading] = useState(true);
+  const [canEarnCommissions, setCanEarnCommissions] = useState(false);
 
   useEffect(() => {
     const parseLeaderboardPayload = (raw) => {
@@ -3083,12 +3105,52 @@ function ReferralLeaderboardScreen() {
       .catch(() => setRows([]));
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const checkProStatus = async () => {
+      if (!supabase || !session?.user?.id) {
+        if (!cancelled) {
+          setCanEarnCommissions(false);
+          setProGateLoading(false);
+        }
+        return;
+      }
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_pro")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (!cancelled) {
+          setCanEarnCommissions(Boolean(profile?.is_pro));
+          setProGateLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setCanEarnCommissions(false);
+          setProGateLoading(false);
+        }
+      }
+    };
+    checkProStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
   return (
     <section className="card premium leaderboard-card referrals-page-safe">
       <div className="leaderboard-head">
         <h1 className="leaderboard-title">🏅 Referral leaderboard</h1>
       </div>
       <p className="muted">Ranked by total affiliate earnings, then paying referrals.</p>
+      {proGateLoading ? (
+        <p className="meta">Checking Pro status…</p>
+      ) : canEarnCommissions ? (
+        <p className="answer">You are Pro — referral commissions are enabled.</p>
+      ) : (
+        <p className="error">Only Pro users can earn referral commissions. Upgrade to Pro to unlock affiliate earnings.</p>
+      )}
       <div className="leader-list">
         {rows.length ? (
           rows.map((r, i) => (
@@ -3988,7 +4050,7 @@ export default function App() {
           <Route path="/group" element={<GroupCreateScreen session={session} />} />
           <Route path="/group/:shareCode" element={<GroupRoomScreen session={session} />} />
           <Route path="/leaderboard" element={<LeaderboardScreen session={session} />} />
-          <Route path="/referrals" element={<ReferralLeaderboardScreen />} />
+          <Route path="/referrals" element={<ReferralLeaderboardScreen session={session} />} />
           <Route path="/affiliates" element={<AffiliatesPage />} />
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
