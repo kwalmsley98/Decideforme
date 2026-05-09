@@ -34,7 +34,9 @@ import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
 import {
+  buildFallbackLifeOrder,
   buildLifeOrders,
+  calendarDayKeyInTimeZone,
   computeEngagementPercent,
   fetchOpenMeteoCurrent,
   filterOrdersFromLocalNow,
@@ -42,9 +44,9 @@ import {
   formatOrderTimeLabel,
   getDayPhaseForNow,
   getUserTimeZone,
-  globalFeedLines,
   pickCheckIn,
   pickCodename,
+  pulseLineForDay,
   roastFromCompliance,
   summarizeLifeDayVirality
 } from "./lifeModeV2.js";
@@ -1164,7 +1166,6 @@ function ChatScreen({ session }) {
   const GUEST_DAILY_FREE_LIMIT = 100;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const LIFE_SETUP_STORAGE_KEY = "dfm_lm_setup_v2";
-  const LIFE_TEASER_FIRST_KEY = "dfm_lm_teaser_seen";
   const LIFE_STREAK_STORAGE_KEY = "dfm_lm_consecutive_days";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
 
@@ -1264,7 +1265,6 @@ function ChatScreen({ session }) {
   const [lifeModeDraftDayType, setLifeModeDraftDayType] = useState("work");
   const [lifeModeDraftEnergy, setLifeModeDraftEnergy] = useState("medium");
   const [lifeModeDraftIntensity, setLifeModeDraftIntensity] = useState("strict");
-  const [lifeModeTeaserCountdown, setLifeModeTeaserCountdown] = useState(null);
   const [lifeModeSession, setLifeModeSession] = useState(null);
   const [lifeModeSetup, setLifeModeSetup] = useState(null);
   const [lifeModeCountdownLabel, setLifeModeCountdownLabel] = useState("");
@@ -1279,9 +1279,7 @@ function ChatScreen({ session }) {
   const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
-  const [lifeModeFeedRotate, setLifeModeFeedRotate] = useState(0);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
-  const pendingLifeSetupRef = useRef(null);
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryRows, setChatHistoryRows] = useState([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
@@ -1727,7 +1725,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         picks,
         compliancePct: csNum,
         intensity: intensityVir,
-        codename
+        codename,
+        streakDaysBefore: streakPrev
       });
     } catch {
       /* ignore */
@@ -1860,24 +1859,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   }, [lifeModeSession?.id, lifeModeSession?.ends_at]);
 
   useEffect(() => {
-    if (lifeModeTeaserCountdown === null) return;
-    if (lifeModeTeaserCountdown <= 0) {
-      const setup = pendingLifeSetupRef.current;
-      pendingLifeSetupRef.current = null;
-      try {
-        localStorage.setItem(LIFE_TEASER_FIRST_KEY, "1");
-      } catch {
-        /* ignore */
-      }
-      setLifeModeTeaserCountdown(null);
-      if (setup) void activateLifeMode(setup);
-      return;
-    }
-    const id = window.setTimeout(() => setLifeModeTeaserCountdown((c) => (c != null ? c - 1 : c)), 1000);
-    return () => clearTimeout(id);
-  }, [lifeModeTeaserCountdown]);
-
-  useEffect(() => {
     if (!lifeModeSession?.id) return;
     const loaded = loadLifeSetupFromStorage(lifeModeSession.id);
     if (loaded) setLifeModeSetup(loaded);
@@ -1909,11 +1890,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     const id = setInterval(() => setLifeModePhaseTick((x) => x + 1), 45000);
     return () => clearInterval(id);
   }, [lifeModeSession?.id]);
-
-  useEffect(() => {
-    const id = setInterval(() => setLifeModeFeedRotate((x) => x + 1), 8000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!lifeModeSession?.ends_at || new Date(lifeModeSession.ends_at).getTime() <= Date.now()) return;
@@ -2034,7 +2010,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeSession(optimisticSession);
     setLifeModeRecap(null);
     setLifeModeWizardOpen(false);
-    setLifeModeTeaserCountdown(null);
 
     if (setupPayload && typeof setupPayload === "object") {
       setLifeModeSetup(setupPayload);
@@ -2080,19 +2055,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       intensity: lifeModeDraftIntensity,
       codename
     };
-    pendingLifeSetupRef.current = setup;
     setLifeModeWizardOpen(false);
-    let seenTeaser = false;
-    try {
-      seenTeaser = localStorage.getItem(LIFE_TEASER_FIRST_KEY) === "1";
-    } catch {
-      seenTeaser = false;
-    }
-    if (!seenTeaser) {
-      setLifeModeTeaserCountdown(5);
-      return;
-    }
-    activateLifeMode(setup);
+    void activateLifeMode(setup);
   };
 
   const openLifeModePrompt = (event) => {
@@ -2573,10 +2537,29 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow]
   );
 
-  const lifeOrders = useMemo(
+  const lifeOrdersFiltered = useMemo(
     () => filterOrdersFromLocalNow(lifeOrdersRaw, new Date(), userTimeZone),
     [lifeOrdersRaw, lifeModePhaseTick, userTimeZone]
   );
+
+  const lifeOrders = useMemo(() => {
+    if (lifeOrdersFiltered.length > 0) return lifeOrdersFiltered;
+    return [
+      buildFallbackLifeOrder(
+        lifePhaseNow,
+        effectiveLifeSetup.intensity,
+        effectiveLifeSetup,
+        new Date(),
+        userTimeZone
+      )
+    ];
+  }, [
+    lifeOrdersFiltered,
+    lifePhaseNow,
+    effectiveLifeSetup,
+    lifeModePhaseTick,
+    userTimeZone
+  ]);
 
   const lifeCompliancePct = useMemo(
     () => computeEngagementPercent(lifeModeComplianceMap, lifeModeResponsePicks, lifeOrders),
@@ -2801,14 +2784,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   if (lifeModeSession) {
     const nowTimeLabel = formatLocalTimeShort(new Date(), userTimeZone);
     const checkInLine = pickCheckIn(lifeModePhaseTick);
-    const feedLines = globalFeedLines();
-    const feedLine = feedLines[lifeModeFeedRotate % feedLines.length];
+    const pulseLine = pulseLineForDay(calendarDayKeyInTimeZone(new Date(), userTimeZone));
     const nightMode = lifePhaseNow === "night";
     const viralShare = summarizeLifeDayVirality({
       picks: lifeModeResponsePicks,
       compliancePct: lifeCompliancePct,
       intensity: effectiveLifeSetup.intensity,
-      codename: effectiveLifeSetup.codename
+      codename: effectiveLifeSetup.codename,
+      streakDaysBefore: lifeModeStreakDays
     });
     const missionShareLine = viralShare.shareCaption;
     let phaseCallbackRoast = null;
@@ -2919,12 +2902,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </p>
         ) : null}
 
-        {lifeOrders.length === 0 ? (
-          <p className="life-cc-empty meta">No orders scheduled from now until the next window — you&apos;re clear.</p>
-        ) : (
           <ul className="life-cc-orders" aria-label="Today's orders">
             {lifeOrders.map((order) => (
-              <li key={order.id} className="life-cc-order">
+              <li
+                key={order.id}
+                className={"life-cc-order" + (order.isFallback ? " life-cc-order--fallback" : "")}
+              >
                 <button
                   type="button"
                   className={
@@ -2971,7 +2954,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               </li>
             ))}
           </ul>
-        )}
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
@@ -2989,19 +2971,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <section className="life-cc-global-feed" aria-label="Community pulse">
           <p className="hero-kicker life-cc-kicker-quiet">Pulse</p>
-          <p className="life-cc-feed-line">{feedLine}</p>
+          <p className="life-cc-feed-line">{pulseLine}</p>
         </section>
-
-        <div className="life-cc-leaderboards">
-          <article className="life-cc-lb">
-            <h3>Hall of fame</h3>
-            <p className="meta">Coming soon</p>
-          </article>
-          <article className="life-cc-lb life-cc-lb--shame">
-            <h3>Hall of shame</h3>
-            <p className="meta">Coming soon</p>
-          </article>
-        </div>
 
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
@@ -3531,12 +3502,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               Close
             </button>
           </div>
-        </div>
-      ) : null}
-      {lifeModeTeaserCountdown !== null && lifeModeTeaserCountdown > 0 ? (
-        <div className="life-teaser-overlay" role="status">
-          <p className="life-teaser-title">Think you can handle it?</p>
-          <p className="life-teaser-count">{lifeModeTeaserCountdown}</p>
         </div>
       ) : null}
       {chatHistoryDrawer}

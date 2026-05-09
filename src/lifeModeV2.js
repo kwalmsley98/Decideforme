@@ -65,20 +65,20 @@ export function formatLocalTimeShort(date = new Date(), timeZone) {
   }
 }
 
-function wallClockHHMM(hour, minute = 0) {
+export function wallClockHHMM(hour, minute = 0) {
   const h = Math.max(0, Math.min(23, Math.floor(Number(hour) || 0)));
   const m = Math.max(0, Math.min(59, Math.floor(Number(minute) || 0)));
   return `${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}`;
 }
 
 /**
- * Morning → midday → afternoon → evening → night (late / wind-down).
+ * Phases align with real life: evening prime time is 8pm–10:59pm; night starts 11pm.
  */
 export function getDayPhase(hour) {
-  if (hour >= 22 || hour < 5) return "night";
+  if (hour >= 23 || hour < 5) return "night";
   if (hour < 12) return "morning";
   if (hour < 15) return "midday";
-  if (hour < 18) return "afternoon";
+  if (hour < 20) return "afternoon";
   return "evening";
 }
 
@@ -163,14 +163,63 @@ export function pickCheckIn(seed = 0) {
   return CHECK_INS[Math.abs(seed) % CHECK_INS.length];
 }
 
+/** YYYY-MM-DD in the user’s timezone — stable daily Pulse rotation. */
+export function calendarDayKeyInTimeZone(date = new Date(), timeZone) {
+  try {
+    const tz = getUserTimeZone(timeZone);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+const PULSE_LINES = [
+  "Global bulletin: most people picked ‘just one episode.’ The couch filed for custody.",
+  "Trending excuse today: ‘I'll read after this.’ Nobody did. The bookshelf sent thoughts and prayers.",
+  "Breaking: fridge tourism hit an all-time high. Still nothing good inside. Same energy as last week.",
+  "Community mood: ‘same lunch again’ is leading every bracket. Consistency is being weaponised.",
+  "Live stats: snooze buttons got more love than most relationships today.",
+  "Weather inside your brain: partly cloudy with a 90% chance of avoiding that one email.",
+  "Half of Earth briefly considered a salad. Pizza won in a landslide. Democracy is messy.",
+  "Scientists confirm water exists. Users confirm they'll hydrate ‘later.’ Later is on vacation.",
+  "Traffic report: your thumb has done more laps than your legs today.",
+  "Breaking: ‘five more minutes’ filed a restraining order against accountability.",
+  "Live from the sofa: Netflix asked for a commitment. Users offered ‘maybe.’",
+  "Trending: pretending ‘research’ includes 40 minutes of strangers' pets.",
+  "Worldwide vibe check: productivity had a meeting. Nobody showed.",
+  "Sports desk: scrolling took gold. Stretching didn't qualify.",
+  "Hot take: your posture lost a fight with gravity and won't discuss it.",
+  "Finance update: coffee spending up. Sleep budget declared bankrupt.",
+  "Culture desk: the algorithm thinks you're bored. It's not wrong.",
+  "Community pulse: ‘I'll start Monday’ remains undefeated since 2009.",
+  "Travel news: you've visited the kitchen eight times. Visa denied until purpose stated.",
+  "Tech roundup: dark mode is on. Emotional mode still loading.",
+  "Health tip of the day: screens don't cause wrinkles — guilt does.",
+  "Breaking: alarm clocks unionised. Terms include ‘stop lying about five minutes.’",
+  "Weather: emotional drizzle with bursts of main-character syndrome.",
+  "Leaderboard update: denial cleared the podium again today.",
+  "Cross-network alert: everyone chose chaos. Peace treaty postponed.",
+  "Late bulletin: midnight snacks filed as ‘essential infrastructure.’",
+  "Regional forecast: mild denial with scattered good intentions.",
+  "Sports: doomscrolling defeated doomwalking by every metric.",
+  "Closing note: tomorrow-you waved. Present-you pretended not to see."
+];
+
+/** One Pulse line per calendar day (deterministic, reshuffles tomorrow). */
+export function pulseLineForDay(dayKey) {
+  const key = String(dayKey || "").trim() || "today";
+  const idx = hashSeed(`pulse:${key}`) % PULSE_LINES.length;
+  return PULSE_LINES[idx];
+}
+
+/** @deprecated Use pulseLineForDay(calendarDayKeyInTimeZone(...)) */
 export function globalFeedLines() {
-  return [
-    "Most people today picked ‘just one episode.’ The couch is winning globally.",
-    "Hot take: ‘same lunch again’ is crushing it out there.",
-    "Half of everyone hit snooze before noon. You're in crowded company.",
-    "Fridge opens are up. The food situation is not. Same as always.",
-    "Top excuse today: ‘I'll read after this.’ Spoiler: they didn't."
-  ];
+  return [...PULSE_LINES];
 }
 
 export function buildLifeModeCommandRequestPayload(setup, now = new Date(), timeZone) {
@@ -792,8 +841,8 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
         }
       ]
     });
-  } else {
-    /** night — wind-down / sleep */
+
+    /** 10pm–11pm wind-down stays in “evening” phase so 8–11pm always has orders. */
     orders.push({
       id: "ni_bedtime",
       timeLabel: slot(22, 0),
@@ -840,6 +889,8 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       ]
     });
 
+  } else {
+    /** Night — 11pm onward (and predawn): wind-down after the evening block ends at 10:59pm. */
     orders.push({
       id: "ni_awake",
       timeLabel: slot(23, 0),
@@ -882,6 +933,98 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
             brutal: "You'll sleep when you're wrecked — bold strategy."
           }),
           excuseTag: "risk_sleep"
+        }
+      ]
+    });
+
+    orders.push({
+      id: "ni_post_eleven",
+      timeLabel: slot(23, 15),
+      text: tone(In, {
+        gentle: "It's past 11. Nothing good happens on your phone after this — put it down.",
+        strict: "Officially tomorrow brain. Bed or admit you're drama.",
+        brutal: "Past 11pm. If you're still scrolling, that's a choice — a loud one."
+      }),
+      phase,
+      responses: [
+        {
+          id: "ni_ok_sleep",
+          emoji: "😴",
+          label: "Lights out — done",
+          instantRoast: tone(In, {
+            gentle: "Good. Leave me on read until morning.",
+            strict: "Finally — sleep like you mean it.",
+            brutal: "Rare adult behavior. Don't ruin it."
+          }),
+          excuseTag: "lights_out"
+        },
+        {
+          id: "ni_one_sec",
+          emoji: "📱",
+          label: "One sec — important",
+          instantRoast: tone(In, {
+            gentle: "Nothing's that important at this hour.",
+            strict: "‘One sec’ is how 2am happens.",
+            brutal: "Important — sure — that's what everyone says before four hours vanish."
+          }),
+          excuseTag: "one_sec_late"
+        },
+        {
+          id: "ni_not_tired",
+          emoji: "🫠",
+          label: "Not tired yet",
+          instantRoast: tone(In, {
+            gentle: "You're tired — your brain's just bored.",
+            strict: "Not tired — still rotting the same.",
+            brutal: "Not tired — that's denial with Wi‑Fi."
+          }),
+          excuseTag: "not_tired_late"
+        }
+      ]
+    });
+
+    orders.push({
+      id: "ni_predawn",
+      timeLabel: slot(4, 0),
+      text: tone(In, {
+        gentle: "If you're up before the sun, either you're crushing life or avoiding sleep — which is it?",
+        strict: "Predawn energy either built different or broken different — pick one.",
+        brutal: "4am isn't a personality — it's a cry for help with better lighting."
+      }),
+      phase,
+      responses: [
+        {
+          id: "ni_crushing",
+          emoji: "✅",
+          label: "Built different today",
+          instantRoast: tone(In, {
+            gentle: "Okay legend — now drink water before you evaporate.",
+            strict: "Prove it — no nap betrayal before noon.",
+            brutal: "Built different until you crash at 2pm — I've seen the arc."
+          }),
+          excuseTag: "predawn_crush"
+        },
+        {
+          id: "ni_insomnia",
+          emoji: "😵",
+          label: "Couldn't sleep",
+          instantRoast: tone(In, {
+            gentle: "Fair — but screens didn't help that story.",
+            strict: "Phone down — melatonin isn't a suggestion.",
+            brutal: "Couldn't sleep — bold after blue-light warfare."
+          }),
+          excuseTag: "predawn_insomnia"
+        },
+        {
+          id: "ni_alarm",
+          emoji: "⏰",
+          label: "Alarm betrayal",
+          instantRoast: tone(In, {
+            gentle: "We've all been betrayed by an alarm — welcome to the club.",
+            strict: "Alarm didn't betray you — bedtime did.",
+            brutal: "Alarm went off — you negotiated — you lost."
+          }),
+          excuseTag: "alarm_betrayal"
         }
       ]
     });
@@ -933,7 +1076,243 @@ export function formatOrderTimeLabel(timeLabel) {
   return `${d.slice(0, 2)}:${d.slice(2, 4)}`;
 }
 
-export function summarizeLifeDayVirality({ picks, compliancePct, intensity, codename }) {
+/**
+ * When every timed slot for this phase is already in the past, show one live order for “now”.
+ */
+export function buildFallbackLifeOrder(phase, intensity, setup, date = new Date(), timeZone) {
+  const In = intensity;
+  const { hour, minute } = getLocalClockParts(date, timeZone);
+  const tl = wallClockHHMM(hour, minute);
+  const wake = typeof setup?.wakeHour === "number" ? setup.wakeHour : 7;
+
+  const textByPhase = {
+    morning: tone(In, {
+      gentle: "Morning — you're already negotiating with your alarm. Make one move before the scroll spiral wins.",
+      strict: "Morning orders are live: feet on the floor before you touch socials.",
+      brutal: "Morning. Phone stays face-down for ten minutes — non-negotiable."
+    }),
+    midday: tone(In, {
+      gentle: "Midday check — eat something your 4pm self won't hate you for.",
+      strict: "It's afternoon territory — stop pretending cold brew is lunch.",
+      brutal: "Feed yourself. Then pretend you're a functional adult for one hour."
+    }),
+    afternoon: tone(In, {
+      gentle: "Afternoon slump zone — water, walk, or admit you're just bored-snacking.",
+      strict: "You're in the messy middle of the day — pick one task before you drift.",
+      brutal: "Afternoon — either twenty minutes of focus or own the coasting."
+    }),
+    evening: tone(In, {
+      gentle: "Prime evening — if you're ‘just checking’ your phone again, we need to talk.",
+      strict: "Evening mode: sofa gravity is maxed — fight it once before Netflix wins.",
+      brutal: "Peak couch hours — nothing you're avoiding is getting braver on its own."
+    }),
+    night: tone(In, {
+      gentle: "Late hours — nothing on that screen is paying tomorrow's invoice.",
+      strict: "Night protocol: screen down. Your alarm is not your therapist.",
+      brutal: "It's late — sleep before your excuses file for independence."
+    })
+  };
+
+  const text = textByPhase[phase] || textByPhase.morning;
+
+  const responsesByPhase = {
+    morning: [
+      {
+        id: "fb_up",
+        emoji: "✅",
+        label: "I'm up — moving",
+        instantRoast: tone(In, {
+          gentle: "Good — vertical wins.",
+          strict: "Prove it — leave the room once.",
+          brutal: "Words cheap — actually move."
+        }),
+        excuseTag: "fb_morning_up"
+      },
+      {
+        id: "fb_snooze",
+        emoji: "😴",
+        label: "Still negotiating wake-up",
+        instantRoast: tone(In, {
+          gentle: "Negotiation's over — you lost.",
+          strict: "Snooze isn't a hobby.",
+          brutal: "You're awake enough to scroll — try standing."
+        }),
+        excuseTag: "fb_snooze"
+      },
+      {
+        id: "fb_coffee",
+        emoji: "☕",
+        label: "Coffee first — obviously",
+        instantRoast: tone(In, {
+          gentle: "Coffee fine — food follows.",
+          strict: "Coffee isn't a meal — it's cope.",
+          brutal: "Fuel the human — not just the anxiety."
+        }),
+        excuseTag: "fb_coffee"
+      }
+    ],
+    midday: [
+      {
+        id: "fb_eat",
+        emoji: "🍽️",
+        label: "I'll eat properly",
+        instantRoast: tone(In, {
+          gentle: "Good — something with a fork.",
+          strict: "Eat — then work.",
+          brutal: "Chew something — your brain needs more than vibes."
+        }),
+        excuseTag: "fb_eat"
+      },
+      {
+        id: "fb_scroll",
+        emoji: "📱",
+        label: "Quick scroll break",
+        instantRoast: tone(In, {
+          gentle: "Quick — famous last word.",
+          strict: "‘Quick’ is never quick.",
+          brutal: "Quick scroll — slow life."
+        }),
+        excuseTag: "fb_scroll"
+      },
+      {
+        id: "fb_focus",
+        emoji: "🎯",
+        label: "Back to it",
+        instantRoast: tone(In, {
+          gentle: "Love that — one real task.",
+          strict: "Focus — twenty minutes.",
+          brutal: "Back to it — or admit you're hiding."
+        }),
+        excuseTag: "fb_focus"
+      }
+    ],
+    afternoon: [
+      {
+        id: "fb_walk",
+        emoji: "🚶",
+        label: "Fresh air — fine",
+        instantRoast: tone(In, {
+          gentle: "Walk once around the block.",
+          strict: "Move — don't posture.",
+          brutal: "Walk — don't doomscroll in sunlight."
+        }),
+        excuseTag: "fb_walk"
+      },
+      {
+        id: "fb_snack",
+        emoji: "🍿",
+        label: "Snack honesty",
+        instantRoast: tone(In, {
+          gentle: "Snack fine — boredom snack less fine.",
+          strict: "Hungry or bored — pick one.",
+          brutal: "That's boredom crunching — not hunger."
+        }),
+        excuseTag: "fb_snack"
+      },
+      {
+        id: "fb_push",
+        emoji: "💪",
+        label: "Push through",
+        instantRoast: tone(In, {
+          gentle: "Okay — one ugly task done.",
+          strict: "Push — twenty minutes then judge.",
+          brutal: "Push through — or stop pretending you tried."
+        }),
+        excuseTag: "fb_push"
+      }
+    ],
+    evening: [
+      {
+        id: "fb_netflix",
+        emoji: "📺",
+        label: "Maybe one episode",
+        instantRoast: tone(In, {
+          gentle: "Maybe — we'll see.",
+          strict: "‘One’ — sure.",
+          brutal: "One episode — famous fiction."
+        }),
+        excuseTag: "fb_netflix"
+      },
+      {
+        id: "fb_productive",
+        emoji: "📋",
+        label: "Doing something productive",
+        instantRoast: tone(In, {
+          gentle: "Show me one finished thing.",
+          strict: "Productive — prove it.",
+          brutal: "Productive — bold claim from the sofa."
+        }),
+        excuseTag: "fb_productive"
+      },
+      {
+        id: "fb_phone",
+        emoji: "📱",
+        label: "Phone stays on",
+        instantRoast: tone(In, {
+          gentle: "At least admit it.",
+          strict: "Phone on — discipline off.",
+          brutal: "Glowstick hands — classic."
+        }),
+        excuseTag: "fb_phone"
+      }
+    ],
+    night: [
+      {
+        id: "fb_sleep",
+        emoji: "😴",
+        label: "Going to sleep",
+        instantRoast: tone(In, {
+          gentle: "Good — lights out.",
+          strict: "Then go — stop typing.",
+          brutal: "Sleep — don't perform it."
+        }),
+        excuseTag: "fb_sleep"
+      },
+      {
+        id: "fb_one_min",
+        emoji: "⌛",
+        label: "One more minute",
+        instantRoast: tone(In, {
+          gentle: "One minute — oldest lie.",
+          strict: "Minute — gateway to 3am.",
+          brutal: "One minute — that's how regret loads."
+        }),
+        excuseTag: "fb_one_min"
+      },
+      {
+        id: "fb_reels",
+        emoji: "👀",
+        label: "Can't stop scrolling",
+        instantRoast: tone(In, {
+          gentle: "You can — thumb agrees.",
+          strict: "Can stop — won't stop.",
+          brutal: "Can't stop — won't admit addiction."
+        }),
+        excuseTag: "fb_reels"
+      }
+    ]
+  };
+
+  const responses = responsesByPhase[phase] || responsesByPhase.morning;
+  const order = {
+    id: `fallback-${phase}-${wake}-${tl}`,
+    timeLabel: tl,
+    text,
+    phase,
+    isFallback: true,
+    responses
+  };
+  const split = communitySplitForResponses(order.id, responses.map((r) => r.id));
+  return {
+    ...order,
+    responses: responses.map((r) => ({
+      ...r,
+      communityPct: split[r.id]
+    }))
+  };
+}
+
+export function summarizeLifeDayVirality({ picks, compliancePct, intensity, codename, streakDaysBefore = 0 }) {
   const entries = Object.entries(picks || {});
   let worst = {
     tag: "main-character syndrome",
@@ -1015,11 +1394,23 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
   }
 
   const roastLine = roastFromCompliance(compliancePct, codename);
+  const dayNum = Math.max(1, Number(streakDaysBefore) + 1);
+  const pct = Number(compliancePct);
+  const compWord = Number.isFinite(pct)
+    ? pct >= 78
+      ? "actually acceptable"
+      : pct >= 55
+        ? "questionable"
+        : pct >= 35
+          ? "rough"
+          : "a cry for help"
+    : "unknown";
+
   return {
     worstExcuse: worst,
     verdict,
     roastLine,
-    shareCaption: `Day under AI supervision 😮‍💨 Compliance: ${compliancePct}% · Worst excuse: “${worst.label}” · ${verdict} #LifeMode #DecideForMe`
+    shareCaption: `Day ${dayNum} under AI supervision. Compliance: ${compWord}. The machine is not impressed. #LifeMode #DecideForMe`
   };
 }
 
