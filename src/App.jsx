@@ -2067,10 +2067,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setShowUpgradePrompt(true);
       return;
     }
+    /* TEMP (Life Mode QA): Pro gate disabled — restore after testing:
     if (!isProUser) {
       setLifeModeFreePreviewOpen(true);
       return;
     }
+    */
     setLifeModeWizardStep(0);
     setLifeModeWizardOpen(true);
   };
@@ -2764,6 +2766,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setTimeout(() => setLifeModeMissionShareCopied(false), 1600);
     };
 
+    /* TEMP (Life Mode QA): locked Command Centre disabled — uncomment block below after testing:
     if (!isProUser) {
       const teaserOrders = buildLifeOrders({
         setup: {
@@ -2807,6 +2810,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </section>
       );
     }
+    */
 
     return (
       <section
