@@ -22,16 +22,29 @@ import {
   LogIn,
   MessageCircle,
   Paperclip,
-  Zap,
+  Radio,
+  ShieldAlert,
   Trophy,
   User,
   Users,
+  Volume2,
+  Zap,
   X
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
+import {
+  buildLifeOrders,
+  computeCompliancePercent,
+  fetchOpenMeteoCurrent,
+  getDayPhase,
+  globalFeedLines,
+  pickCodename,
+  pickPowerTrip,
+  roastFromCompliance
+} from "./lifeModeV2.js";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
@@ -1147,7 +1160,32 @@ function ChatScreen({ session }) {
   const DAILY_FREE_LIMIT = 100;
   const GUEST_DAILY_FREE_LIMIT = 100;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
+  const LIFE_SETUP_STORAGE_KEY = "dfm_lm_setup_v2";
+  const LIFE_TEASER_FIRST_KEY = "dfm_lm_teaser_seen";
+  const LIFE_STREAK_STORAGE_KEY = "dfm_lm_consecutive_days";
   const GUEST_ID_STORAGE_KEY = "decide_for_me_guest_id";
+
+  const loadLifeSetupFromStorage = (sessionId) => {
+    if (!sessionId) return null;
+    try {
+      const raw = localStorage.getItem(LIFE_SETUP_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.sessionId === sessionId && parsed?.setup && typeof parsed.setup === "object") return parsed.setup;
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+
+  const persistLifeSetup = (sessionId, setup) => {
+    if (!sessionId || !setup) return;
+    try {
+      localStorage.setItem(LIFE_SETUP_STORAGE_KEY, JSON.stringify({ sessionId, setup }));
+    } catch {
+      /* ignore */
+    }
+  };
   const quickCategories = [
     { label: "🍕 Food", value: "Help me decide what to eat tonight." },
     { label: "🎬 Watch", value: "Help me choose what to watch tonight." },
@@ -1217,14 +1255,31 @@ function ChatScreen({ session }) {
   const [checkoutNotice, setCheckoutNotice] = useState("");
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
-  const [lifeModePromptOpen, setLifeModePromptOpen] = useState(false);
+  const [lifeModeWizardOpen, setLifeModeWizardOpen] = useState(false);
+  const [lifeModeWizardStep, setLifeModeWizardStep] = useState(0);
+  const [lifeModeDraftWake, setLifeModeDraftWake] = useState(7);
+  const [lifeModeDraftDayType, setLifeModeDraftDayType] = useState("work");
+  const [lifeModeDraftEnergy, setLifeModeDraftEnergy] = useState("medium");
+  const [lifeModeDraftIntensity, setLifeModeDraftIntensity] = useState("strict");
+  const [lifeModeTeaserCountdown, setLifeModeTeaserCountdown] = useState(null);
   const [lifeModeSession, setLifeModeSession] = useState(null);
+  const [lifeModeSetup, setLifeModeSetup] = useState(null);
   const [lifeModeCountdownLabel, setLifeModeCountdownLabel] = useState("");
   const [lifeModeGlobalCount, setLifeModeGlobalCount] = useState(0);
   const [lifeModeRecap, setLifeModeRecap] = useState(null);
   const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
+  const [lifeModeWeather, setLifeModeWeather] = useState(null);
+  const [lifeModePhaseTick, setLifeModePhaseTick] = useState(0);
+  const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
+  const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
+  const [lifeModePushbackNote, setLifeModePushbackNote] = useState("");
+  const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
+  const [lifeModeSquadModalOpen, setLifeModeSquadModalOpen] = useState(false);
+  const [lifeModeFeedRotate, setLifeModeFeedRotate] = useState(0);
+  const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
+  const pendingLifeSetupRef = useRef(null);
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryRows, setChatHistoryRows] = useState([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
@@ -1595,10 +1650,81 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       }
     }
 
+    let codename = "COMMANDER";
+    try {
+      const rawSetup = localStorage.getItem(LIFE_SETUP_STORAGE_KEY);
+      if (rawSetup) {
+        const p = JSON.parse(rawSetup);
+        if (p?.sessionId === sessionRow.id && typeof p?.setup?.codename === "string") codename = p.setup.codename;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    let complianceScore = null;
+    try {
+      const rawPct = localStorage.getItem(`dfm_lm_pct_${sessionRow.id}`);
+      if (rawPct != null && rawPct !== "") {
+        const n = Number(rawPct);
+        if (Number.isFinite(n)) complianceScore = n;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    let emergencyOverride = false;
+    try {
+      emergencyOverride = localStorage.getItem(`dfm_lm_emergency_${sessionRow.id}`) === "1";
+    } catch {
+      /* ignore */
+    }
+
+    const roast =
+      complianceScore != null && Number.isFinite(complianceScore)
+        ? roastFromCompliance(complianceScore, codename)
+        : null;
+
+    let streakPrev = 0;
+    try {
+      const r = localStorage.getItem(LIFE_STREAK_STORAGE_KEY);
+      streakPrev = Number.isFinite(Number(r)) ? Math.max(0, Math.floor(Number(r))) : 0;
+    } catch {
+      streakPrev = 0;
+    }
+    let streakNext = streakPrev;
+    if (complianceScore != null && Number.isFinite(complianceScore)) {
+      if (complianceScore >= 50 && !emergencyOverride) streakNext = streakPrev + 1;
+      else streakNext = 0;
+    }
+    try {
+      localStorage.setItem(LIFE_STREAK_STORAGE_KEY, String(streakNext));
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      localStorage.removeItem(`dfm_lm_pct_${sessionRow.id}`);
+      localStorage.removeItem(`dfm_lm_emergency_${sessionRow.id}`);
+      const dayKey = new Date().toISOString().slice(0, 10);
+      localStorage.removeItem(`dfm_lm_cmp_${sessionRow.id}_${dayKey}`);
+    } catch {
+      /* ignore */
+    }
+
+    let verdictAugmented = verdict;
+    if (roast) {
+      verdictAugmented = `${verdict} Mission compliance: ${complianceScore}%. ${roast}`;
+    }
+
     const recap = {
       totalDecisions: list.length,
       highlights,
-      verdict
+      verdict: verdictAugmented,
+      complianceScore,
+      roast,
+      codename,
+      emergencyOverride,
+      lifeModeStreakAfter: streakNext
     };
     await supabase.from("life_mode_sessions").update({ is_active: false, recap_json: recap }).eq("id", sessionRow.id);
     return recap;
@@ -1698,6 +1824,76 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     return () => clearInterval(id);
   }, [lifeModeSession?.id, lifeModeSession?.ends_at]);
 
+  useEffect(() => {
+    if (lifeModeTeaserCountdown === null) return;
+    if (lifeModeTeaserCountdown <= 0) {
+      const setup = pendingLifeSetupRef.current;
+      pendingLifeSetupRef.current = null;
+      try {
+        localStorage.setItem(LIFE_TEASER_FIRST_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setLifeModeTeaserCountdown(null);
+      if (setup) void activateLifeMode(setup);
+      return;
+    }
+    const id = window.setTimeout(() => setLifeModeTeaserCountdown((c) => (c != null ? c - 1 : c)), 1000);
+    return () => clearTimeout(id);
+  }, [lifeModeTeaserCountdown]);
+
+  useEffect(() => {
+    if (!lifeModeSession?.id) return;
+    const loaded = loadLifeSetupFromStorage(lifeModeSession.id);
+    if (loaded) setLifeModeSetup(loaded);
+  }, [lifeModeSession?.id]);
+
+  useEffect(() => {
+    if (!lifeModeSession?.id) return;
+    const key = `dfm_lm_cmp_${lifeModeSession.id}_${todayKey}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.completed && typeof p.completed === "object") setLifeModeComplianceMap(p.completed);
+        else setLifeModeComplianceMap({});
+      } else {
+        setLifeModeComplianceMap({});
+      }
+    } catch {
+      setLifeModeComplianceMap({});
+    }
+  }, [lifeModeSession?.id, todayKey]);
+
+  useEffect(() => {
+    if (!lifeModeSession) return;
+    const id = setInterval(() => setLifeModePhaseTick((x) => x + 1), 45000);
+    return () => clearInterval(id);
+  }, [lifeModeSession?.id]);
+
+  useEffect(() => {
+    const id = setInterval(() => setLifeModeFeedRotate((x) => x + 1), 8000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!lifeModeSession?.ends_at || new Date(lifeModeSession.ends_at).getTime() <= Date.now()) return;
+    if (!("geolocation" in navigator)) return;
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (cancelled) return;
+        const w = await fetchOpenMeteoCurrent(position.coords.latitude, position.coords.longitude);
+        if (!cancelled && w) setLifeModeWeather(w);
+      },
+      () => {},
+      { maximumAge: 300000, timeout: 15000, enableHighAccuracy: false }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [lifeModeSession?.id]);
+
   const requestUserLocation = async () => {
     if (!("geolocation" in navigator)) return null;
     return new Promise((resolve) => {
@@ -1780,18 +1976,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
   };
 
-  const activateLifeMode = async () => {
+  const activateLifeMode = async (setupPayload = null) => {
     if (activatingLifeMode) return;
     setActivatingLifeMode(true);
-    console.log("[LifeMode] I'm In tapped");
     const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
     const authSession = supabase ? (await supabase.auth.getSession()).data.session : null;
     const resolvedUserId = session?.user?.id || authSession?.user?.id || null;
-    console.log("[LifeMode] activation context", {
-      user_id: resolvedUserId,
-      hasPropSession: Boolean(session?.user?.id),
-      hasAuthSession: Boolean(authSession?.user?.id)
-    });
     const optimisticSession = {
       id: `local-${Date.now()}`,
       user_id: resolvedUserId,
@@ -1799,14 +1989,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       ends_at: endsAt,
       is_active: true
     };
-    // Optimistic transition so mobile users always enter Life Mode instantly.
+    setLifeModeComplianceMap({});
+    setLifeModeEmergencyShame("");
+    setLifeModePushbackNote("");
     setLifeModeSession(optimisticSession);
     setLifeModeRecap(null);
-    setLifeModePromptOpen(false);
+    setLifeModeWizardOpen(false);
+    setLifeModeTeaserCountdown(null);
 
-    // If auth/Supabase isn't available, keep local Life Mode active so UX still works.
+    if (setupPayload && typeof setupPayload === "object") {
+      setLifeModeSetup(setupPayload);
+      persistLifeSetup(optimisticSession.id, setupPayload);
+    }
+
     if (!supabase || !resolvedUserId) {
-      console.log("[LifeMode] running in local-only mode (no authenticated Supabase session)");
       setActivatingLifeMode(false);
       return;
     }
@@ -1821,23 +2017,43 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         })
         .select("*")
         .single();
-      console.log("[LifeMode] activation result", { hasData: Boolean(data), error: error?.message || null });
       if (error) {
-        console.error("[LifeMode] insert error", {
-          user_id: resolvedUserId,
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
         setError(`Life Mode activation failed to save: ${error.message}`);
-      } else {
-        setLifeModeSession(data || optimisticSession);
+      } else if (data) {
+        setLifeModeSession(data);
+        if (setupPayload && typeof setupPayload === "object") {
+          setLifeModeSetup(setupPayload);
+          persistLifeSetup(data.id, setupPayload);
+        }
       }
       await refreshLifeModeGlobalCount();
     } finally {
       setActivatingLifeMode(false);
     }
+  };
+
+  const beginLifeModeActivationFlow = () => {
+    const codename = pickCodename();
+    const setup = {
+      wakeHour: lifeModeDraftWake,
+      dayType: lifeModeDraftDayType,
+      energy: lifeModeDraftEnergy,
+      intensity: lifeModeDraftIntensity,
+      codename
+    };
+    pendingLifeSetupRef.current = setup;
+    setLifeModeWizardOpen(false);
+    let seenTeaser = false;
+    try {
+      seenTeaser = localStorage.getItem(LIFE_TEASER_FIRST_KEY) === "1";
+    } catch {
+      seenTeaser = false;
+    }
+    if (!seenTeaser) {
+      setLifeModeTeaserCountdown(5);
+      return;
+    }
+    activateLifeMode(setup);
   };
 
   const openLifeModePrompt = (event) => {
@@ -1848,7 +2064,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setShowUpgradePrompt(true);
       return;
     }
-    setLifeModePromptOpen(true);
+    if (!isProUser) {
+      setLifeModeFreePreviewOpen(true);
+      return;
+    }
+    setLifeModeWizardStep(0);
+    setLifeModeWizardOpen(true);
   };
 
   const startProCheckout = async (plan = "month") => {
@@ -1890,7 +2111,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const copyLifeModeCaption = async () => {
     const recapText = lifeModeRecap
-      ? `${lifeModeCaption}\n\nDecisions: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
+      ? `${lifeModeCaption}\n\nCompliance: ${lifeModeRecap.complianceScore ?? "—"}%\n${lifeModeRecap.roast ? `${lifeModeRecap.roast}\n` : ""}Streak after mission: ${lifeModeRecap.lifeModeStreakAfter ?? "—"}\nDecisions logged: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
       : lifeModeCaption;
     await copyText(recapText);
     setCopiedLifeCaption(true);
@@ -2279,6 +2500,108 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       : null) ||
     "Operator";
 
+  const effectiveLifeSetup = useMemo(() => {
+    if (lifeModeSetup && typeof lifeModeSetup === "object") return lifeModeSetup;
+    if (lifeModeSession?.id) {
+      const loaded = loadLifeSetupFromStorage(lifeModeSession.id);
+      if (loaded) return loaded;
+    }
+    return {
+      wakeHour: 7,
+      dayType: "work",
+      energy: "medium",
+      intensity: "strict",
+      codename: "COMMANDER"
+    };
+  }, [lifeModeSetup, lifeModeSession?.id]);
+
+  const lifePhaseNow = useMemo(() => getDayPhase(new Date().getHours()), [lifeModePhaseTick]);
+
+  const lifeOrders = useMemo(
+    () =>
+      buildLifeOrders({
+        setup: effectiveLifeSetup,
+        phase: lifePhaseNow,
+        weather: lifeModeWeather,
+        rankName: decisionRank.name,
+        operatorName: chatOperatorName
+      }),
+    [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow]
+  );
+
+  const lifeCompliancePct = useMemo(
+    () => computeCompliancePercent(lifeModeComplianceMap, lifeOrders),
+    [lifeModeComplianceMap, lifeOrders]
+  );
+
+  const lifeModeStreakDays = useMemo(() => {
+    try {
+      return Math.max(0, Number(localStorage.getItem(LIFE_STREAK_STORAGE_KEY)) || 0);
+    } catch {
+      return 0;
+    }
+  }, [lifeModePhaseTick, lifeModeSession?.id, lifeModeComplianceMap]);
+
+  useEffect(() => {
+    if (!lifeModeSession?.id || !lifeOrders.length) return;
+    const pct = computeCompliancePercent(lifeModeComplianceMap, lifeOrders);
+    try {
+      localStorage.setItem(`dfm_lm_pct_${lifeModeSession.id}`, String(pct));
+    } catch {
+      /* ignore */
+    }
+  }, [lifeModeComplianceMap, lifeOrders, lifeModeSession?.id]);
+
+  const persistLifeComplianceToDay = (nextMap) => {
+    if (!lifeModeSession?.id) return;
+    const key = `dfm_lm_cmp_${lifeModeSession.id}_${todayKey}`;
+    try {
+      localStorage.setItem(key, JSON.stringify({ completed: nextMap }));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const toggleLifeCompliance = (orderId) => {
+    setLifeModeComplianceMap((prev) => {
+      const next = { ...prev, [orderId]: !prev[orderId] };
+      persistLifeComplianceToDay(next);
+      return next;
+    });
+  };
+
+  const triggerLifeEmergencyOverride = () => {
+    if (!lifeModeSession?.id) return;
+    try {
+      localStorage.setItem(`dfm_lm_emergency_${lifeModeSession.id}`, "1");
+      localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
+    } catch {
+      /* ignore */
+    }
+    setLifeModeComplianceMap({});
+    persistLifeComplianceToDay({});
+    setLifeModeEmergencyShame("Weakness detected 😤");
+  };
+
+  const speakLifeOrders = () => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const lines = lifeOrders.map((o) => o.text).join(" ");
+    const u = new SpeechSynthesisUtterance(lines);
+    u.rate = 0.9;
+    u.pitch = 0.85;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  };
+
+  const playMorningBriefingAudio = () => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(`${effectiveLifeSetup.codename} has issued today's orders.`);
+    u.rate = 0.88;
+    u.pitch = 0.82;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  };
+
   const renderChatRankStrip = (compact) => (
     <div
       className={`prestige-chat-strip${compact ? " prestige-chat-strip--compact" : ""}`}
@@ -2420,140 +2743,200 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     ) : null;
 
   if (lifeModeSession) {
+    const nowTimeLabel = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const displayRank =
+      lifeCompliancePct < 50 && lifeOrders.length > 0 ? "Private — FIELD DEMOTION" : decisionRank.name;
+    const powerTrip = pickPowerTrip(lifeModePhaseTick);
+    const feedLines = globalFeedLines();
+    const feedLine = feedLines[lifeModeFeedRotate % feedLines.length];
+    const nightMode = lifePhaseNow === "night";
+    const missionShareLine = `Day under AI control · Compliance: ${lifeCompliancePct}% · ${effectiveLifeSetup.codename} · decideforme.org`;
+
+    const copyMissionShare = async () => {
+      await copyText(missionShareLine);
+      setLifeModeMissionShareCopied(true);
+      setTimeout(() => setLifeModeMissionShareCopied(false), 1600);
+    };
+
+    if (!isProUser) {
+      const teaserOrders = buildLifeOrders({
+        setup: {
+          wakeHour: 7,
+          dayType: "work",
+          energy: "medium",
+          intensity: "brutal",
+          codename: "COMMANDER"
+        },
+        phase: lifePhaseNow,
+        weather: lifeModeWeather,
+        rankName: decisionRank.name,
+        operatorName: chatOperatorName
+      });
+      const previewOrder = teaserOrders[0];
+      return (
+        <section className="card premium life-command-centre life-command-centre--locked">
+          <div className="life-mode-veil" />
+          <header className="life-cc-head">
+            <p className="hero-kicker life-cc-kicker">Life Mode · Pro only</p>
+            <h1 className="life-cc-title">COMMAND CENTRE LOCKED</h1>
+            <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
+            <p className="meta">Session active — upgrade to receive full orders.</p>
+          </header>
+          <article className="life-cc-order life-cc-order--single">
+            <p className="life-cc-time">{previewOrder?.timeLabel ?? "0000"}</p>
+            <p className="life-cc-text">{previewOrder?.text ?? "Stand by."}</p>
+          </article>
+          <p className="life-cc-teaser-hint">You are seeing one surface directive. Pro unlocks the full daily battle rhythm.</p>
+          <button
+            type="button"
+            className="primary-btn life-cc-upgrade"
+            onClick={() => {
+              setUpgradePromptReason("lifemode");
+              setShowUpgradePrompt(true);
+            }}
+          >
+            Unlock full Life Mode (Pro)
+          </button>
+          {error ? <p className="error">{error}</p> : null}
+        </section>
+      );
+    }
+
     return (
-      <section className="card premium life-mode-fullscreen">
+      <section
+        className={
+          "card premium life-command-centre" + (nightMode ? " life-command-centre--night" : "")
+        }
+      >
         <div className="life-mode-veil" />
-        <p className="hero-kicker">Life Mode Engaged</p>
-        <h1 className="life-mode-command">AI IS IN CONTROL</h1>
-        <div className="life-mode-sigil-wrap">
-          <div className="life-mode-sigil" aria-hidden="true">
-            ◉
+        <header className="life-cc-head">
+          <div className="life-cc-codename-row">
+            <span className="life-cc-codename">{effectiveLifeSetup.codename}</span>
+            <span className={`life-cc-intensity life-cc-intensity--${effectiveLifeSetup.intensity}`}>
+              {effectiveLifeSetup.intensity}
+            </span>
+          </div>
+          <p className="life-cc-open-line">
+            It&apos;s {nowTimeLabel}. Here are your orders, {displayRank}:
+          </p>
+          {renderChatRankStrip(true)}
+          <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
+          <p className="meta">Time remaining in theatre</p>
+          <div className="life-cc-badges">
+            <span className="life-cc-streak-badge">
+              <Flame size={14} /> Life streak · {lifeModeStreakDays} days
+            </span>
+            <span className="life-cc-xp-hint">Accelerated rank progression while deployed</span>
+          </div>
+        </header>
+
+        {lifeModeEmergencyShame ? <p className="life-cc-shame">{lifeModeEmergencyShame}</p> : null}
+        {lifeModePushbackNote ? <p className="life-cc-pushback">{lifeModePushbackNote}</p> : null}
+
+        <div className="life-cc-compliance">
+          <div className="life-cc-compliance-head">
+            <span>Compliance</span>
+            <span className="life-cc-compliance-pct">{lifeCompliancePct}%</span>
+          </div>
+          <div className="life-cc-progress-track" role="progressbar" aria-valuenow={lifeCompliancePct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="life-cc-progress-fill" style={{ width: `${lifeCompliancePct}%` }} />
           </div>
         </div>
-        <p className="meta life-mode-warning">Your decisions are now being executed by the system.</p>
-        {renderChatRankStrip(true)}
-        <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
-        <p className="meta">Time remaining</p>
 
-        <article className="life-mode-feed">
-          <p className="hero-kicker">Today's AI Decision Feed</p>
-          <div className="life-mode-feed-list">
-            {lifeModeDecisionFeed.length ? (
-              lifeModeDecisionFeed.map((item) => (
-                <div key={item.id} className="life-mode-feed-entry">
-                  <article className="life-mode-input-log">
-                    <p className="meta">{new Date(item.created_at || Date.now()).toLocaleTimeString()}</p>
-                    <p className="meta">SYSTEM INPUT LOG</p>
-                    <p>{item.prompt}</p>
-                  </article>
-                  <article className="life-mode-feed-item">
-                    <p className="meta">DIRECTIVE ISSUED</p>
-                    <p className="answer">{item.answer}</p>
-                  </article>
-                </div>
-              ))
-            ) : (
-              <p className="meta">No decisions logged yet. Ask your first Life Mode question to begin the feed.</p>
-            )}
-          </div>
+        {lifeModeWeather ? (
+          <p className="life-cc-weather meta">
+            Weather:{" "}
+            {typeof lifeModeWeather.tempC === "number" ? `${Math.round(lifeModeWeather.tempC)}°C · ` : ""}
+            {lifeModeWeather.isRainy ? "precipitation active — discipline unchanged." : "conditions noted."}
+          </p>
+        ) : null}
+
+        <ul className="life-cc-orders" aria-label="Today's orders">
+          {lifeOrders.map((order) => (
+            <li key={order.id} className="life-cc-order">
+              <button
+                type="button"
+                className={
+                  "life-cc-check" + (lifeModeComplianceMap[order.id] ? " life-cc-check--done" : "")
+                }
+                aria-pressed={Boolean(lifeModeComplianceMap[order.id])}
+                onClick={() => toggleLifeCompliance(order.id)}
+                aria-label={lifeModeComplianceMap[order.id] ? "Mark incomplete" : "Log compliance"}
+              >
+                ✓
+              </button>
+              <div>
+                <p className="life-cc-time">{order.timeLabel}</p>
+                <p className="life-cc-text">{order.text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <p className="life-cc-power-trip">{powerTrip}</p>
+
+        <div className="life-cc-actions">
+          <button type="button" className="ghost-btn life-cc-action-btn" onClick={speakLifeOrders}>
+            <Volume2 size={16} strokeWidth={2} /> Speak orders
+          </button>
+          <button type="button" className="ghost-btn life-cc-action-btn" onClick={playMorningBriefingAudio}>
+            <Radio size={16} strokeWidth={2} /> Alarm phrase
+          </button>
+          <button
+            type="button"
+            className="ghost-btn life-cc-action-btn"
+            onClick={() => setLifeModePushbackNote("You gave me control. Trust the process.")}
+          >
+            Dispute
+          </button>
+          <button type="button" className="ghost-btn life-cc-action-btn" onClick={() => setLifeModeSquadModalOpen(true)}>
+            <Users size={16} strokeWidth={2} /> Squad mode
+          </button>
+        </div>
+
+        <button type="button" className="life-cc-emergency" onClick={triggerLifeEmergencyOverride}>
+          <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
+        </button>
+
+        <article className="life-cc-share-card">
+          <p className="hero-kicker">Today&apos;s orders · share</p>
+          <p className="life-cc-share-text">{missionShareLine}</p>
+          <button type="button" className="ghost-btn" onClick={() => void copyMissionShare()}>
+            {lifeModeMissionShareCopied ? "Copied" : "Copy TikTok / IG caption"}
+          </button>
         </article>
 
-        <form
-          className="form life-mode-input-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!prompt.trim() && !pendingImage) return;
-            sendToAI(prompt.trim(), !conversation.length);
-          }}
-        >
-          {pendingImage ? (
-            <div className="pending-attach-preview">
-              <img src={pendingImage.previewUrl} alt="" className="pending-attach-thumb" />
-              <button type="button" className="pending-attach-remove" onClick={clearPendingImage} aria-label="Remove photo">
-                ×
-              </button>
-            </div>
-          ) : null}
-          <div className="chat-composer">
-            <input
-              ref={attachInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              tabIndex={-1}
-              onChange={onAttachFile}
-            />
-            <button
-              type="button"
-              className="chat-composer-attach"
-              disabled={loading}
-              aria-label="Attach image"
-              onClick={() => attachInputRef.current?.click()}
-            >
-              <Paperclip size={18} strokeWidth={1.75} />
-            </button>
-            <textarea
-              ref={setPromptRef}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={composerEnterSubmit}
-              className="chat-composer-input"
-              placeholder="Report your situation. AI will issue a final decision."
-              disabled={loading}
-              rows={1}
-            />
-            {(prompt.trim() || pendingImage) && !showUpgradePrompt ? (
-              <button
-                type="submit"
-                className="chat-composer-send"
-                disabled={loading}
-                aria-label="Send"
-              >
-                <ArrowUp size={18} strokeWidth={2.25} />
-              </button>
-            ) : null}
-          </div>
-        </form>
-        {conversation.length || loading ? (
-          <div className="chat-and-nearby life-mode-chat-stack">
-            <div className="chat-frame">
-              {conversation.map(renderChatMessage)}
-              {loading ? <LoadingAssistantShimmer /> : null}
-              {showNearbyFindButton && !loading && conversation.length ? (
-                <div className="find-nearby-cta find-nearby-cta--in-chat">
-                  <p className="nearby-cta-label">📍 Find places nearby:</p>
-                  <div className="nearby-radius-pills" role="group" aria-label="Search radius">
-                    {NEARBY_RADIUS_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.meters}
-                        type="button"
-                        className={
-                          "nearby-radius-pill" +
-                          (nearbyRadiusMeters === opt.meters ? " nearby-radius-pill--active" : "")
-                        }
-                        onClick={() => setNearbyRadiusMeters(opt.meters)}
-                        disabled={nearbyPlacesLoading}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="ghost-btn find-nearby-btn"
-                    onClick={() => fetchNearbyPlacesForContext()}
-                    disabled={nearbyPlacesLoading}
-                  >
-                    {nearbyPlacesLoading ? "Finding nearby…" : "Find places near me"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            {nearbyFetchError ? <p className="error">{nearbyFetchError}</p> : null}
-          </div>
-        ) : null}
+        <section className="life-cc-global-feed" aria-label="Global Life Mode feed">
+          <p className="hero-kicker">Worldwide channel</p>
+          <p className="life-cc-feed-line">{feedLine}</p>
+        </section>
+
+        <div className="life-cc-leaderboards">
+          <article className="life-cc-lb">
+            <h3>Hall of fame</h3>
+            <p className="meta">Top compliance streaks sync when squads launch.</p>
+          </article>
+          <article className="life-cc-lb life-cc-lb--shame">
+            <h3>Hall of shame</h3>
+            <p className="meta">Lowest compliance — names classified until opt-in.</p>
+          </article>
+        </div>
+
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
+
+        {lifeModeSquadModalOpen ? (
+          <div className="life-mode-modal" role="dialog" aria-modal="true" aria-label="Squad mode">
+            <div className="life-mode-modal-card life-cc-squad-card">
+              <p className="hero-kicker">Squad strike</p>
+              <h2>Enter Life Mode with friends</h2>
+              <p className="muted">Group orders, shared compliance score, and peer pressure drops ship next. Your squad is waiting.</p>
+              <button type="button" className="primary-btn" onClick={() => setLifeModeSquadModalOpen(false)}>
+                Understood
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -2568,6 +2951,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
+      {!lifeModeSession && lifeModeRecap ? (
+        <article className="life-mission-report-card">
+          <p className="hero-kicker">Mission report</p>
+          <h2 className="life-mission-compliance">
+            Compliance {lifeModeRecap.complianceScore != null ? `${lifeModeRecap.complianceScore}%` : "—"}
+          </h2>
+          {lifeModeRecap.roast ? <p className="life-mission-roast">{lifeModeRecap.roast}</p> : null}
+          <p className="meta">{lifeModeRecap.verdict}</p>
+          <button type="button" className="ghost-btn" onClick={() => void copyLifeModeCaption()}>
+            {copiedLifeCaption ? "Copied summary" : "Copy shareable summary"}
+          </button>
+        </article>
+      ) : null}
       {renderChatRankStrip(false)}
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
       <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
@@ -2836,8 +3232,20 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             >
               <X size={20} strokeWidth={2.25} />
             </button>
-            <p className="hero-kicker">{upgradePromptReason === "feature" ? "Premium feature" : "Daily limit reached"}</p>
-            <h2>Upgrade to Pro</h2>
+            <p className="hero-kicker">
+              {upgradePromptReason === "lifemode"
+                ? "Life Mode — full theatre"
+                : upgradePromptReason === "feature"
+                  ? "Premium feature"
+                  : "Daily limit reached"}
+            </p>
+            <h2>{upgradePromptReason === "lifemode" ? "Unlock the drill sergeant in your pocket" : "Upgrade to Pro"}</h2>
+            {upgradePromptReason === "lifemode" ? (
+              <p className="muted upgrade-life-blurb">
+                Pro includes the complete Command Centre: timed orders, weather-aware directives, compliance scoring, streaks, and
+                share-ready mission reports.
+              </p>
+            ) : null}
             <p className="plan-price">
               {formatMonth()}/mo · {formatYear()}/yr
             </p>
@@ -2906,19 +3314,152 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
-      {lifeModePromptOpen ? (
-        <div className="life-mode-modal">
-          <div className="life-mode-modal-card">
-            <p className="hero-kicker">Life Mode Activation</p>
-            <h2>Are you sure?</h2>
-            <p>For the next 24 hours, AI makes every decision for you.</p>
-            <button className="primary-btn" type="button" onClick={activateLifeMode} disabled={activatingLifeMode}>
-              {activatingLifeMode ? "Activating..." : "I'm In"}
+      {lifeModeWizardOpen ? (
+        <div className="life-mode-modal life-cc-wizard-overlay" role="dialog" aria-modal="true" aria-label="Life Mode setup">
+          <div className="life-mode-modal-card life-cc-wizard-card">
+            <button
+              type="button"
+              className="upgrade-modal-close"
+              onClick={() => setLifeModeWizardOpen(false)}
+              aria-label="Close"
+            >
+              <X size={20} strokeWidth={2.25} />
             </button>
-            <button className="ghost-btn" type="button" onClick={() => setLifeModePromptOpen(false)}>
-              Maybe later
+            <p className="hero-kicker">Command Centre · setup</p>
+            {lifeModeWizardStep === 0 ? (
+              <>
+                <h2>Wake time</h2>
+                <p className="muted">When do you actually rise?</p>
+                <select
+                  className="life-cc-select"
+                  value={lifeModeDraftWake}
+                  onChange={(event) => setLifeModeDraftWake(Number(event.target.value))}
+                >
+                  {[5, 6, 7, 8, 9].map((h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="primary-btn" onClick={() => setLifeModeWizardStep(1)}>
+                  Next
+                </button>
+              </>
+            ) : null}
+            {lifeModeWizardStep === 1 ? (
+              <>
+                <h2>Work or rest day?</h2>
+                <div className="life-cc-toggle-row">
+                  <button
+                    type="button"
+                    className={"life-cc-pill" + (lifeModeDraftDayType === "work" ? " life-cc-pill--on" : "")}
+                    onClick={() => setLifeModeDraftDayType("work")}
+                  >
+                    Work
+                  </button>
+                  <button
+                    type="button"
+                    className={"life-cc-pill" + (lifeModeDraftDayType === "rest" ? " life-cc-pill--on" : "")}
+                    onClick={() => setLifeModeDraftDayType("rest")}
+                  >
+                    Rest
+                  </button>
+                </div>
+                <button type="button" className="primary-btn" onClick={() => setLifeModeWizardStep(2)}>
+                  Next
+                </button>
+                <button type="button" className="ghost-btn" onClick={() => setLifeModeWizardStep(0)}>
+                  Back
+                </button>
+              </>
+            ) : null}
+            {lifeModeWizardStep === 2 ? (
+              <>
+                <h2>Energy level</h2>
+                <div className="life-cc-toggle-row">
+                  {["low", "medium", "high"].map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      className={"life-cc-pill" + (lifeModeDraftEnergy === e ? " life-cc-pill--on" : "")}
+                      onClick={() => setLifeModeDraftEnergy(e)}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="primary-btn" onClick={() => setLifeModeWizardStep(3)}>
+                  Next
+                </button>
+                <button type="button" className="ghost-btn" onClick={() => setLifeModeWizardStep(1)}>
+                  Back
+                </button>
+              </>
+            ) : null}
+            {lifeModeWizardStep === 3 ? (
+              <>
+                <h2>Intensity</h2>
+                <p className="muted">Gentle · firm. Strict · relentless. Brutal · savage.</p>
+                <div className="life-cc-toggle-row life-cc-toggle-row--stack">
+                  {["gentle", "strict", "brutal"].map((i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={"life-cc-pill" + (lifeModeDraftIntensity === i ? " life-cc-pill--on" : "")}
+                      onClick={() => setLifeModeDraftIntensity(i)}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={() => beginLifeModeActivationFlow()}
+                  disabled={activatingLifeMode}
+                >
+                  {activatingLifeMode ? "Deploying…" : "Deploy Command Centre"}
+                </button>
+                <button type="button" className="ghost-btn" onClick={() => setLifeModeWizardStep(2)}>
+                  Back
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {lifeModeFreePreviewOpen ? (
+        <div className="life-mode-modal" role="dialog" aria-modal="true" aria-label="Life Mode preview">
+          <div className="life-mode-modal-card life-cc-preview-card">
+            <p className="hero-kicker">Life Mode preview</p>
+            <h2>One directive. Then silence until you upgrade.</h2>
+            <article className="life-cc-order life-cc-order--single">
+              <p className="life-cc-time">0900</p>
+              <p className="life-cc-text">
+                You will consume a nutritious breakfast. No exceptions. This is the tone you&apos;re missing on Free.
+              </p>
+            </article>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={() => {
+                setLifeModeFreePreviewOpen(false);
+                setUpgradePromptReason("lifemode");
+                setShowUpgradePrompt(true);
+              }}
+            >
+              Unlock full Life Mode (Pro)
+            </button>
+            <button type="button" className="ghost-btn" onClick={() => setLifeModeFreePreviewOpen(false)}>
+              Close
             </button>
           </div>
+        </div>
+      ) : null}
+      {lifeModeTeaserCountdown !== null && lifeModeTeaserCountdown > 0 ? (
+        <div className="life-teaser-overlay" role="status">
+          <p className="life-teaser-title">Think you can handle it?</p>
+          <p className="life-teaser-count">{lifeModeTeaserCountdown}</p>
         </div>
       ) : null}
       {chatHistoryDrawer}
@@ -4390,8 +4931,16 @@ function PlansScreen({ session }) {
   };
 
   return (
-    <section className="card">
-      <h1>Upgrade to Pro</h1>
+    <section className="card plans-pro-screen">
+      <article className="plans-life-hero">
+        <p className="hero-kicker">Headline feature</p>
+        <h1>Life Mode Command Centre</h1>
+        <p className="muted plans-life-lead">
+          Drill-sergeant directives, timed orders that rotate through the day, weather-aware discipline, compliance scoring,
+          streaks, optional speech, night wind-down protocol, and share-ready mission reports — included with Pro.
+        </p>
+      </article>
+      <h2 className="plans-upgrade-heading">Upgrade to Pro</h2>
       <p className="muted">7-day trial, then choose monthly or yearly billing.</p>
       <div className="plans-grid plans-grid--two">
         <article className="plan-card">

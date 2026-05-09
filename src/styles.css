@@ -3326,3 +3326,462 @@ a.nearby-inline-maps:hover {
   color: rgba(200, 208, 235, 0.7);
   font-style: italic;
 }
+
+/* ——— Life Mode Command Centre v2 ——— */
+.plans-pro-screen .plans-life-hero {
+  margin-bottom: 24px;
+  padding: 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(18, 24, 42, 0.95), rgba(40, 12, 28, 0.85));
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.plans-life-lead {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.plans-upgrade-heading {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.upgrade-life-blurb {
+  margin: 12px 0 16px;
+  line-height: 1.5;
+}
+
+.life-command-centre {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 18px 28px;
+  border: 1px solid rgba(255, 62, 62, 0.28);
+  background: radial-gradient(circle at 50% 0%, rgba(120, 30, 30, 0.35), rgba(8, 10, 22, 0.92));
+}
+
+.life-command-centre--night {
+  border-color: rgba(80, 100, 180, 0.45);
+  background: radial-gradient(circle at 50% 100%, rgba(30, 40, 90, 0.45), rgba(5, 8, 24, 0.96));
+}
+
+.life-command-centre--locked {
+  border-style: dashed;
+  opacity: 0.98;
+}
+
+.life-cc-head {
+  position: relative;
+  z-index: 1;
+}
+
+.life-cc-kicker {
+  color: rgba(255, 160, 140, 0.95);
+  letter-spacing: 0.14em;
+}
+
+.life-cc-title {
+  margin: 8px 0 12px;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.life-cc-codename-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.life-cc-codename {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #ffb4a8;
+}
+
+.life-cc-intensity {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.life-cc-intensity--gentle {
+  border-color: rgba(120, 200, 255, 0.35);
+  color: #a8d8ff;
+}
+
+.life-cc-intensity--strict {
+  border-color: rgba(255, 200, 100, 0.45);
+  color: #ffd28a;
+}
+
+.life-cc-intensity--brutal {
+  border-color: rgba(255, 60, 60, 0.55);
+  color: #ff8a80;
+}
+
+.life-cc-open-line {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.life-cc-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.life-cc-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 90, 40, 0.2);
+  border: 1px solid rgba(255, 120, 80, 0.35);
+  color: #ffc9a8;
+}
+
+.life-cc-xp-hint {
+  font-size: 0.78rem;
+  color: rgba(200, 210, 255, 0.65);
+  align-self: center;
+}
+
+.life-cc-shame {
+  color: #ff7a7a;
+  font-weight: 700;
+  margin: 12px 0 0;
+}
+
+.life-cc-pushback {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 3px solid rgba(255, 180, 80, 0.8);
+  font-weight: 600;
+}
+
+.life-cc-compliance {
+  position: relative;
+  z-index: 1;
+  margin-top: 18px;
+}
+
+.life-cc-compliance-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: rgba(230, 235, 255, 0.85);
+}
+
+.life-cc-compliance-pct {
+  color: #7dff9e;
+}
+
+.life-cc-progress-track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.life-cc-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1a3d28, #3ecf6a 55%, #c8ff7a 100%);
+  box-shadow: 0 0 14px rgba(80, 255, 140, 0.35);
+  transition: width 0.45s ease;
+}
+
+.life-cc-weather {
+  margin-top: 12px;
+}
+
+.life-cc-orders {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.life-cc-order {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.life-cc-order--single {
+  margin-top: 12px;
+}
+
+.life-cc-check {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.life-cc-check--done {
+  background: rgba(40, 120, 70, 0.55);
+  border-color: rgba(120, 255, 160, 0.55);
+  color: #b8ffc9;
+}
+
+.life-cc-time {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: rgba(255, 180, 140, 0.95);
+}
+
+.life-cc-text {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.life-cc-power-trip {
+  margin: 18px 0 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: rgba(255, 200, 180, 0.75);
+}
+
+.life-cc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.life-cc-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.life-cc-emergency {
+  margin-top: 16px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 100, 100, 0.55);
+  background: rgba(60, 20, 20, 0.4);
+  color: #ffabab;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.life-cc-share-card {
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.life-cc-share-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 8px 0 12px;
+  word-break: break-word;
+}
+
+.life-cc-global-feed {
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(20, 30, 60, 0.35);
+  border: 1px solid rgba(100, 140, 255, 0.2);
+}
+
+.life-cc-feed-line {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(200, 220, 255, 0.92);
+}
+
+.life-cc-leaderboards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+@media (max-width: 560px) {
+  .life-cc-leaderboards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.life-cc-lb {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 215, 120, 0.2);
+}
+
+.life-cc-lb h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.life-cc-lb--shame {
+  border-color: rgba(255, 80, 80, 0.25);
+}
+
+.life-cc-teaser-hint {
+  margin: 16px 0;
+  line-height: 1.5;
+  color: rgba(220, 225, 245, 0.78);
+}
+
+.life-cc-upgrade {
+  width: 100%;
+}
+
+.life-cc-wizard-overlay .life-cc-wizard-card {
+  max-width: 420px;
+  text-align: left;
+}
+
+.life-cc-select {
+  width: 100%;
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.45);
+  color: inherit;
+  font-size: 1rem;
+}
+
+.life-cc-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.life-cc-toggle-row--stack {
+  flex-direction: column;
+}
+
+.life-cc-pill {
+  flex: 1;
+  min-width: 88px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.life-cc-pill--on {
+  border-color: rgba(255, 120, 80, 0.65);
+  background: rgba(120, 40, 30, 0.45);
+}
+
+.life-teaser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  text-align: center;
+  padding: 24px;
+}
+
+.life-teaser-title {
+  margin: 0 0 16px;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.life-teaser-count {
+  margin: 0;
+  font-size: clamp(4rem, 18vw, 7rem);
+  font-weight: 900;
+  color: #ff5c5c;
+  text-shadow: 0 0 40px rgba(255, 60, 60, 0.55);
+}
+
+.life-cc-preview-card {
+  max-width: 440px;
+}
+
+.life-cc-squad-card {
+  max-width: 420px;
+}
+
+.life-mission-report-card {
+  position: relative;
+  z-index: 1;
+  margin: 16px 0 20px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(30, 22, 40, 0.9), rgba(20, 28, 48, 0.92));
+  border: 1px solid rgba(255, 120, 100, 0.28);
+}
+
+.life-mission-compliance {
+  margin: 8px 0;
+  font-size: 1.5rem;
+}
+
+.life-mission-roast {
+  margin: 0 0 10px;
+  font-weight: 700;
+  color: #ff9a8b;
+  line-height: 1.45;
+}
