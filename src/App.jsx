@@ -374,6 +374,111 @@ function shareUrls(text) {
   };
 }
 
+/** Lifetime decision count → CoD-style prestige rank + progress to next tier */
+function getDecisionRank(totalRaw) {
+  const total = Math.max(0, Math.floor(Number(totalRaw) || 0));
+  const clamp01 = (n) => Math.min(1, Math.max(0, n));
+
+  if (total <= 10) {
+    const next = 11;
+    return {
+      tier: "recruit",
+      emoji: "🔰",
+      name: "Recruit",
+      label: "🔰 Recruit",
+      shortTag: "RCT",
+      prestigeLevel: null,
+      nextThreshold: next,
+      nextRankLabel: "⚔️ Sergeant",
+      progress: clamp01(total / next),
+      rangeLabel: "0–10 decisions",
+      toNext: Math.max(0, next - total)
+    };
+  }
+  if (total <= 50) {
+    const next = 51;
+    return {
+      tier: "sergeant",
+      emoji: "⚔️",
+      name: "Sergeant",
+      label: "⚔️ Sergeant",
+      shortTag: "SGT",
+      prestigeLevel: null,
+      nextThreshold: next,
+      nextRankLabel: "🎖️ Lieutenant",
+      progress: clamp01((total - 11) / (next - 11)),
+      rangeLabel: "11–50 decisions",
+      toNext: Math.max(0, next - total)
+    };
+  }
+  if (total <= 100) {
+    const next = 101;
+    return {
+      tier: "lieutenant",
+      emoji: "🎖️",
+      name: "Lieutenant",
+      label: "🎖️ Lieutenant",
+      shortTag: "LT",
+      prestigeLevel: null,
+      nextThreshold: next,
+      nextRankLabel: "🏅 Commander",
+      progress: clamp01((total - 51) / (next - 51)),
+      rangeLabel: "51–100 decisions",
+      toNext: Math.max(0, next - total)
+    };
+  }
+  if (total <= 250) {
+    const next = 251;
+    return {
+      tier: "commander",
+      emoji: "🏅",
+      name: "Commander",
+      label: "🏅 Commander",
+      shortTag: "CDR",
+      prestigeLevel: null,
+      nextThreshold: next,
+      nextRankLabel: "💀 Elite",
+      progress: clamp01((total - 101) / (next - 101)),
+      rangeLabel: "101–250 decisions",
+      toNext: Math.max(0, next - total)
+    };
+  }
+  if (total <= 500) {
+    const next = 501;
+    return {
+      tier: "elite",
+      emoji: "💀",
+      name: "Elite",
+      label: "💀 Elite",
+      shortTag: "ELITE",
+      prestigeLevel: null,
+      nextThreshold: next,
+      nextRankLabel: "⭐ Prestige 1",
+      progress: clamp01((total - 251) / (next - 251)),
+      rangeLabel: "251–500 decisions",
+      toNext: Math.max(0, next - total)
+    };
+  }
+
+  const prestigeLevel = Math.floor((total - 1) / 500);
+  const tierStart = 500 * (prestigeLevel - 1) + 501;
+  const nextThreshold = tierStart + 500;
+  return {
+    tier: "prestige",
+    prestigeVariant: prestigeLevel,
+    emoji: "⭐",
+    name: `Prestige ${prestigeLevel}`,
+    label: `⭐ Prestige ${prestigeLevel}`,
+    shortTag: `P${prestigeLevel}`,
+    prestigeLevel,
+    nextThreshold,
+    nextRankLabel: `⭐ Prestige ${prestigeLevel + 1}`,
+    progress: clamp01((total - tierStart) / (nextThreshold - tierStart)),
+    rangeLabel: `${tierStart}–${nextThreshold - 1} decisions`,
+    toNext: Math.max(0, nextThreshold - total)
+  };
+}
+
 function nextMidnightCountdown() {
   const now = new Date();
   const next = new Date();
@@ -2046,6 +2151,38 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
   };
 
+  const decisionsForRank = session?.user?.id ? totalDecisions : profileDecisionCount;
+  const decisionRank = useMemo(() => getDecisionRank(decisionsForRank), [decisionsForRank]);
+  const chatOperatorName =
+    session?.user?.email?.split("@")[0] ||
+    (typeof session?.user?.user_metadata?.full_name === "string"
+      ? String(session.user.user_metadata.full_name).trim().split(/\s+/)[0]
+      : null) ||
+    "Operator";
+
+  const renderChatRankStrip = (compact) => (
+    <div
+      className={`prestige-chat-strip${compact ? " prestige-chat-strip--compact" : ""}`}
+      role="group"
+      aria-label={`Rank ${decisionRank.label}`}
+    >
+      <span className="prestige-chat-name">{session?.user?.id ? chatOperatorName : "Guest"}</span>
+      <span
+        className={`prestige-mini-badge prestige-mini--${decisionRank.tier}${
+          decisionRank.tier === "prestige" && decisionRank.prestigeVariant
+            ? ` prestige-mini--p${decisionRank.prestigeVariant}`
+            : ""
+        }`}
+        title={`${decisionRank.label} · ${decisionsForRank} ${session?.user?.id ? "lifetime" : "session"} decisions`}
+      >
+        <span className="prestige-mini-emoji" aria-hidden="true">
+          {decisionRank.emoji}
+        </span>
+        <span className="prestige-mini-tag">{decisionRank.shortTag}</span>
+      </span>
+    </div>
+  );
+
   if (lifeModeSession) {
     return (
       <section className="card premium life-mode-fullscreen">
@@ -2058,6 +2195,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
         <p className="meta life-mode-warning">Your decisions are now being executed by the system.</p>
+        {renderChatRankStrip(true)}
         <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
         <p className="meta">Time remaining</p>
 
@@ -2193,6 +2331,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
+      {renderChatRankStrip(false)}
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
       <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
       {session?.user?.id ? (
@@ -3564,8 +3703,6 @@ function ProfileScreen({ session }) {
     }
   };
 
-  if (!session) return <Navigate to="/login" replace />;
-
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const canonicalCode = referralCodeFromReferrals || String(profile?.referral_code || "").toLowerCase();
   const prettyRefLink = canonicalCode && origin ? `${origin}/ref/${canonicalCode}` : "";
@@ -3615,9 +3752,53 @@ function ProfileScreen({ session }) {
     return output;
   }, [preferences]);
 
+  const profileRank = useMemo(() => getDecisionRank(profile?.total_decisions ?? 0), [profile?.total_decisions]);
+  const lifetimeDecisions = profile?.total_decisions ?? 0;
+
+  if (!session) return <Navigate to="/login" replace />;
+
   return (
-    <section className="card">
+    <section className="card profile-screen-card">
       <h1>Profile</h1>
+      <article className={`prestige-rank-card prestige-rank-card--${profileRank.tier}`}>
+        <div className="prestige-rank-card-bg" aria-hidden="true" />
+        <div className="prestige-rank-main">
+          <div className={`prestige-rank-emblem prestige-rank-emblem--${profileRank.tier}`}>
+            <span className="prestige-rank-emoji" aria-hidden="true">
+              {profileRank.emoji}
+            </span>
+          </div>
+          <div className="prestige-rank-text">
+            <p className="prestige-rank-kicker">Combat record</p>
+            <h2 className="prestige-rank-title">{profileRank.label}</h2>
+            <p className="prestige-rank-meta">
+              <strong>{lifetimeDecisions}</strong> lifetime decisions
+              <span className="prestige-rank-dot"> · </span>
+              {profileRank.rangeLabel}
+            </p>
+          </div>
+        </div>
+        <div
+          className="prestige-progress-track"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(profileRank.progress * 100)}
+          aria-label={`Progress toward ${profileRank.nextRankLabel}`}
+        >
+          <div className="prestige-progress-fill" style={{ width: `${Math.min(100, profileRank.progress * 100)}%` }} />
+        </div>
+        <p className="prestige-next-line">
+          {profileRank.toNext > 0 ? (
+            <>
+              <span className="prestige-next-num">{profileRank.toNext}</span> more{" "}
+              {profileRank.toNext === 1 ? "decision" : "decisions"} to reach <strong>{profileRank.nextRankLabel}</strong>
+            </>
+          ) : (
+            <span className="prestige-next-maxed">At the top of this tier — one more decision can advance your rank.</span>
+          )}
+        </p>
+      </article>
       <p className="meta">{session.user.email}</p>
       <button type="button" className="ghost-btn" onClick={handleLogout}>
         Log out

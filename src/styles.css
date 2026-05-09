@@ -2897,3 +2897,259 @@ a.nearby-inline-maps:hover {
 .mobile-tab:active {
   transform: scale(0.96);
 }
+
+/* —— Prestige / combat-record ranks (lifetime decisions) —— */
+
+.prestige-chat-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(18, 22, 34, 0.92), rgba(12, 14, 22, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.prestige-chat-strip--compact {
+  margin-top: 12px;
+  margin-bottom: 0;
+  padding: 8px 12px;
+}
+
+.prestige-chat-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: #eef1ff;
+  text-transform: none;
+}
+
+.prestige-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px 5px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(160deg, rgba(40, 44, 58, 0.95), rgba(20, 22, 32, 0.98));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: #c8d0f0;
+}
+
+.prestige-mini-emoji {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.prestige-mini-tag {
+  font-size: 0.68rem;
+  opacity: 0.95;
+}
+
+.prestige-mini--recruit {
+  border-color: rgba(110, 231, 183, 0.35);
+  box-shadow: 0 0 14px rgba(56, 189, 148, 0.18);
+}
+
+.prestige-mini--sergeant {
+  border-color: rgba(245, 230, 66, 0.35);
+  box-shadow: 0 0 14px rgba(245, 230, 66, 0.15);
+}
+
+.prestige-mini--lieutenant {
+  border-color: rgba(96, 165, 250, 0.38);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.2);
+}
+
+.prestige-mini--commander {
+  border-color: rgba(167, 139, 250, 0.42);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.22);
+}
+
+.prestige-mini--elite {
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.28);
+  color: #fecaca;
+}
+
+.prestige-mini--prestige {
+  border-color: rgba(245, 230, 66, 0.55);
+  background: linear-gradient(135deg, rgba(58, 42, 12, 0.95), rgba(26, 18, 8, 0.98));
+  color: #ffe08a;
+  box-shadow: 0 0 22px rgba(245, 230, 66, 0.28);
+}
+
+.profile-screen-card .prestige-rank-card {
+  margin-bottom: 18px;
+}
+
+.prestige-rank-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(145deg, rgba(22, 24, 36, 0.97), rgba(10, 11, 18, 0.94));
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.prestige-rank-card-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 60% at 80% 0%, rgba(245, 230, 66, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(59, 130, 246, 0.1), transparent 50%);
+  opacity: 0.9;
+}
+
+.prestige-rank-card--prestige .prestige-rank-card-bg {
+  background: radial-gradient(ellipse 80% 60% at 70% 0%, rgba(245, 230, 66, 0.22), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 10% 100%, rgba(255, 180, 60, 0.12), transparent 50%);
+}
+
+.prestige-rank-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1;
+}
+
+.prestige-rank-emblem {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(160deg, rgba(50, 54, 70, 0.95), rgba(24, 26, 36, 0.98));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.prestige-rank-emblem--recruit {
+  border-color: rgba(52, 211, 153, 0.45);
+}
+.prestige-rank-emblem--sergeant {
+  border-color: rgba(245, 230, 66, 0.5);
+}
+.prestige-rank-emblem--lieutenant {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+.prestige-rank-emblem--commander {
+  border-color: rgba(167, 139, 250, 0.55);
+}
+.prestige-rank-emblem--elite {
+  border-color: rgba(248, 113, 113, 0.55);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+.prestige-rank-emblem--prestige {
+  border-color: rgba(245, 230, 66, 0.65);
+  background: linear-gradient(160deg, rgba(70, 55, 20, 0.95), rgba(30, 22, 8, 0.98));
+  box-shadow: 0 0 28px rgba(245, 230, 66, 0.25);
+}
+
+.prestige-rank-emoji {
+  font-size: 1.75rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.prestige-rank-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.prestige-rank-kicker {
+  margin: 0 0 4px;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(200, 208, 235, 0.55);
+  font-weight: 700;
+}
+
+.prestige-rank-title {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f4f6ff;
+  line-height: 1.2;
+}
+
+.prestige-rank-meta {
+  margin: 0;
+  font-size: 0.86rem;
+  color: rgba(200, 208, 235, 0.75);
+  line-height: 1.45;
+}
+
+.prestige-rank-meta strong {
+  color: #f5e642;
+  font-weight: 800;
+}
+
+.prestige-rank-dot {
+  opacity: 0.65;
+}
+
+.prestige-progress-track {
+  position: relative;
+  z-index: 1;
+  margin-top: 16px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.prestige-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2a2f44, #f5e642 45%, #ff7a2e 100%);
+  box-shadow: 0 0 16px rgba(245, 230, 66, 0.35);
+  transition: width 0.5s ease;
+}
+
+.prestige-rank-card--prestige .prestige-progress-fill {
+  background: linear-gradient(90deg, #3d2e0a, #f5e642 50%, #fff1a6 100%);
+  box-shadow: 0 0 20px rgba(245, 230, 66, 0.4);
+}
+
+.prestige-next-line {
+  position: relative;
+  z-index: 1;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: rgba(220, 226, 255, 0.78);
+  line-height: 1.5;
+}
+
+.prestige-next-line strong {
+  color: #e8edff;
+  font-weight: 700;
+}
+
+.prestige-next-num {
+  display: inline-block;
+  min-width: 1.2em;
+  font-weight: 800;
+  color: #f5e642;
+}
+
+.prestige-next-maxed {
+  color: rgba(200, 208, 235, 0.7);
+  font-style: italic;
+}
