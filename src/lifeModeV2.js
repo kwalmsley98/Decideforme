@@ -234,31 +234,15 @@ function weatherSnip(weather, intensity) {
 /**
  * @param {{ wakeHour: number, dayType: 'work'|'rest', energy: 'low'|'medium'|'high', intensity: 'gentle'|'strict'|'brutal', codename: string }} setup
  * @param {DayPhase} phase
- * @param {{ memoryLines?: string[] }} ctx
  */
-export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, operatorName = "Operator", memoryLines = [] }) {
+export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, operatorName = "Operator" }) {
   const { wakeHour, dayType, energy, intensity, codename } = setup;
   const In = intensity;
   const slot = (h, min = 0) => wallClockHHMM(h, min);
-  const mem = Array.isArray(memoryLines) ? memoryLines.filter(Boolean) : [];
 
   const orders = [];
 
-  const pushMemoryHooks = () => {
-    for (let i = 0; i < Math.min(2, mem.length); i++) {
-      orders.push({
-        id: `mem-${phase}-${i}`,
-        timeLabel: slot(Math.min(23, wakeHour + i), 0),
-        text: mem[i],
-        phase,
-        isMemoryHook: true,
-        responses: []
-      });
-    }
-  };
-
   if (phase === "morning") {
-    pushMemoryHooks();
     orders.push({
       id: "mo_alarm",
       timeLabel: slot(wakeHour, 0),
@@ -469,7 +453,6 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       });
     }
   } else if (phase === "midday") {
-    pushMemoryHooks();
     orders.push({
       id: "md_lunch",
       timeLabel: slot(12, 0),
@@ -568,7 +551,6 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       ]
     });
   } else if (phase === "afternoon") {
-    pushMemoryHooks();
     orders.push({
       id: "af_fridge",
       timeLabel: slot(15, 30),
@@ -661,7 +643,6 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       ]
     });
   } else if (phase === "evening") {
-    pushMemoryHooks();
     orders.push({
       id: "ev_phone",
       timeLabel: slot(19, 0),
@@ -813,7 +794,6 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
     });
   } else {
     /** night — wind-down / sleep */
-    pushMemoryHooks();
     orders.push({
       id: "ni_bedtime",
       timeLabel: slot(22, 0),
@@ -923,24 +903,34 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
   });
 }
 
-/** Callback lines from earlier picks (same session day). */
-export function buildMemoryLinesFromPicks(picks, phase, codename = "Your AI") {
-  const lines = [];
-  if (!picks || typeof picks !== "object") return lines;
-  const vals = Object.values(picks);
-  const hadRead = vals.some((d) => d?.excuseTag === "read_later");
-  const hadEpisode = vals.some((d) => d?.excuseTag === "one_episode");
-  const hadSnooze = vals.some((d) => d?.excuseTag === "snooze_chain" || d?.excuseTag === "five_minute_lie");
-  if (hadRead && (phase === "evening" || phase === "night")) {
-    lines.push(`${codename} remembers you said you'd read — we're checking in.`);
-  }
-  if (hadEpisode && (phase === "evening" || phase === "night")) {
-    lines.push(`You said ‘just one episode.’ Be honest — how many was it really?`);
-  }
-  if (hadSnooze && phase === "midday") {
-    lines.push(`You hit snooze a bunch this morning. Just checking you're alive.`);
-  }
-  return lines.slice(0, 2);
+/** Wall-clock minutes from order `timeLabel` (expects HHMM). */
+export function orderTimeToMinutes(timeLabel) {
+  const d = String(timeLabel ?? "").replace(/\D/g, "");
+  if (d.length < 4) return null;
+  const h = parseInt(d.slice(0, 2), 10);
+  const m = parseInt(d.slice(2, 4), 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return null;
+  return h * 60 + m;
+}
+
+/** Keep orders at or after the user’s current local time (same day window). */
+export function filterOrdersFromLocalNow(orders, date = new Date(), timeZone) {
+  const { hour, minute } = getLocalClockParts(date, timeZone);
+  const nowM = hour * 60 + minute;
+  return (orders || []).filter((o) => {
+    const om = orderTimeToMinutes(o.timeLabel);
+    if (om == null) return true;
+    // After midnight, before 5am: 22:00–23:59 slots are “last night” — treat as past.
+    if (hour < 5 && om >= 22 * 60) return false;
+    return om >= nowM;
+  });
+}
+
+/** Display helper: `0700` → `07:00` */
+export function formatOrderTimeLabel(timeLabel) {
+  const d = String(timeLabel ?? "").replace(/\D/g, "");
+  if (d.length < 4) return String(timeLabel ?? "").trim() || "—";
+  return `${d.slice(0, 2)}:${d.slice(2, 4)}`;
 }
 
 export function summarizeLifeDayVirality({ picks, compliancePct, intensity, codename }) {

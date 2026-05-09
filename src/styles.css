@@ -3355,7 +3355,7 @@ a.nearby-inline-maps:hover {
 .life-command-centre {
   position: relative;
   overflow: hidden;
-  padding: 22px 18px 28px;
+  padding: 18px 16px 22px;
   border: 1px solid rgba(255, 62, 62, 0.28);
   background: radial-gradient(circle at 50% 0%, rgba(120, 30, 30, 0.35), rgba(8, 10, 22, 0.92));
 }
@@ -3373,6 +3373,31 @@ a.nearby-inline-maps:hover {
 .life-cc-head {
   position: relative;
   z-index: 1;
+}
+
+.life-cc-manifesto {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 120, 100, 0.22);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(245, 238, 255, 0.92);
+}
+
+.life-cc-kicker-quiet {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(200, 210, 255, 0.55);
+}
+
+.life-cc-session-meta {
+  margin-top: 4px;
+  opacity: 0.75;
 }
 
 .life-cc-kicker {
@@ -3429,36 +3454,11 @@ a.nearby-inline-maps:hover {
 }
 
 .life-cc-open-line {
-  margin: 0 0 14px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-.life-cc-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.life-cc-streak-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  margin: 0 0 12px;
+  font-size: 1.12rem;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(255, 90, 40, 0.2);
-  border: 1px solid rgba(255, 120, 80, 0.35);
-  color: #ffc9a8;
-}
-
-.life-cc-xp-hint {
-  font-size: 0.78rem;
-  color: rgba(200, 210, 255, 0.65);
-  align-self: center;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
 }
 
 .life-cc-shame {
@@ -3476,56 +3476,65 @@ a.nearby-inline-maps:hover {
   font-weight: 600;
 }
 
-.life-cc-compliance {
+.life-cc-streak-panel {
   position: relative;
   z-index: 1;
-  margin-top: 18px;
-}
-
-.life-cc-compliance-head {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  color: rgba(230, 235, 255, 0.85);
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 90, 40, 0.1);
+  border: 1px solid rgba(255, 130, 90, 0.22);
 }
 
-.life-cc-compliance-pct {
-  color: #7dff9e;
+.life-cc-streak-flame {
+  flex-shrink: 0;
+  color: #ff9a6a;
+  filter: drop-shadow(0 0 8px rgba(255, 120, 80, 0.45));
 }
 
-.life-cc-progress-track {
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
+.life-cc-streak-panel-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
 }
 
-.life-cc-progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #1a3d28, #3ecf6a 55%, #c8ff7a 100%);
-  box-shadow: 0 0 14px rgba(80, 255, 140, 0.35);
-  transition: width 0.45s ease;
+.life-cc-streak-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffe4d4;
+  line-height: 1;
+}
+
+.life-cc-streak-caption {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(240, 230, 255, 0.92);
 }
 
 .life-cc-weather {
-  margin-top: 12px;
+  margin-top: 10px;
+}
+
+.life-cc-empty {
+  margin: 18px 0 0;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .life-cc-orders {
   position: relative;
   z-index: 1;
   list-style: none;
-  margin: 20px 0 0;
+  margin: 16px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .life-cc-order {
@@ -3615,11 +3624,11 @@ a.nearby-inline-maps:hover {
 }
 
 .life-cc-share-card {
-  margin-top: 22px;
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .life-cc-share-text {
@@ -3630,11 +3639,11 @@ a.nearby-inline-maps:hover {
 }
 
 .life-cc-global-feed {
-  margin-top: 22px;
-  padding: 14px;
+  margin-top: 16px;
+  padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(20, 30, 60, 0.35);
-  border: 1px solid rgba(100, 140, 255, 0.2);
+  background: rgba(20, 30, 60, 0.28);
+  border: 1px solid rgba(100, 140, 255, 0.15);
 }
 
 .life-cc-feed-line {
@@ -3648,8 +3657,8 @@ a.nearby-inline-maps:hover {
 .life-cc-leaderboards {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 @media (max-width: 560px) {
@@ -3804,19 +3813,6 @@ a.nearby-inline-maps:hover {
 .life-cc-order-body {
   flex: 1;
   min-width: 0;
-}
-
-.life-cc-order--memory {
-  border-style: dashed;
-  border-color: rgba(200, 180, 255, 0.35);
-  background: rgba(40, 32, 60, 0.35);
-}
-
-.life-cc-memory-dot {
-  flex-shrink: 0;
-  width: 40px;
-  text-align: center;
-  font-size: 1.25rem;
 }
 
 .life-cc-responses {

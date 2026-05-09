@@ -22,12 +22,10 @@ import {
   LogIn,
   MessageCircle,
   Paperclip,
-  Radio,
   ShieldAlert,
   Trophy,
   User,
   Users,
-  Volume2,
   Zap,
   X
 } from "lucide-react";
@@ -37,10 +35,11 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
 import {
   buildLifeOrders,
-  buildMemoryLinesFromPicks,
   computeEngagementPercent,
   fetchOpenMeteoCurrent,
+  filterOrdersFromLocalNow,
   formatLocalTimeShort,
+  formatOrderTimeLabel,
   getDayPhaseForNow,
   getUserTimeZone,
   globalFeedLines,
@@ -1279,9 +1278,7 @@ function ChatScreen({ session }) {
   const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
   const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
-  const [lifeModePushbackNote, setLifeModePushbackNote] = useState("");
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
-  const [lifeModeSquadModalOpen, setLifeModeSquadModalOpen] = useState(false);
   const [lifeModeFeedRotate, setLifeModeFeedRotate] = useState(0);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
   const pendingLifeSetupRef = useRef(null);
@@ -2034,7 +2031,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeComplianceMap({});
     setLifeModeResponsePicks({});
     setLifeModeEmergencyShame("");
-    setLifeModePushbackNote("");
     setLifeModeSession(optimisticSession);
     setLifeModeRecap(null);
     setLifeModeWizardOpen(false);
@@ -2565,22 +2561,21 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     [lifeModePhaseTick, userTimeZone]
   );
 
-  const lifeMemoryLines = useMemo(
-    () => buildMemoryLinesFromPicks(lifeModeResponsePicks, lifePhaseNow, effectiveLifeSetup.codename),
-    [lifeModeResponsePicks, lifePhaseNow, effectiveLifeSetup.codename]
-  );
-
-  const lifeOrders = useMemo(
+  const lifeOrdersRaw = useMemo(
     () =>
       buildLifeOrders({
         setup: effectiveLifeSetup,
         phase: lifePhaseNow,
         weather: lifeModeWeather,
         rankName: decisionRank.name,
-        operatorName: chatOperatorName,
-        memoryLines: lifeMemoryLines
+        operatorName: chatOperatorName
       }),
-    [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow, lifeMemoryLines]
+    [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow]
+  );
+
+  const lifeOrders = useMemo(
+    () => filterOrdersFromLocalNow(lifeOrdersRaw, new Date(), userTimeZone),
+    [lifeOrdersRaw, lifeModePhaseTick, userTimeZone]
   );
 
   const lifeCompliancePct = useMemo(
@@ -2661,25 +2656,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeResponsePicks({});
     persistLifeEngagementToDay({}, {});
     setLifeModeEmergencyShame("Weakness detected 😤");
-  };
-
-  const speakLifeOrders = () => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    const lines = lifeOrders.map((o) => o.text).join(" ");
-    const u = new SpeechSynthesisUtterance(lines);
-    u.rate = 0.9;
-    u.pitch = 0.85;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  };
-
-  const playMorningBriefingAudio = () => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(`${effectiveLifeSetup.codename} has issued today's orders.`);
-    u.rate = 0.88;
-    u.pitch = 0.82;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
   };
 
   const renderChatRankStrip = (compact) => (
@@ -2824,8 +2800,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   if (lifeModeSession) {
     const nowTimeLabel = formatLocalTimeShort(new Date(), userTimeZone);
-    const displayRank =
-      lifeCompliancePct < 50 && lifeOrders.length > 0 ? "on thin ice today" : decisionRank.name;
     const checkInLine = pickCheckIn(lifeModePhaseTick);
     const feedLines = globalFeedLines();
     const feedLine = feedLines[lifeModeFeedRotate % feedLines.length];
@@ -2905,6 +2879,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       >
         <div className="life-mode-veil" />
         <header className="life-cc-head">
+          <p className="life-cc-manifesto">
+            For the next 24 hours, AI controls your decisions. No arguments.
+          </p>
           <div className="life-cc-codename-row">
             <span className="life-cc-codename">{effectiveLifeSetup.codename}</span>
             <span className={`life-cc-intensity life-cc-intensity--${effectiveLifeSetup.intensity}`}>
@@ -2912,50 +2889,42 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </span>
           </div>
           <p className="life-cc-open-line">
-            It&apos;s {nowTimeLabel}. I know you better than you know yourself today — hi, {chatOperatorName}. Rank vibe:{" "}
-            {displayRank}.
+            It&apos;s {nowTimeLabel}. I&apos;m in control now.
           </p>
-          {renderChatRankStrip(true)}
           <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
-          <p className="meta">Time left on my shift as your chaos supervisor</p>
-          <div className="life-cc-badges">
-            <span className="life-cc-streak-badge">
-              <Flame size={14} /> Life streak · {lifeModeStreakDays} days
-            </span>
-            <span className="life-cc-xp-hint">Honesty streak builds faster in Life Mode</span>
-          </div>
+          <p className="meta life-cc-session-meta">Session time left</p>
         </header>
 
         {lifeModeEmergencyShame ? <p className="life-cc-shame">{lifeModeEmergencyShame}</p> : null}
-        {lifeModePushbackNote ? <p className="life-cc-pushback">{lifeModePushbackNote}</p> : null}
         {phaseCallbackRoast ? (
           <p className="life-cc-phase-callback" role="status">
             {phaseCallbackRoast}
           </p>
         ) : null}
 
-        <div className="life-cc-compliance">
-          <div className="life-cc-compliance-head">
-            <span>Honesty / compliance</span>
-            <span className="life-cc-compliance-pct">{lifeCompliancePct}%</span>
-          </div>
-          <div className="life-cc-progress-track" role="progressbar" aria-valuenow={lifeCompliancePct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="life-cc-progress-fill" style={{ width: `${lifeCompliancePct}%` }} />
+        <div className="life-cc-streak-panel" role="status" aria-live="polite">
+          <Flame size={20} strokeWidth={2} className="life-cc-streak-flame" aria-hidden />
+          <div className="life-cc-streak-panel-inner">
+            <span className="life-cc-streak-value">{lifeModeStreakDays}</span>
+            <span className="life-cc-streak-caption">
+              {lifeModeStreakDays === 1 ? "day" : "days"} in a row in Life Mode
+            </span>
           </div>
         </div>
 
         {lifeModeWeather ? (
           <p className="life-cc-weather meta">
-            Weather:{" "}
             {typeof lifeModeWeather.tempC === "number" ? `${Math.round(lifeModeWeather.tempC)}°C · ` : ""}
-            {lifeModeWeather.isRainy ? "precipitation active — discipline unchanged." : "conditions noted."}
+            {lifeModeWeather.isRainy ? "Rain" : "Dry"}
           </p>
         ) : null}
 
-        <ul className="life-cc-orders" aria-label="Today's real-talk checks">
-          {lifeOrders.map((order) => (
-            <li key={order.id} className={"life-cc-order" + (order.isMemoryHook ? " life-cc-order--memory" : "")}>
-              {!order.isMemoryHook ? (
+        {lifeOrders.length === 0 ? (
+          <p className="life-cc-empty meta">No orders scheduled from now until the next window — you&apos;re clear.</p>
+        ) : (
+          <ul className="life-cc-orders" aria-label="Today's orders">
+            {lifeOrders.map((order) => (
+              <li key={order.id} className="life-cc-order">
                 <button
                   type="button"
                   className={
@@ -2967,113 +2936,75 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 >
                   ✓
                 </button>
-              ) : (
-                <span className="life-cc-memory-dot" aria-hidden="true">
-                  💬
-                </span>
-              )}
-              <div className="life-cc-order-body">
-                <p className="life-cc-time">{order.timeLabel}</p>
-                <p className="life-cc-text">{order.text}</p>
-                {!order.isMemoryHook && order.responses?.length ? (
-                  <div className="life-cc-responses" role="group" aria-label="Too-honest replies">
-                    {order.responses.map((r) => (
-                      <div key={r.id} className="life-cc-response-row">
-                        <button
-                          type="button"
-                          className={
-                            "life-cc-response-btn" +
-                            (lifeModeResponsePicks[order.id]?.responseId === r.id ? " life-cc-response-btn--picked" : "")
-                          }
-                          disabled={Boolean(lifeModeResponsePicks[order.id])}
-                          onClick={() => pickLifeModeResponse(order, r)}
-                        >
-                          <span className="life-cc-response-emoji" aria-hidden="true">
-                            {r.emoji}{" "}
+                <div className="life-cc-order-body">
+                  <p className="life-cc-time">{formatOrderTimeLabel(order.timeLabel)}</p>
+                  <p className="life-cc-text">{order.text}</p>
+                  {order.responses?.length ? (
+                    <div className="life-cc-responses" role="group" aria-label="Replies">
+                      {order.responses.map((r) => (
+                        <div key={r.id} className="life-cc-response-row">
+                          <button
+                            type="button"
+                            className={
+                              "life-cc-response-btn" +
+                              (lifeModeResponsePicks[order.id]?.responseId === r.id ? " life-cc-response-btn--picked" : "")
+                            }
+                            disabled={Boolean(lifeModeResponsePicks[order.id])}
+                            onClick={() => pickLifeModeResponse(order, r)}
+                          >
+                            <span className="life-cc-response-emoji" aria-hidden="true">
+                              {r.emoji}{" "}
+                            </span>
+                            {r.label}
+                          </button>
+                          <span className="life-cc-community-pct">
+                            ~{r.communityPct}% picked this vibe (live demo mix)
                           </span>
-                          {r.label}
-                        </button>
-                        <span className="life-cc-community-pct">
-                          ~{r.communityPct}% picked this vibe (live demo mix)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {lifeModeResponsePicks[order.id]?.instantRoast ? (
-                  <p className="life-cc-instant-roast">{lifeModeResponsePicks[order.id].instantRoast}</p>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {lifeModeResponsePicks[order.id]?.instantRoast ? (
+                    <p className="life-cc-instant-roast">{lifeModeResponsePicks[order.id].instantRoast}</p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <p className="life-cc-check-in">{checkInLine}</p>
-
-        <div className="life-cc-actions">
-          <button type="button" className="ghost-btn life-cc-action-btn" onClick={speakLifeOrders}>
-            <Volume2 size={16} strokeWidth={2} /> Speak orders
-          </button>
-          <button type="button" className="ghost-btn life-cc-action-btn" onClick={playMorningBriefingAudio}>
-            <Radio size={16} strokeWidth={2} /> Alarm phrase
-          </button>
-          <button
-            type="button"
-            className="ghost-btn life-cc-action-btn"
-            onClick={() =>
-              setLifeModePushbackNote("You literally handed me the aux cord to your life. Let me cook.")
-            }
-          >
-            Dispute
-          </button>
-          <button type="button" className="ghost-btn life-cc-action-btn" onClick={() => setLifeModeSquadModalOpen(true)}>
-            <Users size={16} strokeWidth={2} /> Squad mode
-          </button>
-        </div>
 
         <button type="button" className="life-cc-emergency" onClick={triggerLifeEmergencyOverride}>
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
         <article className="life-cc-share-card">
-          <p className="hero-kicker">Today&apos;s orders · share</p>
+          <p className="hero-kicker life-cc-kicker-quiet">Share</p>
           <p className="life-cc-share-text">{missionShareLine}</p>
           <button type="button" className="ghost-btn" onClick={() => void copyMissionShare()}>
             {lifeModeMissionShareCopied ? "Copied" : "Copy TikTok / IG caption"}
           </button>
         </article>
 
-        <section className="life-cc-global-feed" aria-label="Global Life Mode feed">
-          <p className="hero-kicker">Worldwide channel</p>
+        <section className="life-cc-global-feed" aria-label="Community pulse">
+          <p className="hero-kicker life-cc-kicker-quiet">Pulse</p>
           <p className="life-cc-feed-line">{feedLine}</p>
         </section>
 
         <div className="life-cc-leaderboards">
           <article className="life-cc-lb">
             <h3>Hall of fame</h3>
-            <p className="meta">Top compliance streaks sync when squads launch.</p>
+            <p className="meta">Coming soon</p>
           </article>
           <article className="life-cc-lb life-cc-lb--shame">
             <h3>Hall of shame</h3>
-            <p className="meta">Lowest compliance — names classified until opt-in.</p>
+            <p className="meta">Coming soon</p>
           </article>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
-
-        {lifeModeSquadModalOpen ? (
-          <div className="life-mode-modal" role="dialog" aria-modal="true" aria-label="Squad mode">
-            <div className="life-mode-modal-card life-cc-squad-card">
-              <p className="hero-kicker">Squad strike</p>
-              <h2>Enter Life Mode with friends</h2>
-              <p className="muted">Group orders, shared compliance score, and peer pressure drops ship next. Your squad is waiting.</p>
-              <button type="button" className="primary-btn" onClick={() => setLifeModeSquadModalOpen(false)}>
-                Understood
-              </button>
-            </div>
-          </div>
-        ) : null}
       </section>
     );
   }
