@@ -39,7 +39,9 @@ import {
   buildLifeOrders,
   computeCompliancePercent,
   fetchOpenMeteoCurrent,
-  getDayPhase,
+  formatLocalTimeShort,
+  getDayPhaseForNow,
+  getUserTimeZone,
   globalFeedLines,
   pickCodename,
   pickPowerTrip,
@@ -1349,6 +1351,7 @@ function ChatScreen({ session }) {
   }, [chatHistoryOpen]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
+  const userTimeZone = useMemo(() => getUserTimeZone(), []);
   const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
   const lifeModeCaption = "I let AI run my life for 24 hours at decideforme.org 🤖 here’s what happened…";
   const getOrCreateGuestId = () => {
@@ -1883,7 +1886,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         if (cancelled) return;
-        const w = await fetchOpenMeteoCurrent(position.coords.latitude, position.coords.longitude);
+        const w = await fetchOpenMeteoCurrent(position.coords.latitude, position.coords.longitude, userTimeZone);
         if (!cancelled && w) setLifeModeWeather(w);
       },
       () => {},
@@ -1892,7 +1895,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     return () => {
       cancelled = true;
     };
-  }, [lifeModeSession?.id]);
+  }, [lifeModeSession?.id, userTimeZone]);
 
   const requestUserLocation = async () => {
     if (!("geolocation" in navigator)) return null;
@@ -2515,7 +2518,10 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     };
   }, [lifeModeSetup, lifeModeSession?.id]);
 
-  const lifePhaseNow = useMemo(() => getDayPhase(new Date().getHours()), [lifeModePhaseTick]);
+  const lifePhaseNow = useMemo(
+    () => getDayPhaseForNow(new Date(), userTimeZone),
+    [lifeModePhaseTick, userTimeZone]
+  );
 
   const lifeOrders = useMemo(
     () =>
@@ -2743,7 +2749,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     ) : null;
 
   if (lifeModeSession) {
-    const nowTimeLabel = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const nowTimeLabel = formatLocalTimeShort(new Date(), userTimeZone);
     const displayRank =
       lifeCompliancePct < 50 && lifeOrders.length > 0 ? "Private — FIELD DEMOTION" : decisionRank.name;
     const powerTrip = pickPowerTrip(lifeModePhaseTick);

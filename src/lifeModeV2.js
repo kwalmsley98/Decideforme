@@ -9,7 +9,90 @@ export function pickCodename() {
 /** @typedef {'morning'|'midday'|'evening'|'night'} DayPhase */
 
 /**
- * @param {number} hour Local hour 0–23
+ * Browser / user IANA timezone (e.g. Europe/London). Safe fallback if Intl unavailable.
+ * @param {string} [timeZone] Pass explicit tz when known; otherwise uses the device default.
+ */
+export function getUserTimeZone(timeZone) {
+  if (typeof timeZone === "string" && timeZone.trim()) return timeZone.trim();
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * Wall-clock hour (0–23) for this instant in the given IANA timezone.
+ * @param {Date} [date]
+ * @param {string} [timeZone]
+ */
+export function getLocalHourInTimeZone(date = new Date(), timeZone) {
+  const tz = getUserTimeZone(timeZone);
+  try {
+    const dtf = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "numeric",
+      hour12: false
+    });
+    const parts = dtf.formatToParts(date);
+    const hourPart = parts.find((p) => p.type === "hour");
+    if (hourPart) return parseInt(hourPart.value, 10);
+  } catch {
+    /* fall through */
+  }
+  return date.getHours();
+}
+
+/**
+ * @param {Date} [date]
+ * @param {string} [timeZone]
+ * @returns {{ hour: number, minute: number, timeZone: string }}
+ */
+export function getLocalClockParts(date = new Date(), timeZone) {
+  const tz = getUserTimeZone(timeZone);
+  try {
+    const dtf = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+    const parts = dtf.formatToParts(date);
+    const hour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const minute = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    return { hour, minute, timeZone: tz };
+  } catch {
+    return { hour: date.getHours(), minute: date.getMinutes(), timeZone: tz };
+  }
+}
+
+/**
+ * Short time string for headers (respects locale 12/24h preference).
+ * @param {Date} [date]
+ * @param {string} [timeZone]
+ */
+export function formatLocalTimeShort(date = new Date(), timeZone) {
+  const tz = getUserTimeZone(timeZone);
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit"
+    }).format(date);
+  } catch {
+    return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+}
+
+/** HHMM for scheduled local wall-clock times (same digits users expect in their timezone). */
+function wallClockHHMM(hour, minute = 0) {
+  const h = Math.max(0, Math.min(23, Math.floor(Number(hour) || 0)));
+  const m = Math.max(0, Math.min(59, Math.floor(Number(minute) || 0)));
+  return `${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * @param {number} hour Local hour 0–23 (user's wall clock in their TZ)
  * @returns {DayPhase}
  */
 export function getDayPhase(hour) {
@@ -20,12 +103,23 @@ export function getDayPhase(hour) {
 }
 
 /**
+ * @param {Date} [now]
+ * @param {string} [timeZone]
+ */
+export function getDayPhaseForNow(now = new Date(), timeZone) {
+  return getDayPhase(getLocalHourInTimeZone(now, timeZone));
+}
+
+/**
  * @param {number} lat
  * @param {number} lng
  */
-export async function fetchOpenMeteoCurrent(lat, lng) {
+export async function fetchOpenMeteoCurrent(lat, lng, timeZone) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&timezone=auto`;
+    const tz = getUserTimeZone(timeZone);
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&timezone=${encodeURIComponent(
+      tz
+    )}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
@@ -79,12 +173,20 @@ export function intensityPrefix(intensity, line) {
  * @param {string} opts.rankName
  * @param {string} [opts.operatorName]
  */
-export function buildLifeOrders({ setup, phase, weather, rankName, operatorName = "Operator" }) {
+export function buildLifeOrders({
+  setup,
+  phase,
+  weather,
+  rankName,
+  operatorName = "Operator"
+}) {
   const { wakeHour, dayType, energy, intensity, codename } = setup;
   const I = (s) => intensityPrefix(intensity, s);
   const rain = weather?.isRainy;
   const cold = typeof weather?.tempC === "number" && weather.tempC < 8;
   const hot = typeof weather?.tempC === "number" && weather.tempC > 28;
+
+  const slot = (h, min = 0) => wallClockHHMM(h, min);
 
   const weatherWalk =
     rain === true
@@ -107,7 +209,7 @@ export function buildLifeOrders({ setup, phase, weather, rankName, operatorName 
       ? I("Deep work block is locked. Notifications die now.")
       : I("This is recovery duty. No guilt — structured rest only.");
 
-  const wakeLabel = String(wakeHour).padStart(2, "0") + "00";
+  const wakeLabel = slot(wakeHour, 0);
 
   /** @type {{ id: string, timeLabel: string, text: string, phase: DayPhase }[]} */
   const orders = [];
@@ -121,100 +223,120 @@ export function buildLifeOrders({ setup, phase, weather, rankName, operatorName 
     });
     orders.push({
       id: "m1",
-      timeLabel: "0730",
+      timeLabel: slot(7, 30),
       text: energyFood,
       phase
     });
     orders.push({
       id: "m2",
-      timeLabel: "0900",
+      timeLabel: slot(9, 0),
       text: I("You will consume a nutritious breakfast. No exceptions."),
       phase
     });
     orders.push({
       id: "m3",
-      timeLabel: "0930",
+      timeLabel: slot(9, 30),
       text: dayType === "work" ? workBlock : I("You will move before noon. Light counts."),
       phase
     });
     orders.push({
       id: "m4",
-      timeLabel: "1000",
+      timeLabel: slot(10, 0),
       text: weatherWalk,
       phase
     });
   } else if (phase === "midday") {
     orders.push({
       id: "d0",
-      timeLabel: "1200",
+      timeLabel: slot(12, 0),
       text: I("Midday refuel. Eat. No desk crumbs."),
       phase
     });
     orders.push({
       id: "d1",
-      timeLabel: "1230",
+      timeLabel: slot(12, 30),
       text: dayType === "work" ? I("You will close one priority task before distractions.") : I("You will do one high-leverage task anyway."),
       phase
     });
     orders.push({
       id: "d2",
-      timeLabel: "1400",
+      timeLabel: slot(14, 0),
       text: I(`${rankName}, hydrate. That bottle is not decoration.`),
       phase
     });
     orders.push({
       id: "d3",
-      timeLabel: "1500",
+      timeLabel: slot(15, 0),
       text: rain === true ? I("Rain continues. Your discipline continues.") : weatherWalk,
       phase
     });
   } else if (phase === "evening") {
     orders.push({
       id: "e0",
-      timeLabel: "1730",
+      timeLabel: slot(17, 30),
       text: I("Shutdown sequence begins. Inbox is not your life."),
       phase
     });
     orders.push({
       id: "e1",
-      timeLabel: "1830",
+      timeLabel: slot(18, 30),
       text: I("You will eat a controlled dinner. Portion discipline."),
       phase
     });
     orders.push({
       id: "e2",
-      timeLabel: "1900",
+      timeLabel: slot(19, 0),
       text: I(`Walk or mobility — ${operatorName}, you finish the day moving.`),
       phase
     });
     orders.push({
       id: "e3",
-      timeLabel: "2000",
+      timeLabel: slot(20, 0),
       text: I("Prepare tomorrow's battlefield tonight: clothes, bag, plan."),
       phase
     });
   } else {
     orders.push({
       id: "n0",
-      timeLabel: "2100",
+      timeLabel: slot(21, 0),
       text: I("Night protocol. Put the phone down. You have 30 minutes to decompress."),
       phase
     });
     orders.push({
       id: "n1",
-      timeLabel: "2130",
+      timeLabel: slot(21, 30),
       text: I("Screens off. The war continues tomorrow."),
       phase
     });
     orders.push({
       id: "n2",
-      timeLabel: "2230",
-      text: I("Sleep by 2230. Fatigue is how mistakes multiply."),
+      timeLabel: slot(22, 30),
+      text: I("Sleep by 2230 local. Fatigue is how mistakes multiply."),
       phase
     });
   }
 
   return orders;
+}
+
+/**
+ * Payload for server-side order generation (future API). Call from the client with local context.
+ * @param {object} setup Same shape as buildLifeOrders setup
+ * @param {Date} [now]
+ * @param {string} [timeZone]
+ */
+export function buildLifeModeCommandRequestPayload(setup, now = new Date(), timeZone) {
+  const tz = getUserTimeZone(timeZone);
+  const hour = getLocalHourInTimeZone(now, tz);
+  const { minute } = getLocalClockParts(now, tz);
+  return {
+    timeZone: tz,
+    localHour: hour,
+    localMinute: minute,
+    phase: getDayPhase(hour),
+    setup,
+    isoTimestamp: now.toISOString()
+  };
 }
 
 export function computeCompliancePercent(completedMap, orders) {
