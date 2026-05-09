@@ -310,6 +310,19 @@ create table if not exists public.life_mode_decisions (
   created_at timestamptz not null default now()
 );
 
+-- Full threaded chat transcripts (logged-in users only; app manages rows)
+create table if not exists public.chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  messages jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists chat_sessions_user_updated_idx
+  on public.chat_sessions (user_id, updated_at desc);
+
 create or replace function public.get_active_life_mode_user_count()
 returns integer
 language sql
@@ -349,6 +362,7 @@ alter table public.user_preferences enable row level security;
 alter table public.daily_usage enable row level security;
 alter table public.life_mode_sessions enable row level security;
 alter table public.life_mode_decisions enable row level security;
+alter table public.chat_sessions enable row level security;
 
 drop policy if exists "Users can read their own decision history" on public.decision_history;
 drop policy if exists "Users can insert their own decision history" on public.decision_history;
@@ -385,6 +399,10 @@ drop policy if exists "Users can insert own life mode sessions" on public.life_m
 drop policy if exists "Users can update own life mode sessions" on public.life_mode_sessions;
 drop policy if exists "Users can read own life mode decisions" on public.life_mode_decisions;
 drop policy if exists "Users can insert own life mode decisions" on public.life_mode_decisions;
+drop policy if exists "Users can read own chat sessions" on public.chat_sessions;
+drop policy if exists "Users can insert own chat sessions" on public.chat_sessions;
+drop policy if exists "Users can update own chat sessions" on public.chat_sessions;
+drop policy if exists "Users can delete own chat sessions" on public.chat_sessions;
 
 create policy "Users can read their own decision history"
 on public.decision_history for select
@@ -529,6 +547,22 @@ using (auth.uid() = user_id);
 create policy "Users can insert own life mode decisions"
 on public.life_mode_decisions for insert
 with check (auth.uid() = user_id);
+
+create policy "Users can read own chat sessions"
+on public.chat_sessions for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own chat sessions"
+on public.chat_sessions for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own chat sessions"
+on public.chat_sessions for update
+using (auth.uid() = user_id);
+
+create policy "Users can delete own chat sessions"
+on public.chat_sessions for delete
+using (auth.uid() = user_id);
 
 -- Email notifications (updated via service role; logged rows via service role only)
 alter table public.profiles add column if not exists welcome_email_sent_at timestamptz;

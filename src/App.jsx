@@ -18,6 +18,7 @@ import {
   Clock,
   Compass,
   Flame,
+  History,
   LogIn,
   MessageCircle,
   Paperclip,
@@ -311,6 +312,61 @@ function conversationForStorage(messages) {
     }
     return { role: m.role, content: m.content ?? "" };
   });
+}
+
+/** Persist full chat threads (includes nearby pills; no vision blobs) */
+function conversationForChatHistoryStorage(messages) {
+  return (Array.isArray(messages) ? messages : []).map((m) => {
+    if (m.role === "nearby" && Array.isArray(m.places)) {
+      return { role: "nearby", places: m.places };
+    }
+    if (m.role === "user" && m.imageBase64) {
+      const text = typeof m.content === "string" ? m.content.trim() : "";
+      return { role: "user", content: text || "[Photo]" };
+    }
+    if (m.role === "assistant") {
+      return {
+        role: "assistant",
+        content: m.content ?? "",
+        ...(Array.isArray(m.bookingLinks) && m.bookingLinks.length ? { bookingLinks: m.bookingLinks } : {})
+      };
+    }
+    if (m.role === "user" || m.role === "assistant") {
+      return { role: m.role, content: m.content ?? "" };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function hydrateConversationFromHistory(stored) {
+  const arr = Array.isArray(stored) ? stored : [];
+  const out = [];
+  for (const m of arr) {
+    if (!m || typeof m !== "object") continue;
+    if (m.role === "nearby" && Array.isArray(m.places)) {
+      out.push({ role: "nearby", places: m.places });
+      continue;
+    }
+    if (m.role === "assistant") {
+      out.push({
+        role: "assistant",
+        content: String(m.content ?? ""),
+        ...(Array.isArray(m.bookingLinks) && m.bookingLinks.length ? { bookingLinks: m.bookingLinks } : {})
+      });
+      continue;
+    }
+    if (m.role === "user") {
+      out.push({ role: "user", content: String(m.content ?? "") });
+    }
+  }
+  return out;
+}
+
+function chatTitleFromFirstTurn(messages) {
+  const firstUser = (Array.isArray(messages) ? messages : []).find((m) => m?.role === "user");
+  const raw = typeof firstUser?.content === "string" ? firstUser.content.trim() : "";
+  const t = trimDecisionSnippet(raw, 72);
+  return t || "New conversation";
 }
 
 /** Preference extraction only needs text — omit vision payloads */
@@ -1169,6 +1225,10 @@ function ChatScreen({ session }) {
   const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
+  const [chatHistoryRows, setChatHistoryRows] = useState([]);
+  const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
+  const activeChatSessionIdRef = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
@@ -1208,6 +1268,30 @@ function ChatScreen({ session }) {
       { replace: true }
     );
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    activeChatSessionIdRef.current = null;
+    setChatHistoryRows([]);
+    setChatHistoryOpen(false);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!chatHistoryOpen) return;
+    const onKey = (event) => {
+      if (event.key === "Escape") setChatHistoryOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatHistoryOpen]);
+
+  useEffect(() => {
+    if (!chatHistoryOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [chatHistoryOpen]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const startOfTodayIso = new Date(`${todayKey}T00:00:00`).toISOString();
@@ -1945,6 +2029,41 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           setShowUpgradePrompt(true);
         }
 
+        if (!lifeModeSession) {
+          const historyPayload = conversationForChatHistoryStorage(finalConversation);
+          try {
+            let sid = activeChatSessionIdRef.current;
+            if (!sid) {
+              const title = chatTitleFromFirstTurn(finalConversation);
+              const { data: ins, error: chatInsErr } = await supabase
+                .from("chat_sessions")
+                .insert({
+                  user_id: session.user.id,
+                  title,
+                  messages: historyPayload,
+                  updated_at: new Date().toISOString()
+                })
+                .select("id")
+                .single();
+              if (!chatInsErr && ins?.id) {
+                sid = ins.id;
+                activeChatSessionIdRef.current = sid;
+              }
+            } else {
+              await supabase
+                .from("chat_sessions")
+                .update({
+                  messages: historyPayload,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", sid)
+                .eq("user_id", session.user.id);
+            }
+          } catch {
+            /* chat history is best-effort */
+          }
+        }
+
         if (lifeModeSession?.id && !String(lifeModeSession.id).startsWith("local-")) {
           await supabase.from("life_mode_decisions").insert({
             session_id: lifeModeSession.id,
@@ -2183,6 +2302,123 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     </div>
   );
 
+  const loadChatSessions = async () => {
+    if (!supabase || !session?.user?.id) return;
+    setChatHistoryLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("chat_sessions")
+        .select("id, title, updated_at")
+        .eq("user_id", session.user.id)
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      setChatHistoryRows(!error && Array.isArray(data) ? data : []);
+    } catch {
+      setChatHistoryRows([]);
+    } finally {
+      setChatHistoryLoading(false);
+    }
+  };
+
+  const openChatHistoryPanel = async () => {
+    setChatHistoryOpen(true);
+    await loadChatSessions();
+  };
+
+  const startNewChat = () => {
+    activeChatSessionIdRef.current = null;
+    setConversation([]);
+    setReply("");
+    setPrompt("");
+    setFollowUpSuggestions([]);
+    setShowNearbyFindButton(false);
+    setNearbyFetchError("");
+    setNearbyPlacePromptContext("");
+    setCrisisSupportActive(false);
+    setSamaritansBannerActive(false);
+    setError("");
+    setPendingImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    setChatHistoryOpen(false);
+  };
+
+  const resumeChatSession = async (row) => {
+    if (!supabase || !session?.user?.id || !row?.id) return;
+    const { data, error } = await supabase
+      .from("chat_sessions")
+      .select("id, messages")
+      .eq("id", row.id)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (error || !data) return;
+    activeChatSessionIdRef.current = data.id;
+    setConversation(hydrateConversationFromHistory(data.messages));
+    setReply("");
+    setPrompt("");
+    setFollowUpSuggestions([]);
+    setShowNearbyFindButton(false);
+    setNearbyFetchError("");
+    setNearbyPlacePromptContext("");
+    setCrisisSupportActive(false);
+    setSamaritansBannerActive(false);
+    setError("");
+    setPendingImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    setChatHistoryOpen(false);
+  };
+
+  const chatHistoryDrawer =
+    session?.user?.id && !lifeModeSession && chatHistoryOpen ? (
+      <div className="chat-history-shell" role="dialog" aria-modal="true" aria-label="Chat history" id="chat-history-panel-root">
+        <button
+          type="button"
+          className="chat-history-backdrop"
+          aria-label="Close chat history"
+          onClick={() => setChatHistoryOpen(false)}
+        />
+        <aside className="chat-history-panel" id="chat-history-panel">
+          <header className="chat-history-panel-head">
+            <h2>Chat history</h2>
+            <button type="button" className="chat-history-close" onClick={() => setChatHistoryOpen(false)} aria-label="Close">
+              <X size={18} strokeWidth={2.25} />
+            </button>
+          </header>
+          <p className="meta chat-history-hint">Resume a past conversation or start fresh with New chat.</p>
+          <div className="chat-history-list" role="list">
+            {chatHistoryLoading ? (
+              <p className="meta chat-history-loading">Loading…</p>
+            ) : chatHistoryRows.length ? (
+              chatHistoryRows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  className="chat-history-item"
+                  role="listitem"
+                  onClick={() => resumeChatSession(row)}
+                >
+                  <span className="chat-history-item-title">{row.title || "Conversation"}</span>
+                  <span className="chat-history-item-meta">
+                    {row.updated_at
+                      ? new Date(row.updated_at).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short"
+                        })
+                      : ""}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="meta chat-history-empty">No saved chats yet.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+    ) : null;
+
   if (lifeModeSession) {
     return (
       <section className="card premium life-mode-fullscreen">
@@ -2317,6 +2553,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         ) : null}
         {error ? <p className="error">{error}</p> : null}
+        {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
       </section>
     );
   }
@@ -2370,6 +2607,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       ) : null}
       <div className="chat-divider" />
+      {session?.user?.id && !lifeModeSession ? (
+        <div className="chat-history-toolbar">
+          <button
+            type="button"
+            className="ghost-btn chat-history-toolbar-btn"
+            onClick={() => void openChatHistoryPanel()}
+            aria-expanded={chatHistoryOpen}
+            aria-controls="chat-history-panel"
+          >
+            <History size={17} strokeWidth={2} />
+            <span>History</span>
+          </button>
+          {conversation.length > 0 ? (
+            <button type="button" className="ghost-btn chat-history-new-btn" onClick={startNewChat}>
+              New chat
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {conversation.length || loading ? (
         <div className="chat-and-nearby">
@@ -2649,6 +2905,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         />
       ) : null}
       {error ? <p className="error">{error}</p> : null}
+      {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
       {lifeModePromptOpen ? (
         <div className="life-mode-modal">
           <div className="life-mode-modal-card">
@@ -2664,6 +2921,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
       ) : null}
+      {chatHistoryDrawer}
       </div>
     </section>
   );
@@ -2898,7 +3156,6 @@ function GroupCreateScreen({ session }) {
         <button className="primary-btn">Create group room</button>
       </form>
       {error ? <p className="error">{error}</p> : null}
-      {checkoutNotice ? <p className="answer">{checkoutNotice}</p> : null}
     </section>
   );
 }
