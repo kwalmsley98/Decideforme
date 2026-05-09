@@ -152,11 +152,11 @@ export function communitySplitForResponses(commandId, responseIds) {
 }
 
 const CHECK_INS = [
-  "Just checking you're not still on the sofa. You are, aren't you.",
-  "Blink twice if you're pretending to work while scrolling.",
-  "Hydrate. Or don't. I've seen your search history — you know what thirst looks like.",
-  "Your posture right now? Criminal. Sit up. Yes, I'm watching.",
-  "Put the phone down for sixty seconds. I'll wait. …You didn't, did you."
+  "Quick check — you're still on the sofa, aren't you. It's fine. I'm just watching.",
+  "Be honest: are you working or scrolling with a spreadsheet open?",
+  "Drink some water. Or don't. Either way you're dramatic about it.",
+  "Sit up. I'm not your mum but your back is begging.",
+  "Put the phone face-down for one minute. …Yeah. Didn't think so."
 ];
 
 export function pickCheckIn(seed = 0) {
@@ -165,11 +165,11 @@ export function pickCheckIn(seed = 0) {
 
 export function globalFeedLines() {
   return [
-    "Live vibe: 68% of people picked ‘just one episode’ today. The couch won.",
-    "Community bulletin: ‘same lunch again’ is leading by a landslide.",
-    "Breaking: 81% chose denial before noon. You’re not alone — you’re consistent.",
-    "Global mood: fridge tourism is up 40%. Nothing new inside. Same as yesterday.",
-    "Trending excuse: ‘I'll read after this.’ Nobody did. Love that for us."
+    "Most people today picked ‘just one episode.’ The couch is winning globally.",
+    "Hot take: ‘same lunch again’ is crushing it out there.",
+    "Half of everyone hit snooze before noon. You're in crowded company.",
+    "Fridge opens are up. The food situation is not. Same as always.",
+    "Top excuse today: ‘I'll read after this.’ Spoiler: they didn't."
   ];
 }
 
@@ -212,22 +212,22 @@ function weatherSnip(weather, intensity) {
   const cold = typeof weather?.tempC === "number" && weather.tempC < 8;
   if (rain) {
     return tone(intensity, {
-      gentle: "It's gross out — you're still walking. Umbrella optional, excuses aren't.",
-      strict: "Rain isn't a personality trait. Move anyway.",
-      brutal: "Sky's crying. You're about to cry about cardio. Both are happening."
+      gentle: "It's raining. You can still go for a walk — I'll pretend I didn't see the umbrella drama.",
+      strict: "It's wet out. That's not an excuse to stay glued to the sofa.",
+      brutal: "It's raining. You're still going to complain either way — at least move while you do it."
     });
   }
   if (cold) {
     return tone(intensity, {
-      gentle: "Cold air counts as therapy if you actually step outside.",
-      strict: "Layers on. Drama off.",
-      brutal: "It's freezing. You'll survive — you've survived worse choices."
+      gentle: "It's cold. Put a coat on and go outside for a bit — you'll survive.",
+      strict: "It's freezing. Wear layers and stop acting like the weather is a personal attack.",
+      brutal: "It's cold out. You're still going to scroll inside where it's warm — own it."
     });
   }
   return tone(intensity, {
-    gentle: "Weather's fine. Your screen time isn't.",
-    strict: "Sun's out. Pretend you're a functional adult.",
-    brutal: "Nice day out there. Shame you're mostly seeing it through a window."
+    gentle: "Weather's fine. Maybe step away from the screen for ten minutes.",
+    strict: "Nice day. You're about to miss it because you're inside on your phone.",
+    brutal: "Beautiful out there. You're going to see it through a window again, aren't you."
   });
 }
 
@@ -263,9 +263,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       id: "mo_alarm",
       timeLabel: slot(wakeHour, 0),
       text: tone(In, {
-        gentle: `Your alarm went off four times. The fifth won't feel different — but getting up will.`,
-        strict: `Your alarm went off four times. The fifth one won't magically feel better. Get up.`,
-        brutal: `07:00 — Your alarm went off 4 times. The fifth won't be different. Get up.`
+        gentle: `Your alarm's already gone off a bunch of times. Getting up still feels awful — do it anyway.`,
+        strict: `Your alarm keeps screaming. None of the next ones will feel nicer. Just get up.`,
+        brutal: `Your alarm went off four times. The fifth one won't feel different. Get up.`
       }),
       phase,
       responses: [
@@ -274,14 +274,14 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "😴",
           label: "Just one more snooze",
           instantRoast: tone(In, {
-            gentle: "That's what you said last time. I'm keeping score gently.",
-            strict: "Snooze is just denial with a ringtone.",
-            brutal: "Snooze is just procrastination that pays rent to your anxiety."
+            gentle: "You say that every time. I'm keeping track.",
+            strict: "Snooze isn't rest — it's you negotiating with the clock.",
+            brutal: "That's not sleep — that's you avoiding your own life in nine-minute chunks."
           }),
           laterRoast: tone(In, {
-            gentle: "Still horizontal? Thought we'd talked about this.",
-            strict: "It's been an hour. You're awake enough to doomscroll — try vertical.",
-            brutal: "You've been 'almost up' since dawn. Pick a lane."
+            gentle: "Still in bed? We talked about this.",
+            strict: "You've been awake enough to scroll. Try standing up.",
+            brutal: "You've been ‘almost up’ for ages. Pick a side."
           }),
           fireLaterInPhase: "midday",
           excuseTag: "snooze_chain"
@@ -291,9 +291,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "✅",
           label: "Fine I'm up",
           instantRoast: tone(In, {
-            gentle: "Love that energy. Don't waste it on your inbox.",
-            strict: "Words are cheap. Coffee's expensive. Move.",
-            brutal: "Prove it — shoes on before you open TikTok."
+            gentle: "Good. Don't waste it opening socials first.",
+            strict: "Words are easy. Move before you touch your phone.",
+            brutal: "Prove it — feet on the floor before TikTok."
           }),
           excuseTag: "compliant_morning"
         },
@@ -302,15 +302,15 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "⏱️",
           label: "Five minutes — I mean it",
           instantRoast: tone(In, {
-            gentle: "Sure. I've heard that fairy tale before.",
-            strict: "Five minutes is how lies stay cozy.",
-            brutal: "Five minutes is how every bad day starts."
+            gentle: "Sure. I've heard that before.",
+            strict: "Five minutes always turns into twenty. Always.",
+            brutal: "‘Five minutes’ is how every slow morning starts."
           }),
           fireLaterInPhase: "midday",
           laterRoast: tone(In, {
-            gentle: "Those five minutes became thirty. I'm not mad — I'm tired on your behalf.",
-            strict: "Your five minutes graduated to an hour. Proud parent moment.",
-            brutal: "It's been an era since ‘five minutes.’ Clock called — it's embarrassed."
+            gentle: "Those five minutes turned into half an hour. I'm not mad — I'm tired for you.",
+            strict: "It's been way longer than five minutes. Don't act surprised.",
+            brutal: "It's been forever since ‘five minutes.’ Even the clock is embarrassed."
           }),
           excuseTag: "five_minute_lie"
         }
@@ -323,10 +323,10 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       text: tone(In, {
         gentle:
           energy === "low"
-            ? "Breakfast isn't negotiable today — your brain already negotiated enough yesterday."
-            : "Eat something that isn't regret-shaped.",
-        strict: "You're about to skip breakfast and pretend cold brew counts as food.",
-        brutal: "09:00 — You've opened the delivery app twice with nothing in the cart. Eat something real."
+            ? "You need to eat something real — not just coffee and hope."
+            : "Eat breakfast. Something with actual calories, not just vibes.",
+        strict: "You're about to skip breakfast and pretend coffee counts as food.",
+        brutal: "You've stared at food delivery twice and ordered nothing. Eat something."
       }),
       phase,
       responses: [
@@ -335,9 +335,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🥯",
           label: "Same thing as always",
           instantRoast: tone(In, {
-            gentle: "Consistency is cute until it's culinary beige.",
-            strict: "At least own the ritual.",
-            brutal: "Same order, same story — you're in a food sequel nobody asked for."
+            gentle: "At least you know what you like.",
+            strict: "Fine — own it. Same order every day is a choice.",
+            brutal: "Same meal again — boring, but honest."
           }),
           excuseTag: "same_order"
         },
@@ -346,9 +346,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🥗",
           label: "I'll grab something healthy later",
           instantRoast: tone(In, {
-            gentle: "'Later' is where salads go to die.",
-            strict: "Later is fantasy brunch.",
-            brutal: "Later is where discipline goes to nap forever."
+            gentle: "'Later' usually means never.",
+            strict: "Later isn't a meal plan — it's denial.",
+            brutal: "'Later' is where every salad goes to die."
           }),
           excuseTag: "later_never"
         },
@@ -357,9 +357,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "☕",
           label: "Coffee is breakfast",
           instantRoast: tone(In, {
-            gentle: "Bold strategy for someone who gets cranky before noon.",
-            strict: "Coffee isn't a meal — it's anxiety hot sauce.",
-            brutal: "That's not breakfast — that's cope with foam."
+            gentle: "Bold move when you're already hangry by eleven.",
+            strict: "Coffee isn't breakfast — it's panic in a cup.",
+            brutal: "That's not breakfast — that's caffeine wearing a costume."
           }),
           excuseTag: "coffee_meal"
         }
@@ -372,14 +372,14 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       text:
         dayType === "work"
           ? tone(In, {
-              gentle: "You're about to ‘quickly check’ messages and lose the morning. Close the tab before it closes on you.",
-              strict: "First hour decides your whole day — stop negotiating with your inbox.",
-              brutal: "You're one tab away from pretending Slack is priority one."
+              gentle: "You're about to open email and lose the whole morning. Close it until you've started real work.",
+              strict: "Don't let your inbox eat the first hour — you'll hate yourself by lunch.",
+              brutal: "You're one click away from pretending email is the same as work."
             })
           : tone(In, {
-              gentle: "Rest day doesn't mean couch-shaped recovery only.",
-              strict: "‘Chill day’ isn't code for zero sunlight.",
-              brutal: "Rest isn't hibernation — leave the cave eventually."
+              gentle: "Day off doesn't mean you can't leave the house once.",
+              strict: "‘Relaxing’ isn't code for not seeing sunlight.",
+              brutal: "You're not resting — you're hibernating with Wi‑Fi."
             }),
       phase,
       responses: [
@@ -388,9 +388,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "📧",
           label: "I'll just peek at email",
           instantRoast: tone(In, {
-            gentle: "Peek becomes plunge in three taps.",
-            strict: "That's not a peek — that's a hostage situation.",
-            brutal: "‘Peek’ is how professionals become amateur responders."
+            gentle: "‘Peek’ always turns into an hour.",
+            strict: "That's not a peek — you're already replying.",
+            brutal: "‘Just checking’ is how mornings disappear."
           }),
           excuseTag: "email_peek"
         },
@@ -399,9 +399,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🎯",
           label: "Deep work mode — for real",
           instantRoast: tone(In, {
-            gentle: "I'll believe it when Do Not Disturb survives ten minutes.",
-            strict: "Prove it — notifications off, ego on.",
-            brutal: "Deep work until your first notification — so, forty seconds?"
+            gentle: "I'll believe it when your notifications stay off.",
+            strict: "Prove it — phone away, one real task done.",
+            brutal: "Deep work until the first ping — so, about a minute?"
           }),
           excuseTag: "deep_work"
         },
@@ -410,15 +410,15 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🕐",
           label: "I'll start after lunch",
           instantRoast: tone(In, {
-            gentle: "Lunch isn't going to invent motivation for you.",
-            strict: "Afternoon-you doesn't trust morning-you — why should I?",
-            brutal: "Later-you is tired-you — we've met them. They're chaotic."
+            gentle: "Lunch won't magically fix your motivation.",
+            strict: "You'll feel worse after lunch if you waste the morning.",
+            brutal: "‘After lunch’ is code for ‘probably never.’"
           }),
           fireLaterInPhase: "midday",
           laterRoast: tone(In, {
-            gentle: "It's past lunch. Still waiting on that heroic start?",
-            strict: "You said after lunch. Lunch happened. Where's the hero arc?",
-            brutal: "It's been three hours since ‘after lunch.’ That's not a plan — that's avoidance cosplay."
+            gentle: "Lunch was ages ago. Still waiting on that big start?",
+            strict: "You said after lunch. Lunch finished. What's the excuse now?",
+            brutal: "It's been hours since ‘after lunch.’ That's not a plan — that's avoidance."
           }),
           excuseTag: "after_lunch"
         }
@@ -437,9 +437,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
             emoji: "🚶",
             label: "I'll walk — relax",
             instantRoast: tone(In, {
-              gentle: "Okay walker — actually loop the block once.",
-              strict: "Walk counts when you're not narrating it.",
-              brutal: "Walk — don't rehearse the podcast you're gonna quote."
+              gentle: "Okay — actually go around the block once.",
+              strict: "Walk means moving — not posting about it.",
+              brutal: "Walk — don't stand outside scrolling."
             }),
             excuseTag: "walk_promise"
           },
@@ -448,9 +448,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
             emoji: "🏠",
             label: "I'll skip today — weather",
             instantRoast: tone(In, {
-              gentle: "Weather's moody — your discipline doesn't get to be.",
-              strict: "Sky drama isn't your excuse drawer.",
-              brutal: "Blame the clouds — bold move from someone avoiding stairs."
+              gentle: "The weather's not great — fine. Don't act like that's never happened before.",
+              strict: "Rain isn't an excuse to rot on the sofa all day.",
+              brutal: "Blaming the sky — brave from someone who skips stairs too."
             }),
             excuseTag: "weather_skip"
           },
@@ -459,9 +459,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
             emoji: "🏋️",
             label: "Gym later instead",
             instantRoast: tone(In, {
-              gentle: "Later-gym is imaginary gym.",
-              strict: "Later is where memberships go to meditate.",
-              brutal: "‘Gym later’ — spoken like someone who's never met evening-you."
+              gentle: "‘Gym later’ rarely shows up.",
+              strict: "Later usually means never — we've seen this movie.",
+              brutal: "‘I'll go later’ — famous last words before you watch TV."
             }),
             excuseTag: "gym_later"
           }
@@ -474,9 +474,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       id: "md_lunch",
       timeLabel: slot(12, 0),
       text: tone(In, {
-        gentle: "You're about to order the same thing you always order. At least own it.",
-        strict: "12:00 — Same lunch roulette — pick intentionally or stop pretending it's accidental.",
-        brutal: "12:00 — You're about to order the same thing you always order. At least own it."
+        gentle: "You're about to order the same lunch you always order. At least admit it.",
+        strict: "Same meal again — either say you're doing it on purpose or stop pretending it's random.",
+        brutal: "You're about to order the same thing you always order. At least own it."
       }),
       phase,
       responses: [
@@ -485,9 +485,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🍜",
           label: "It's my comfort order",
           instantRoast: tone(In, {
-            gentle: "Comfort's fine — boredom dressed as loyalty isn't.",
-            strict: "Comfort became routine — admit it.",
-            brutal: "Comfort food — cute until it's just autopilot carbs."
+            gentle: "Fair — comfort food is allowed.",
+            strict: "Fine — but call it what it is: the same thing every time.",
+            brutal: "Comfort meal — cute until it's the only thing you ever eat."
           }),
           excuseTag: "comfort_order"
         },
@@ -496,9 +496,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "✨",
           label: "Fine — I'll try something new",
           instantRoast: tone(In, {
-            gentle: "I'll hold you to two bites before panic-scroll.",
-            strict: "New means ordered — not bookmarked.",
-            brutal: "Try new — then send pics or it didn't happen."
+            gentle: "Good — actually order it, don't just talk about it.",
+            strict: "New means you tap ‘pay’ — not save it for later.",
+            brutal: "Try something new — or stop saying you will."
           }),
           excuseTag: "try_new_food"
         },
@@ -507,9 +507,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "⏭️",
           label: "I'll eat later",
           instantRoast: tone(In, {
-            gentle: "'Later' is how humans become hangry gremlins.",
-            strict: "Later-you hates present-you — feed yourself.",
-            brutal: "Skipping lunch isn't discipline — it's chaos loading."
+            gentle: "Skipping lunch is how you turn mean by three o'clock.",
+            strict: "You'll be starving later and take it out on everyone.",
+            brutal: "Skipping lunch isn't discipline — it's you setting yourself up to crash."
           }),
           excuseTag: "skip_lunch"
         }
@@ -520,9 +520,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       id: "md_scroll",
       timeLabel: slot(13, 30),
       text: tone(In, {
-        gentle: "That ‘five-minute break’ has lasted longer than some relationships.",
-        strict: "Midday scroll isn't self-care — it's procrastination with better branding.",
-        brutal: "You're refreshing feeds like answers live between posts."
+        gentle: "That ‘five-minute break’ turned into half an hour. Shocking.",
+        strict: "You've been scrolling way longer than you said. We both know it.",
+        brutal: "You've been on your phone forever and you're still acting like it's a ‘quick break.’"
       }),
       phase,
       responses: [
@@ -531,9 +531,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "📱",
           label: "It's research",
           instantRoast: tone(In, {
-            gentle: "Cool dissertation on strangers' lunches.",
-            strict: "Research requires citations — not reels.",
-            brutal: "Research — bold word for gossip tourism."
+            gentle: "Sure — very serious research on strangers' lunches.",
+            strict: "It's not research — it's you procrastinating with extra steps.",
+            brutal: "Research? You're watching clips. Let's be real."
           }),
           excuseTag: "research_lie"
         },
@@ -542,9 +542,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🛑",
           label: "Okay phone goes away",
           instantRoast: tone(In, {
-            gentle: "Drop it like it's accountability.",
-            strict: "Face-down means face-down.",
-            brutal: "Put it down — your thumb needs joint custody."
+            gentle: "Good — put it face down and mean it.",
+            strict: "Put it down. Now. Not ‘in a sec.’",
+            brutal: "Put the phone down — your thumb has done enough today."
           }),
           excuseTag: "phone_down"
         },
@@ -553,15 +553,15 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "👀",
           label: "One more scroll",
           instantRoast: tone(In, {
-            gentle: "One more always borrows time from future-you.",
-            strict: "‘One more’ is three episodes long.",
-            brutal: "One more — famous last words before noon vanished."
+            gentle: "‘One more’ never stops at one.",
+            strict: "One more always turns into twenty.",
+            brutal: "One more — that's how the whole afternoon disappears."
           }),
           fireLaterInPhase: "afternoon",
           laterRoast: tone(In, {
-            gentle: "Still scrolling? Your future called — it wants its afternoon back.",
-            strict: "It's been an hour. ‘One more’ aged poorly.",
-            brutal: "It's been three loops. I'm not angry — I'm disappointed."
+            gentle: "Still scrolling? I'm not mad — I'm just watching you waste time.",
+            strict: "It's been ages. ‘One more’ was a lie.",
+            brutal: "It's been forever. I'm not angry — I'm disappointed."
           }),
           excuseTag: "one_more_scroll"
         }
@@ -573,9 +573,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       id: "af_fridge",
       timeLabel: slot(15, 30),
       text: tone(In, {
-        gentle: "You've opened the fridge three times in an hour. Nothing new appeared — except denial.",
-        strict: "Fridge tourism isn't a hobby — eat or close the door.",
-        brutal: "You've opened the fridge three times — still nothing new in there. The cucumber didn't spawn."
+        gentle: "You've opened the fridge three times in the last hour. There's nothing new in there.",
+        strict: "Stop opening the fridge like something magical appeared since two minutes ago.",
+        brutal: "You've opened the fridge three times. Nothing new showed up. Same stuff. Same you."
       }),
       phase,
       responses: [
@@ -584,9 +584,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🫠",
           label: "I'm bored not hungry",
           instantRoast: tone(In, {
-            gentle: "Boredom snacks are still invoices.",
-            strict: "Bored isn't hungry — it's avoidance munching.",
-            brutal: "You're not hungry — you're understimulated and loud about it."
+            gentle: "Bored snacking still counts as snacking.",
+            strict: "You're not hungry — you're bored and eating anyway.",
+            brutal: "You're not hungry — you're bored and the fridge is your hobby."
           }),
           excuseTag: "bored_snack"
         },
@@ -595,9 +595,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "💧",
           label: "Hydrating actually",
           instantRoast: tone(In, {
-            gentle: "Water doesn't live on the cheese shelf — nice try.",
-            strict: "Hydration doesn't require dramatic fridge lighting.",
-            brutal: "That's not hydration — that's staged browsing."
+            gentle: "The water isn't hiding behind the cheese — nice try.",
+            strict: "If you're thirsty, drink water — don't stare at leftovers.",
+            brutal: "That's not hydration — you're just looking for something to do."
           }),
           excuseTag: "hydrate_lie"
         },
@@ -606,9 +606,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🙃",
           label: "Okay that hurt",
           instantRoast: tone(In, {
-            gentle: "Truth stings less than regret carbs.",
-            strict: "Pain means we're learning — shut the fridge.",
-            brutal: "Good — carry that shame to a salad."
+            gentle: "Sorry — but close the door and walk away.",
+            strict: "Good — now shut the fridge and mean it.",
+            brutal: "Feel seen? Good. Step away from the snacks."
           }),
           excuseTag: "called_out"
         }
@@ -619,9 +619,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
       id: "af_meeting",
       timeLabel: slot(16, 0),
       text: tone(In, {
-        gentle: `That meeting could've been shorter — ${operatorName}, we both knew it.`,
-        strict: "Afternoon calendar guilt — address it before it schedules tomorrow.",
-        brutal: "Another meeting that could've been a paragraph — iconic."
+        gentle: `That meeting could've been an email — you know it, I know it, ${operatorName}.`,
+        strict: "Another long meeting that ate your afternoon. Cool cool.",
+        brutal: "That meeting could've been five minutes. We all pretended it couldn't."
       }),
       phase,
       responses: [
@@ -630,9 +630,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "📅",
           label: "I had to be there",
           instantRoast: tone(In, {
-            gentle: "Mandatory drama — noted.",
-            strict: "Presence isn't productivity.",
-            brutal: "You had to be there — your soul didn't get the memo."
+            gentle: "Fine — but it still ate your whole afternoon.",
+            strict: "You had to go — doesn't mean it wasn't a waste of time.",
+            brutal: "Had to be there — still didn't need to be that long."
           }),
           excuseTag: "mandatory_meeting"
         },
@@ -641,9 +641,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🔇",
           label: "I was on mute recovering",
           instantRoast: tone(In, {
-            gentle: "Mute therapy — expensive use of company time.",
-            strict: "Mute isn't healing — it's hiding.",
-            brutal: "Mute mode isn't wellness — it's avoidance with Wi‑Fi."
+            gentle: "Fair — meetings fry everyone's brain.",
+            strict: "Mute doesn't fix the fact you lost an hour.",
+            brutal: "You were on mute — still trapped in the meeting. Same prison, quieter."
           }),
           excuseTag: "mute_recovery"
         },
@@ -652,9 +652,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "😵",
           label: "Brain fried — exempt",
           instantRoast: tone(In, {
-            gentle: "Fried brain still makes choices — pick gentler ones.",
-            strict: "Fatigue isn't a hall pass for chaos snacks.",
-            brutal: "Brain fried — bold coming from someone still scrolling."
+            gentle: "Tired brain still picks what you do next — choose wisely.",
+            strict: "Tired isn't a free pass to spiral and snack.",
+            brutal: "Brain fried — then why are you still on your phone?"
           }),
           excuseTag: "brain_fried"
         }
@@ -663,12 +663,58 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
   } else if (phase === "evening") {
     pushMemoryHooks();
     orders.push({
-      id: "ev_netflix",
+      id: "ev_phone",
       timeLabel: slot(19, 0),
       text: tone(In, {
-        gentle: "You're about to promise ‘just one episode.’ Name one time that stayed honest.",
-        strict: "Evening-you loves bargaining — prove daytime-you wrong tonight.",
-        brutal: "Netflix knows your password — I know your patterns."
+        gentle: "You've been on your phone for ages. You said you'd be productive tonight — interesting.",
+        strict: "You've been staring at this screen forever. ‘Productive night’ was the plan, remember?",
+        brutal: "You've been on your phone for two hours. You said you'd be productive tonight. Interesting."
+      }),
+      phase,
+      responses: [
+        {
+          id: "productive_soon",
+          emoji: "📋",
+          label: "I'm about to start — for real",
+          instantRoast: tone(In, {
+            gentle: "I've heard that before — show me one task done.",
+            strict: "‘About to’ isn't doing — start or stop pretending.",
+            brutal: "‘About to start’ — you've been saying that since dinner."
+          }),
+          excuseTag: "productive_soon"
+        },
+        {
+          id: "needed_break",
+          emoji: "🫠",
+          label: "I needed a break first",
+          instantRoast: tone(In, {
+            gentle: "Break's been hours — that's not a break, that's the whole evening.",
+            strict: "That ‘break’ ate your whole night.",
+            brutal: "Break first — bold when the break became the whole plan."
+          }),
+          excuseTag: "needed_break"
+        },
+        {
+          id: "fine_phone",
+          emoji: "📱",
+          label: "Okay you caught me",
+          instantRoast: tone(In, {
+            gentle: "Thanks for being honest — now put it down for twenty minutes.",
+            strict: "Good — honesty counts. Now actually stop scrolling.",
+            brutal: "At least you admit it — now do something about it."
+          }),
+          excuseTag: "caught_scrolling"
+        }
+      ]
+    });
+
+    orders.push({
+      id: "ev_netflix",
+      timeLabel: slot(20, 30),
+      text: tone(In, {
+        gentle: "You're about to put Netflix on, aren't you. I already know.",
+        strict: "You're reaching for the remote. Don't act surprised I'm calling it.",
+        brutal: "You're about to put Netflix on aren't you. I already know."
       }),
       phase,
       responses: [
@@ -677,15 +723,15 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "😔",
           label: "I just need one episode",
           instantRoast: tone(In, {
-            gentle: "One episode — adorable fiction.",
-            strict: "One episode is how seasons happen.",
-            brutal: "One episode — famous opening lie of every binge."
+            gentle: "One episode — we'll see how that goes.",
+            strict: "‘One episode’ is never one episode — come on.",
+            brutal: "‘Just one’ — famous last words before four episodes."
           }),
           fireLaterInPhase: "night",
           laterRoast: tone(In, {
             gentle: "It's been three episodes. I'm not angry — I'm just disappointed.",
-            strict: "Episode three — still ‘just one’? Cute.",
-            brutal: "It's been three episodes. I'm not angry — I'm keeping receipts."
+            strict: "Three episodes in — still calling it ‘one’?",
+            brutal: "It's been three episodes. I'm not angry — I'm keeping score."
           }),
           excuseTag: "one_episode"
         },
@@ -694,15 +740,15 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🤥",
           label: "I'm definitely reading after this",
           instantRoast: tone(In, {
-            gentle: "Your bookshelf heard that — it laughed gently.",
-            strict: "Reading after TV is fairy tale scheduling.",
-            brutal: "Reading after this — the book filed for emotional damage."
+            gentle: "Your book heard that. I'll ask again later.",
+            strict: "You'll say ‘after this’ until it's 2am.",
+            brutal: "Reading after — sure. The bookmark hasn't moved in a month."
           }),
           fireLaterInPhase: "night",
           laterRoast: tone(In, {
             gentle: "You said you'd read tonight. We're checking in — how many pages?",
-            strict: "Reading night update: zero pages. Bold.",
-            brutal: "You said you'd read. The spine is still mint condition."
+            strict: "Reading check — still zero pages, isn't it.",
+            brutal: "You said you'd read. The book's still untouched."
           }),
           excuseTag: "read_later"
         },
@@ -711,9 +757,9 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "💀",
           label: "The book was boring anyway",
           instantRoast: tone(In, {
-            gentle: "Plot twist — discipline isn't supposed to entertain you.",
-            strict: "Boring book > zero pages.",
-            brutal: "Blame the book — convenient villain energy."
+            gentle: "Maybe — but you still didn't read it.",
+            strict: "Boring or not — you didn't open it.",
+            brutal: "Blaming the book — easy when you didn't try."
           }),
           excuseTag: "book_boring"
         }
@@ -722,11 +768,11 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
 
     orders.push({
       id: "ev_night_lie",
-      timeLabel: slot(20, 30),
+      timeLabel: slot(21, 0),
       text: tone(In, {
-        gentle: "You said you'd have an early night. It's now 20:30 — we both know you're negotiating.",
-        strict: "Early night promises don't survive notifications.",
-        brutal: "You said early night — your phone didn't sign that contract."
+        gentle: "You said you'd have an early night. It's 9pm. We both know how this ends.",
+        strict: "You promised an early night. Your phone doesn't believe you either.",
+        brutal: "You said you'd have an early night. It is now 9pm. We both know you won't. Disappoint me."
       }),
       phase,
       responses: [
@@ -735,20 +781,20 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🌙",
           label: "I'll actually sleep early tonight",
           instantRoast: tone(In, {
-            gentle: "I'll believe it when blue light dies.",
-            strict: "Sleep early requires phone exile.",
-            brutal: "Early sleep — prove it or stop auditioning."
+            gentle: "I'll believe it when the screen goes off.",
+            strict: "Put the phone away — then we'll talk.",
+            brutal: "Prove it — charger across the room or stop saying it."
           }),
           excuseTag: "early_sleep_promise"
         },
         {
           id: "realistic",
           emoji: "🫠",
-          label: "Let's be realistic — midnight",
+          label: "Real talk — I'll be up till midnight",
           instantRoast: tone(In, {
-            gentle: "Honesty counts — still negotiating against morning-you.",
-            strict: "Midnight isn't early — it's optimism with a clock.",
-            brutal: "Midnight early — in what timezone, chaos?"
+            gentle: "At least you're honest — midnight still isn't ‘early.’",
+            strict: "Midnight isn't early — that's just reality with extra steps.",
+            brutal: "Midnight — you're not even pretending anymore."
           }),
           excuseTag: "midnight_realism"
         },
@@ -757,22 +803,24 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "🙈",
           label: "Don't clock me",
           instantRoast: tone(In, {
-            gentle: "Too late — I've already adopted you mentally.",
-            strict: "I'm clocking — that's literally my job today.",
-            brutal: "I'm clocking you — I'm basically HR now."
+            gentle: "Too late — I'm already watching.",
+            strict: "I'm literally here to clock you — that's the whole bit.",
+            brutal: "I'm clocking you — that's why we're here."
           }),
           excuseTag: "dont_clock"
         }
       ]
     });
-
+  } else {
+    /** night — wind-down / sleep */
+    pushMemoryHooks();
     orders.push({
-      id: "ni_phone",
-      timeLabel: slot(21, 0),
+      id: "ni_bedtime",
+      timeLabel: slot(22, 0),
       text: tone(In, {
-        gentle: "You're on your phone when you said you'd sleep early. I see you.",
-        strict: "21:00 — Phone down or admit you're addicted to tiny rectangles.",
-        brutal: "21:00 — You said early night. Screen glow says otherwise."
+        gentle: "You said 10pm bedtime. It's 10pm. We both know what's happening.",
+        strict: "You promised sleep by ten. You're still on your phone — don't lie to both of us.",
+        brutal: "You said 10pm bedtime. It is 10pm. We both know what's happening."
       }),
       phase,
       responses: [
@@ -781,79 +829,77 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
           emoji: "📱",
           label: "Just winding down",
           instantRoast: tone(In, {
-            gentle: "Winding down isn't infinite reels.",
-            strict: "Winding down became winding sideways.",
-            brutal: "Winding down — cute brand for brain rot."
+            gentle: "Winding down can't last two hours — put it away.",
+            strict: "‘Winding down’ is how you end up at 2am again.",
+            brutal: "Winding down — sure — that's what everyone says before another hour of scrolling."
           }),
           excuseTag: "wind_down"
-        },
-        {
-          id: "alarm_tmr",
-          emoji: "⏰",
-          label: "I'll set a hard alarm",
-          instantRoast: tone(In, {
-            gentle: "Alarm won't fix discipline — but it's a start.",
-            strict: "Hard alarm — we'll see if you respect it.",
-            brutal: "Hard alarm — you've ignored softer ones five times today."
-          }),
-          excuseTag: "hard_alarm"
         },
         {
           id: "two_min",
           emoji: "⌛",
           label: "Two more minutes",
           instantRoast: tone(In, {
-            gentle: "Two minutes is how midnight happens.",
-            strict: "Two minutes is a gateway drug to 2am.",
-            brutal: "Two minutes — opening credits of regret."
+            gentle: "Two minutes always becomes an hour — we've done this.",
+            strict: "Two minutes is how midnight happens every time.",
+            brutal: "Two minutes — that's how you lose the whole night."
           }),
           excuseTag: "two_minutes"
+        },
+        {
+          id: "charger_far",
+          emoji: "🔌",
+          label: "Phone charging across the room — done",
+          instantRoast: tone(In, {
+            gentle: "Finally — something sensible.",
+            strict: "Good — now leave it there.",
+            brutal: "Look at you — acting like a grown-up. Rare."
+          }),
+          excuseTag: "charger_far"
         }
       ]
     });
-  } else {
-    /** night — wind-down / sleep */
-    pushMemoryHooks();
+
     orders.push({
-      id: "ni_sleep",
-      timeLabel: slot(22, 30),
+      id: "ni_awake",
+      timeLabel: slot(23, 0),
       text: tone(In, {
-        gentle: "Sleep isn't optional — it's how tomorrow-you survives your jokes tonight.",
-        strict: "Bed. Phone across the room — negotiate with morning-you tomorrow.",
-        brutal: "22:30 — Phone meets charger or we riot. Sleep isn't a suggestion."
+        gentle: "Still awake? Yeah — didn't think you'd actually go to bed.",
+        strict: "It's late. You're still up. Colour me shocked.",
+        brutal: "Still awake. Shocking. Truly shocking."
       }),
       phase,
       responses: [
         {
-          id: "charger_far",
-          emoji: "🔌",
-          label: "Charging across the room — fine",
+          id: "sleep_now",
+          emoji: "😴",
+          label: "Going to sleep right now",
           instantRoast: tone(In, {
-            gentle: "Growth looks good on you.",
-            strict: "Finally — adult behavior unlocked.",
-            brutal: "Adult mode — rare sighting. Document this."
+            gentle: "Good — close the app and mean it.",
+            strict: "Then go — stop talking to me and sleep.",
+            brutal: "Prove it — lights off. Now."
           }),
-          excuseTag: "charger_far"
+          excuseTag: "sleep_now"
         },
         {
-          id: "podcast",
-          emoji: "🎧",
-          label: "Podcast until sleep",
+          id: "cant_sleep",
+          emoji: "😵",
+          label: "Can't sleep — not my fault",
           instantRoast: tone(In, {
-            gentle: "If it's voice-not-screen, I'll allow — barely.",
-            strict: "Podcast sleep is still stimulation roulette.",
-            brutal: "Podcast sleep — you're still not resting — you're entertained unconscious."
+            gentle: "Fair — but staring at your phone doesn't help.",
+            strict: "Can't sleep with TikTok in your face — put it down.",
+            brutal: "You can't sleep — you're still blasting blue light into your brain."
           }),
-          excuseTag: "podcast_sleep"
+          excuseTag: "cant_sleep"
         },
         {
           id: "rebel",
           emoji: "😈",
-          label: "I'll risk it",
+          label: "I'll sleep when I'm tired",
           instantRoast: tone(In, {
-            gentle: "Risk acknowledged — morning-you sends regrets in advance.",
-            strict: "Risk it — enjoy explaining bags under eyes tomorrow.",
-            brutal: "Risk it — bold last words before regret gremlin hours."
+            gentle: "You'll be exhausted tomorrow — don't pretend that's a win.",
+            strict: "You're tired — you're just ignoring it for one more scroll.",
+            brutal: "You'll sleep when you're wrecked — bold strategy."
           }),
           excuseTag: "risk_sleep"
         }
@@ -886,13 +932,13 @@ export function buildMemoryLinesFromPicks(picks, phase, codename = "Your AI") {
   const hadEpisode = vals.some((d) => d?.excuseTag === "one_episode");
   const hadSnooze = vals.some((d) => d?.excuseTag === "snooze_chain" || d?.excuseTag === "five_minute_lie");
   if (hadRead && (phase === "evening" || phase === "night")) {
-    lines.push(`${codename} remembers you promised reading — we're checking in.`);
+    lines.push(`${codename} remembers you said you'd read — we're checking in.`);
   }
   if (hadEpisode && (phase === "evening" || phase === "night")) {
-    lines.push(`Earlier you promised ‘just one episode.’ Be honest — how many was it?`);
+    lines.push(`You said ‘just one episode.’ Be honest — how many was it really?`);
   }
   if (hadSnooze && phase === "midday") {
-    lines.push(`Morning-you made promises snooze-you ignored. Just checking in.`);
+    lines.push(`You hit snooze a bunch this morning. Just checking you're alive.`);
   }
   return lines.slice(0, 2);
 }
@@ -906,19 +952,19 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
   };
   const roastTier = {
     gentle: [
-      "You had potential. You chose Netflix. We move.",
-      "Soft chaos today — tomorrow can be honest.",
-      "You're trying — your excuses are trying harder."
+      "You had a good day in you. You picked the couch instead. We move on.",
+      "Chaos today — tomorrow can be cleaner if you want.",
+      "You're trying — your excuses are trying harder than you are."
     ],
     strict: [
-      "You had potential. You chose convenience. We notice.",
-      "Discipline called — you sent it to voicemail.",
-      "Growth isn't comfortable — your couch disagrees."
+      "You could've done the thing. You did the easy thing instead.",
+      "Discipline texted. You left it on read.",
+      "Growing up feels weird — your sofa doesn't care."
     ],
     brutal: [
       "You had potential. You chose Netflix. We move.",
-      "Main character energy — wrong storyline.",
-      "Resume says ambitious — browser history disagrees."
+      "Big main-character energy — wrong scene though.",
+      "Your CV says ‘motivated.’ Your evening says ‘one more episode.’"
     ]
   };
   const tier = roastTier[intensity] || roastTier.strict;
@@ -942,7 +988,7 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
       worst = {
         tag: "streaming denial",
         label: v.label || "just one episode",
-        roast: "‘Just one episode’ — three episodes later you're offended I'm counting."
+        roast: "‘Just one episode’ — then three passed and you acted shocked I noticed."
       };
       break;
     }
@@ -950,7 +996,7 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
       worst = {
         tag: "reading fantasy",
         label: v.label || "I'll read after",
-        roast: "The book is still pristine. Your integrity isn't."
+        roast: "Book's still sitting there. You knew it would be."
       };
       break;
     }
@@ -958,7 +1004,7 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
       worst = {
         tag: "snooze saga",
         label: v.label || "five more minutes",
-        roast: "Snooze button sees more action than your gym membership."
+        roast: "You and the snooze button — closer relationship than most friendships."
       };
       break;
     }
@@ -966,14 +1012,14 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
       worst = {
         tag: "scroll hole",
         label: v.label || "one more scroll",
-        roast: "Your thumb has tenure at this point."
+        roast: "Your thumb lives on that screen now."
       };
       break;
     }
     worst = {
       tag: "excuse sampler",
       label: v.label || "creative avoidance",
-      roast: "Creative excuses — zero Olympic medals."
+      roast: "Lots of excuses today — not a lot of follow-through."
     };
     break;
   }
@@ -988,8 +1034,8 @@ export function summarizeLifeDayVirality({ picks, compliancePct, intensity, code
 }
 
 export function roastFromCompliance(pct, codename) {
-  if (pct >= 90) return `${codename} is weirdly proud — don't make tomorrow weird.`;
-  if (pct >= 70) return `${codename} sees effort — could've been worse. Barely.`;
-  if (pct >= 50) return `${codename} is giving you side-eye and snack crumbs.`;
-  return `${codename} has drafted a PowerPoint about your choices.`;
+  if (pct >= 90) return `${codename} is almost proud — don't ruin it tomorrow.`;
+  if (pct >= 70) return `${codename} sees you tried — could've been worse. Barely.`;
+  if (pct >= 50) return `${codename} is watching you sideways while you snack.`;
+  return `${codename} could write a whole essay about today's choices.`;
 }
