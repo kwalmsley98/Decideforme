@@ -3785,3 +3785,120 @@ a.nearby-inline-maps:hover {
   color: #ff9a8b;
   line-height: 1.45;
 }
+
+.life-mission-worst {
+  margin: 0 0 10px;
+  line-height: 1.5;
+  color: rgba(240, 244, 255, 0.95);
+}
+
+.life-mission-ai-verdict {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-style: italic;
+  color: #c4b5ff;
+  line-height: 1.45;
+}
+
+.life-cc-order-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.life-cc-order--memory {
+  border-style: dashed;
+  border-color: rgba(200, 180, 255, 0.35);
+  background: rgba(40, 32, 60, 0.35);
+}
+
+.life-cc-memory-dot {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: center;
+  font-size: 1.25rem;
+}
+
+.life-cc-responses {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.life-cc-response-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.life-cc-response-btn {
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 200, 160, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.life-cc-response-btn:hover:not(:disabled) {
+  border-color: rgba(255, 180, 120, 0.5);
+  background: rgba(80, 40, 50, 0.4);
+}
+
+.life-cc-response-btn:disabled {
+  cursor: default;
+  opacity: 0.88;
+}
+
+.life-cc-response-btn--picked {
+  border-color: rgba(120, 255, 180, 0.45);
+  background: rgba(20, 50, 35, 0.45);
+}
+
+.life-cc-response-emoji {
+  margin-right: 2px;
+}
+
+.life-cc-community-pct {
+  font-size: 0.75rem;
+  color: rgba(200, 210, 255, 0.55);
+  padding-left: 2px;
+}
+
+.life-cc-instant-roast {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 100, 140, 0.1);
+  border-left: 3px solid rgba(255, 130, 160, 0.7);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #ffc9d8;
+}
+
+.life-cc-phase-callback {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(80, 40, 90, 0.5), rgba(20, 20, 40, 0.4));
+  border: 1px solid rgba(200, 140, 255, 0.3);
+  font-weight: 600;
+  line-height: 1.45;
+  color: #e8d4ff;
+}
+
+.life-cc-check-in {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: rgba(255, 210, 200, 0.8);
+  line-height: 1.45;
+}

@@ -37,15 +37,17 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
 import {
   buildLifeOrders,
-  computeCompliancePercent,
+  buildMemoryLinesFromPicks,
+  computeEngagementPercent,
   fetchOpenMeteoCurrent,
   formatLocalTimeShort,
   getDayPhaseForNow,
   getUserTimeZone,
   globalFeedLines,
+  pickCheckIn,
   pickCodename,
-  pickPowerTrip,
-  roastFromCompliance
+  roastFromCompliance,
+  summarizeLifeDayVirality
 } from "./lifeModeV2.js";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
@@ -1275,6 +1277,7 @@ function ChatScreen({ session }) {
   const [lifeModeWeather, setLifeModeWeather] = useState(null);
   const [lifeModePhaseTick, setLifeModePhaseTick] = useState(0);
   const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
+  const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
   const [lifeModePushbackNote, setLifeModePushbackNote] = useState("");
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
@@ -1705,6 +1708,34 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       /* ignore */
     }
 
+    let viralSummary = null;
+    try {
+      const dayKeyEnd = new Date().toISOString().slice(0, 10);
+      const cmpRaw = localStorage.getItem(`dfm_lm_cmp_${sessionRow.id}_${dayKeyEnd}`);
+      const cmpParsed = cmpRaw ? JSON.parse(cmpRaw) : null;
+      const picks =
+        cmpParsed?.responses && typeof cmpParsed.responses === "object" ? cmpParsed.responses : {};
+      let intensityVir = "strict";
+      try {
+        const rs = localStorage.getItem(LIFE_SETUP_STORAGE_KEY);
+        if (rs) {
+          const pr = JSON.parse(rs);
+          if (pr?.sessionId === sessionRow.id && pr?.setup?.intensity) intensityVir = pr.setup.intensity;
+        }
+      } catch {
+        /* ignore */
+      }
+      const csNum = complianceScore != null && Number.isFinite(complianceScore) ? complianceScore : 0;
+      viralSummary = summarizeLifeDayVirality({
+        picks,
+        compliancePct: csNum,
+        intensity: intensityVir,
+        codename
+      });
+    } catch {
+      /* ignore */
+    }
+
     try {
       localStorage.removeItem(`dfm_lm_pct_${sessionRow.id}`);
       localStorage.removeItem(`dfm_lm_emergency_${sessionRow.id}`);
@@ -1718,6 +1749,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     if (roast) {
       verdictAugmented = `${verdict} Mission compliance: ${complianceScore}%. ${roast}`;
     }
+    if (viralSummary?.verdict) {
+      verdictAugmented = `${verdictAugmented} ${viralSummary.verdict}`;
+    }
 
     const recap = {
       totalDecisions: list.length,
@@ -1727,7 +1761,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       roast,
       codename,
       emergencyOverride,
-      lifeModeStreakAfter: streakNext
+      lifeModeStreakAfter: streakNext,
+      viralSummary
     };
     await supabase.from("life_mode_sessions").update({ is_active: false, recap_json: recap }).eq("id", sessionRow.id);
     return recap;
@@ -1860,11 +1895,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         const p = JSON.parse(raw);
         if (p?.completed && typeof p.completed === "object") setLifeModeComplianceMap(p.completed);
         else setLifeModeComplianceMap({});
+        if (p?.responses && typeof p.responses === "object") setLifeModeResponsePicks(p.responses);
+        else setLifeModeResponsePicks({});
       } else {
         setLifeModeComplianceMap({});
+        setLifeModeResponsePicks({});
       }
     } catch {
       setLifeModeComplianceMap({});
+      setLifeModeResponsePicks({});
     }
   }, [lifeModeSession?.id, todayKey]);
 
@@ -1993,6 +2032,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       is_active: true
     };
     setLifeModeComplianceMap({});
+    setLifeModeResponsePicks({});
     setLifeModeEmergencyShame("");
     setLifeModePushbackNote("");
     setLifeModeSession(optimisticSession);
@@ -2116,7 +2156,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const copyLifeModeCaption = async () => {
     const recapText = lifeModeRecap
-      ? `${lifeModeCaption}\n\nCompliance: ${lifeModeRecap.complianceScore ?? "—"}%\n${lifeModeRecap.roast ? `${lifeModeRecap.roast}\n` : ""}Streak after mission: ${lifeModeRecap.lifeModeStreakAfter ?? "—"}\nDecisions logged: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
+      ? `${lifeModeCaption}\n\nCompliance: ${lifeModeRecap.complianceScore ?? "—"}%\nWorst excuse: ${lifeModeRecap.viralSummary?.worstExcuse?.label ?? "—"}\n${lifeModeRecap.roast ? `${lifeModeRecap.roast}\n` : ""}${lifeModeRecap.viralSummary?.shareCaption ? `${lifeModeRecap.viralSummary.shareCaption}\n` : ""}Streak after mission: ${lifeModeRecap.lifeModeStreakAfter ?? "—"}\nDecisions logged: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
       : lifeModeCaption;
     await copyText(recapText);
     setCopiedLifeCaption(true);
@@ -2525,6 +2565,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     [lifeModePhaseTick, userTimeZone]
   );
 
+  const lifeMemoryLines = useMemo(
+    () => buildMemoryLinesFromPicks(lifeModeResponsePicks, lifePhaseNow, effectiveLifeSetup.codename),
+    [lifeModeResponsePicks, lifePhaseNow, effectiveLifeSetup.codename]
+  );
+
   const lifeOrders = useMemo(
     () =>
       buildLifeOrders({
@@ -2532,14 +2577,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         phase: lifePhaseNow,
         weather: lifeModeWeather,
         rankName: decisionRank.name,
-        operatorName: chatOperatorName
+        operatorName: chatOperatorName,
+        memoryLines: lifeMemoryLines
       }),
-    [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow]
+    [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow, lifeMemoryLines]
   );
 
   const lifeCompliancePct = useMemo(
-    () => computeCompliancePercent(lifeModeComplianceMap, lifeOrders),
-    [lifeModeComplianceMap, lifeOrders]
+    () => computeEngagementPercent(lifeModeComplianceMap, lifeModeResponsePicks, lifeOrders),
+    [lifeModeComplianceMap, lifeModeResponsePicks, lifeOrders]
   );
 
   const lifeModeStreakDays = useMemo(() => {
@@ -2552,19 +2598,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   useEffect(() => {
     if (!lifeModeSession?.id || !lifeOrders.length) return;
-    const pct = computeCompliancePercent(lifeModeComplianceMap, lifeOrders);
+    const pct = computeEngagementPercent(lifeModeComplianceMap, lifeModeResponsePicks, lifeOrders);
     try {
       localStorage.setItem(`dfm_lm_pct_${lifeModeSession.id}`, String(pct));
     } catch {
       /* ignore */
     }
-  }, [lifeModeComplianceMap, lifeOrders, lifeModeSession?.id]);
+  }, [lifeModeComplianceMap, lifeModeResponsePicks, lifeOrders, lifeModeSession?.id]);
 
-  const persistLifeComplianceToDay = (nextMap) => {
+  const persistLifeEngagementToDay = (nextCompleted, nextResponses) => {
     if (!lifeModeSession?.id) return;
     const key = `dfm_lm_cmp_${lifeModeSession.id}_${todayKey}`;
     try {
-      localStorage.setItem(key, JSON.stringify({ completed: nextMap }));
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          completed: nextCompleted,
+          responses: nextResponses
+        })
+      );
     } catch {
       /* ignore */
     }
@@ -2573,7 +2625,26 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   const toggleLifeCompliance = (orderId) => {
     setLifeModeComplianceMap((prev) => {
       const next = { ...prev, [orderId]: !prev[orderId] };
-      persistLifeComplianceToDay(next);
+      persistLifeEngagementToDay(next, lifeModeResponsePicks);
+      return next;
+    });
+  };
+
+  const pickLifeModeResponse = (order, response) => {
+    if (!order?.id || !response) return;
+    setLifeModeResponsePicks((prev) => {
+      const next = {
+        ...prev,
+        [order.id]: {
+          responseId: response.id,
+          label: response.label,
+          excuseTag: response.excuseTag,
+          instantRoast: response.instantRoast,
+          laterRoast: response.laterRoast,
+          fireLaterInPhase: response.fireLaterInPhase
+        }
+      };
+      persistLifeEngagementToDay(lifeModeComplianceMap, next);
       return next;
     });
   };
@@ -2587,7 +2658,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       /* ignore */
     }
     setLifeModeComplianceMap({});
-    persistLifeComplianceToDay({});
+    setLifeModeResponsePicks({});
+    persistLifeEngagementToDay({}, {});
     setLifeModeEmergencyShame("Weakness detected 😤");
   };
 
@@ -2753,12 +2825,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   if (lifeModeSession) {
     const nowTimeLabel = formatLocalTimeShort(new Date(), userTimeZone);
     const displayRank =
-      lifeCompliancePct < 50 && lifeOrders.length > 0 ? "Private — FIELD DEMOTION" : decisionRank.name;
-    const powerTrip = pickPowerTrip(lifeModePhaseTick);
+      lifeCompliancePct < 50 && lifeOrders.length > 0 ? "on thin ice today" : decisionRank.name;
+    const checkInLine = pickCheckIn(lifeModePhaseTick);
     const feedLines = globalFeedLines();
     const feedLine = feedLines[lifeModeFeedRotate % feedLines.length];
     const nightMode = lifePhaseNow === "night";
-    const missionShareLine = `Day under AI control · Compliance: ${lifeCompliancePct}% · ${effectiveLifeSetup.codename} · decideforme.org`;
+    const viralShare = summarizeLifeDayVirality({
+      picks: lifeModeResponsePicks,
+      compliancePct: lifeCompliancePct,
+      intensity: effectiveLifeSetup.intensity,
+      codename: effectiveLifeSetup.codename
+    });
+    const missionShareLine = viralShare.shareCaption;
+    let phaseCallbackRoast = null;
+    for (const v of Object.values(lifeModeResponsePicks)) {
+      if (v?.fireLaterInPhase === lifePhaseNow && v?.laterRoast) {
+        phaseCallbackRoast = v.laterRoast;
+        break;
+      }
+    }
 
     const copyMissionShare = async () => {
       await copyText(missionShareLine);
@@ -2827,25 +2912,31 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             </span>
           </div>
           <p className="life-cc-open-line">
-            It&apos;s {nowTimeLabel}. Here are your orders, {displayRank}:
+            It&apos;s {nowTimeLabel}. I know you better than you know yourself today — hi, {chatOperatorName}. Rank vibe:{" "}
+            {displayRank}.
           </p>
           {renderChatRankStrip(true)}
           <p className="life-mode-timer">{lifeModeCountdownLabel || lifeModeCountdown(lifeModeSession.ends_at)}</p>
-          <p className="meta">Time remaining in theatre</p>
+          <p className="meta">Time left on my shift as your chaos supervisor</p>
           <div className="life-cc-badges">
             <span className="life-cc-streak-badge">
               <Flame size={14} /> Life streak · {lifeModeStreakDays} days
             </span>
-            <span className="life-cc-xp-hint">Accelerated rank progression while deployed</span>
+            <span className="life-cc-xp-hint">Honesty streak builds faster in Life Mode</span>
           </div>
         </header>
 
         {lifeModeEmergencyShame ? <p className="life-cc-shame">{lifeModeEmergencyShame}</p> : null}
         {lifeModePushbackNote ? <p className="life-cc-pushback">{lifeModePushbackNote}</p> : null}
+        {phaseCallbackRoast ? (
+          <p className="life-cc-phase-callback" role="status">
+            {phaseCallbackRoast}
+          </p>
+        ) : null}
 
         <div className="life-cc-compliance">
           <div className="life-cc-compliance-head">
-            <span>Compliance</span>
+            <span>Honesty / compliance</span>
             <span className="life-cc-compliance-pct">{lifeCompliancePct}%</span>
           </div>
           <div className="life-cc-progress-track" role="progressbar" aria-valuenow={lifeCompliancePct} aria-valuemin={0} aria-valuemax={100}>
@@ -2861,29 +2952,63 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </p>
         ) : null}
 
-        <ul className="life-cc-orders" aria-label="Today's orders">
+        <ul className="life-cc-orders" aria-label="Today's real-talk checks">
           {lifeOrders.map((order) => (
-            <li key={order.id} className="life-cc-order">
-              <button
-                type="button"
-                className={
-                  "life-cc-check" + (lifeModeComplianceMap[order.id] ? " life-cc-check--done" : "")
-                }
-                aria-pressed={Boolean(lifeModeComplianceMap[order.id])}
-                onClick={() => toggleLifeCompliance(order.id)}
-                aria-label={lifeModeComplianceMap[order.id] ? "Mark incomplete" : "Log compliance"}
-              >
-                ✓
-              </button>
-              <div>
+            <li key={order.id} className={"life-cc-order" + (order.isMemoryHook ? " life-cc-order--memory" : "")}>
+              {!order.isMemoryHook ? (
+                <button
+                  type="button"
+                  className={
+                    "life-cc-check" + (lifeModeComplianceMap[order.id] ? " life-cc-check--done" : "")
+                  }
+                  aria-pressed={Boolean(lifeModeComplianceMap[order.id])}
+                  onClick={() => toggleLifeCompliance(order.id)}
+                  aria-label={lifeModeComplianceMap[order.id] ? "Mark incomplete" : "Done — I actually did it"}
+                >
+                  ✓
+                </button>
+              ) : (
+                <span className="life-cc-memory-dot" aria-hidden="true">
+                  💬
+                </span>
+              )}
+              <div className="life-cc-order-body">
                 <p className="life-cc-time">{order.timeLabel}</p>
                 <p className="life-cc-text">{order.text}</p>
+                {!order.isMemoryHook && order.responses?.length ? (
+                  <div className="life-cc-responses" role="group" aria-label="Too-honest replies">
+                    {order.responses.map((r) => (
+                      <div key={r.id} className="life-cc-response-row">
+                        <button
+                          type="button"
+                          className={
+                            "life-cc-response-btn" +
+                            (lifeModeResponsePicks[order.id]?.responseId === r.id ? " life-cc-response-btn--picked" : "")
+                          }
+                          disabled={Boolean(lifeModeResponsePicks[order.id])}
+                          onClick={() => pickLifeModeResponse(order, r)}
+                        >
+                          <span className="life-cc-response-emoji" aria-hidden="true">
+                            {r.emoji}{" "}
+                          </span>
+                          {r.label}
+                        </button>
+                        <span className="life-cc-community-pct">
+                          ~{r.communityPct}% picked this vibe (live demo mix)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {lifeModeResponsePicks[order.id]?.instantRoast ? (
+                  <p className="life-cc-instant-roast">{lifeModeResponsePicks[order.id].instantRoast}</p>
+                ) : null}
               </div>
             </li>
           ))}
         </ul>
 
-        <p className="life-cc-power-trip">{powerTrip}</p>
+        <p className="life-cc-check-in">{checkInLine}</p>
 
         <div className="life-cc-actions">
           <button type="button" className="ghost-btn life-cc-action-btn" onClick={speakLifeOrders}>
@@ -2895,7 +3020,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <button
             type="button"
             className="ghost-btn life-cc-action-btn"
-            onClick={() => setLifeModePushbackNote("You gave me control. Trust the process.")}
+            onClick={() =>
+              setLifeModePushbackNote("You literally handed me the aux cord to your life. Let me cook.")
+            }
           >
             Dispute
           </button>
@@ -2963,14 +3090,23 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       </div>
       {!lifeModeSession && lifeModeRecap ? (
         <article className="life-mission-report-card">
-          <p className="hero-kicker">Mission report</p>
+          <p className="hero-kicker">Mission report · shareable roast</p>
           <h2 className="life-mission-compliance">
-            Compliance {lifeModeRecap.complianceScore != null ? `${lifeModeRecap.complianceScore}%` : "—"}
+            Honesty score {lifeModeRecap.complianceScore != null ? `${lifeModeRecap.complianceScore}%` : "—"}
           </h2>
+          {lifeModeRecap.viralSummary?.worstExcuse ? (
+            <p className="life-mission-worst">
+              Worst excuse of the day: <strong>{lifeModeRecap.viralSummary.worstExcuse.label}</strong> —{" "}
+              {lifeModeRecap.viralSummary.worstExcuse.roast}
+            </p>
+          ) : null}
+          {lifeModeRecap.viralSummary?.verdict ? (
+            <p className="life-mission-ai-verdict">&ldquo;{lifeModeRecap.viralSummary.verdict}&rdquo;</p>
+          ) : null}
           {lifeModeRecap.roast ? <p className="life-mission-roast">{lifeModeRecap.roast}</p> : null}
           <p className="meta">{lifeModeRecap.verdict}</p>
           <button type="button" className="ghost-btn" onClick={() => void copyLifeModeCaption()}>
-            {copiedLifeCaption ? "Copied summary" : "Copy shareable summary"}
+            {copiedLifeCaption ? "Copied summary" : "Copy TikTok / IG story caption"}
           </button>
         </article>
       ) : null}
