@@ -3516,10 +3516,6 @@ a.nearby-inline-maps:hover {
   color: rgba(240, 230, 255, 0.92);
 }
 
-.life-cc-weather {
-  margin-top: 10px;
-}
-
 .life-cc-ai-loading {
   margin: 14px 0 0;
   font-style: italic;
@@ -3560,26 +3556,6 @@ a.nearby-inline-maps:hover {
 
 .life-cc-order--single {
   margin-top: 12px;
-}
-
-.life-cc-check {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 1.1rem;
-  font-weight: 800;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.life-cc-check--done {
-  background: rgba(40, 120, 70, 0.55);
-  border-color: rgba(120, 255, 160, 0.55);
-  color: #b8ffc9;
 }
 
 .life-cc-time {

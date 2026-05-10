@@ -901,7 +901,13 @@ function normalizeLifeCommandsPayload(parsed, phaseHint) {
   return out;
 }
 
-app.post("/api/life-mode-commands", async (req, res) => {
+/**
+ * POST /api/life-mode-commands (canonical) and POST /api/life-mode-orders (alias).
+ * Generates personalised Life Mode orders via Anthropic; client falls back to static library on non-200 or empty commands.
+ */
+async function handleLifeModeCommandsPost(req, res) {
+  const routePath = req.path || req.url?.split("?")[0] || "/api/life-mode-commands";
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "(no Origin)";
   const body = req.body ?? {};
   const userName = String(body.userName ?? "Operator").trim().slice(0, 80);
   const rankName = String(body.rankName ?? "Recruit").trim().slice(0, 80);
@@ -924,6 +930,17 @@ app.post("/api/life-mode-commands", async (req, res) => {
           isRainy: Boolean(body.weather.isRainy)
         }
       : null;
+
+  console.log("[life-mode-commands] request", {
+    path: routePath,
+    origin,
+    phase,
+    timeZone,
+    localTime,
+    userName: userName.slice(0, 24),
+    intensity: intensitySafe,
+    anthropicConfigured: Boolean(config.anthropicApiKey)
+  });
 
   const intensityGuide = {
     gentle: "Warm but knowing — like a wise friend who teases you lovingly. Never cruel.",
@@ -975,6 +992,8 @@ Return ONLY valid JSON with this shape (no markdown fences, no commentary):
 {"commands":[{"id":"...","timeLabel":"HHMM","text":"...","responses":[{"id":"...","emoji":"...","label":"...","instantRoast":"..."}]}]}`;
 
   try {
+    const t0 = Date.now();
+    console.log("[life-mode-commands] calling Anthropic", { model: "claude-sonnet-4-5", path: routePath });
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 4200,
@@ -982,25 +1001,56 @@ Return ONLY valid JSON with this shape (no markdown fences, no commentary):
       system: `You write Life Mode push notifications for an app. Output ONLY compact JSON. No markdown. No prose before or after.`,
       messages: [{ role: "user", content: userBlock }]
     });
+    const elapsedMs = Date.now() - t0;
     const text = message.content?.find((p) => p.type === "text")?.text?.trim() || "";
+    console.log("[life-mode-commands] Anthropic response", {
+      ms: elapsedMs,
+      textChars: text.length,
+      stopReason: message.stop_reason ?? null,
+      usage: message.usage
+        ? {
+            input_tokens: message.usage.input_tokens,
+            output_tokens: message.usage.output_tokens
+          }
+        : null
+    });
     let parsed;
     try {
       parsed = extractJsonObjectFromClaudeText(text);
     } catch (e) {
-      console.error("[life-mode-commands] JSON parse:", e, text?.slice(0, 500));
+      console.error("[life-mode-commands] JSON parse failed:", e?.message || e, "snippet:", text?.slice(0, 500));
       return res.status(502).json({ error: "Invalid AI response shape.", commands: [] });
     }
+    const rawCmdCount = Array.isArray(parsed?.commands) ? parsed.commands.length : 0;
     const commands = normalizeLifeCommandsPayload(parsed, phase);
+    console.log("[life-mode-commands] normalize", {
+      rawCommands: rawCmdCount,
+      acceptedCommands: commands.length,
+      phase
+    });
     if (!commands.length) {
+      console.warn(
+        "[life-mode-commands] no commands after sanitize (need 3–4 responses per command with label+instantRoast). Raw snippet:",
+        text.slice(0, 400)
+      );
       return res.status(502).json({ error: "No valid commands after normalization.", commands: [] });
     }
+    console.log("[life-mode-commands] ok", { returning: commands.length, ids: commands.map((c) => c.id) });
     return res.json({ commands });
   } catch (error) {
-    console.error("[life-mode-commands]", error);
+    console.error("[life-mode-commands] Anthropic or handler error:", {
+      message: error?.message,
+      status: error?.status,
+      statusCode: error?.statusCode,
+      type: error?.constructor?.name
+    });
     const status = error.statusCode === 400 ? 400 : 500;
     return res.status(status).json({ error: error.message || "Life Mode command generation failed.", commands: [] });
   }
-});
+}
+
+app.post("/api/life-mode-commands", handleLifeModeCommandsPost);
+app.post("/api/life-mode-orders", handleLifeModeCommandsPost);
 
 app.post("/api/extract-preferences", async (req, res) => {
   const { conversation = [], answer = "" } = req.body ?? {};
@@ -1139,6 +1189,9 @@ app.post("/api/ref/track-click", async (req, res) => {
 });
 
 app.listen(PORT, () => {
+  console.log(
+    "[life-mode-commands] mounted: POST /api/life-mode-commands (canonical), POST /api/life-mode-orders (alias)"
+  );
   console.log(
     `Anthropic key loaded from ${config.anthropicKeySource} (length: ${config.anthropicApiKey.length}).`
   );

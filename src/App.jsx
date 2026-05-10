@@ -2690,14 +2690,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
   };
 
-  const toggleLifeCompliance = (orderId) => {
-    setLifeModeComplianceMap((prev) => {
-      const next = { ...prev, [orderId]: !prev[orderId] };
-      persistLifeEngagementToDay(next, lifeModeResponsePicks);
-      return next;
-    });
-  };
-
   const pickLifeModeResponse = (order, response) => {
     if (!order?.id || !response) return;
     setLifeModeResponsePicks((prev) => {
@@ -2985,13 +2977,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </div>
         </div>
 
-        {lifeModeWeather ? (
-          <p className="life-cc-weather meta">
-            {typeof lifeModeWeather.tempC === "number" ? `${Math.round(lifeModeWeather.tempC)}°C · ` : ""}
-            {lifeModeWeather.isRainy ? "Rain" : "Dry"}
-          </p>
-        ) : null}
-
         {lifeAiCommands === undefined ? (
           <p className="meta life-cc-ai-loading" role="status">
             Cooking up personalised orders…
@@ -3008,17 +2993,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 key={order.id}
                 className={"life-cc-order" + (order.isFallback ? " life-cc-order--fallback" : "")}
               >
-                <button
-                  type="button"
-                  className={
-                    "life-cc-check" + (lifeModeComplianceMap[order.id] ? " life-cc-check--done" : "")
-                  }
-                  aria-pressed={Boolean(lifeModeComplianceMap[order.id])}
-                  onClick={() => toggleLifeCompliance(order.id)}
-                  aria-label={lifeModeComplianceMap[order.id] ? "Mark incomplete" : "Done — I actually did it"}
-                >
-                  ✓
-                </button>
                 <div className="life-cc-order-body">
                   <p className="life-cc-time">{formatOrderTimeLabel(order.timeLabel)}</p>
                   <p className="life-cc-text">{order.text}</p>
