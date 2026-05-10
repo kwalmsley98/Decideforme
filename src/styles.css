@@ -1691,28 +1691,221 @@ a.nearby-inline-maps:hover {
   transform: translateY(0);
 }
 
+/* Compact share widget: ~320×480 preview + outlined download + icon row */
+.share-widget {
+  box-sizing: border-box;
+  max-width: 336px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 12px;
+  margin-bottom: 10px;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  background: rgba(6, 8, 14, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.share-widget .hero-kicker {
+  margin-bottom: 4px;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+}
+
+.share-widget .life-cc-share-intro {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.share-widget .life-cc-share-preview-shell {
+  margin-bottom: 8px;
+}
+
+.share-widget .life-mode-share-export-body {
+  padding: 14px 12px 11px;
+}
+
+.share-widget .life-mode-share-export-head {
+  margin-bottom: 6px;
+}
+
+.share-widget .life-mode-share-export-brand {
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+}
+
+.share-widget .life-mode-share-export-mode {
+  margin-top: 4px;
+  font-size: 0.68rem;
+}
+
+.share-widget .life-mode-share-export-identity {
+  margin-bottom: 8px;
+}
+
+.share-widget .life-mode-share-export-codename {
+  margin-bottom: 6px;
+  font-size: 1.28rem;
+}
+
+.share-widget .life-mode-share-export-rank {
+  padding: 6px 10px 6px 8px;
+  font-size: 0.7rem;
+  gap: 6px;
+}
+
+.share-widget .life-mode-share-export-rank-emoji {
+  font-size: 1.05rem;
+}
+
+.share-widget .life-mode-share-export-rank-label {
+  font-size: 0.65rem;
+}
+
+.share-widget .life-mode-share-export-block {
+  margin-bottom: 8px;
+  padding-top: 8px;
+}
+
+.share-widget .life-mode-share-export-block--command {
+  margin-bottom: 8px;
+}
+
+.share-widget .life-mode-share-export-kicker {
+  margin-bottom: 4px;
+  font-size: 0.52rem;
+}
+
+.share-widget .life-mode-share-export-command {
+  font-size: 0.76rem;
+  -webkit-line-clamp: 6;
+}
+
+.share-widget .life-mode-share-export-excuse {
+  margin-top: 6px;
+  font-size: 0.68rem;
+}
+
+.share-widget .life-mode-share-export-verdict {
+  font-size: 0.78rem;
+}
+
+.share-widget .life-mode-share-export-roast {
+  margin-top: 6px;
+  font-size: 0.68rem;
+}
+
+.share-widget .life-mode-share-export-compliance-row {
+  gap: 8px;
+}
+
+.share-widget .life-mode-share-export-pct {
+  font-size: 1.15rem;
+}
+
+.share-widget .life-mode-share-export-status {
+  font-size: 0.72rem;
+}
+
+.share-widget .life-mode-share-export-url {
+  font-size: 0.62rem;
+}
+
+.share-widget .stats-wrapped-export-rank-title {
+  margin-bottom: 6px;
+  font-size: 1.12rem;
+}
+
+.share-widget .daily-share-export-question {
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+
+.share-widget .daily-share-split-line {
+  font-size: 0.7rem;
+}
+
+.share-widget .life-mission-export-hero-pct {
+  font-size: 1.45rem;
+}
+
+.share-widget .chat-share-export-text {
+  font-size: 0.74rem;
+}
+
+.share-widget .chat-share-export-msg {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+}
+
 .share-image-toolbar {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   width: 100%;
+  max-width: 320px;
 }
 
 .share-image-toolbar .share-icon-row {
   margin: 0;
+  gap: 8px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .share-image-download-btn {
-  width: 100%;
+  width: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: transparent !important;
+  color: rgba(235, 240, 255, 0.96) !important;
+  box-shadow: none;
+}
+
+.share-image-download-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.share-image-toolbar .share-icon-btn {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+}
+
+.share-image-toolbar .share-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.share-image-toolbar .share-native-btn {
+  width: auto;
+  max-width: min(320px, 100%);
+  align-self: flex-start;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.share-image-copy-caption {
+  padding: 6px 12px !important;
+  font-size: 0.78rem !important;
+  width: auto !important;
 }
 
 .share-image-toolbar .share-native-btn:disabled,
 .share-image-toolbar .share-icon-btn:disabled,
 .share-image-download-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
 }
@@ -1730,7 +1923,7 @@ a.nearby-inline-maps:hover {
 }
 
 .chat-share-pack {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .chat-share-pack-kicker {
@@ -1785,7 +1978,7 @@ a.nearby-inline-maps:hover {
 }
 
 .stats-wrapped-share-section {
-  margin-top: 22px;
+  margin-top: 14px;
 }
 
 .stats-wrapped-export-rank-title {
@@ -1805,11 +1998,11 @@ a.nearby-inline-maps:hover {
 }
 
 .leaderboard-share-pack {
-  margin-top: 22px;
+  margin-top: 14px;
 }
 
 .daily-dilemma-share-pack {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .daily-dilemma-share-kicker {
@@ -2436,6 +2629,14 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+.dp-share-section.share-widget {
+  margin-top: 12px;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 348px;
+  padding: 14px 14px 16px;
+}
+
 .dp-share-blurb {
   margin: 0 0 16px;
 }
@@ -2447,6 +2648,18 @@ a.nearby-inline-maps:hover {
   align-items: start;
 }
 
+.dp-share-layout.dp-share-widget-stack {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  justify-items: center;
+  width: 100%;
+}
+
+.dp-share-layout.dp-share-widget-stack .dp-share-preview {
+  width: 100%;
+  max-width: 320px;
+}
+
 .dp-share-preview {
   display: flex;
   justify-content: center;
@@ -2456,11 +2669,11 @@ a.nearby-inline-maps:hover {
   position: relative;
   width: 100%;
   max-width: 320px;
-  aspect-ratio: 4 / 5;
-  border-radius: 22px;
+  aspect-ratio: 2 / 3;
+  border-radius: 18px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.42);
 }
 
 .dp-share-card-bg {
@@ -2515,6 +2728,29 @@ a.nearby-inline-maps:hover {
   flex-direction: column;
   justify-content: center;
   text-align: center;
+}
+
+.dp-share-section.share-widget .dp-share-card-inner {
+  padding: 16px 14px 14px;
+}
+
+.dp-share-section.share-widget .dp-share-emoji {
+  font-size: 2.5rem;
+}
+
+.dp-share-section.share-widget .dp-share-card-title {
+  font-size: 1.12rem;
+  margin-bottom: 8px;
+}
+
+.dp-share-section.share-widget .dp-share-card-line {
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+}
+
+.dp-share-section.share-widget .dp-share-chip {
+  font-size: 0.68rem;
+  padding: 5px 10px;
 }
 
 .dp-share-brand {
@@ -4801,6 +5037,14 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Single compact panel when combined with .share-widget */
+.life-cc-share-card.share-widget {
+  margin-top: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
 .life-cc-share-intro {
   margin: 0 0 14px;
   font-size: 0.86rem;
@@ -4815,12 +5059,12 @@ a.nearby-inline-maps:hover {
 .life-mode-share-export-card {
   position: relative;
   width: 100%;
-  max-width: 340px;
-  aspect-ratio: 9 / 16;
-  border-radius: 22px;
+  max-width: 320px;
+  aspect-ratio: 2 / 3;
+  border-radius: 18px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -5067,7 +5311,7 @@ a.nearby-inline-maps:hover {
 
 @media (max-width: 480px) {
   .life-mode-share-export-card {
-    max-width: 100%;
+    max-width: min(320px, 100%);
   }
 }
 

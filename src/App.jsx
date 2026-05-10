@@ -1103,8 +1103,8 @@ function ShareImageToolbar({
 
   return (
     <div className={`share-image-toolbar ${className}`.trim()}>
-      <button type="button" className="primary-btn share-image-download-btn" disabled={busy} onClick={() => void downloadImage()}>
-        <Download size={18} strokeWidth={2} aria-hidden="true" />
+      <button type="button" className="ghost-btn share-image-download-btn" disabled={busy} onClick={() => void downloadImage()}>
+        <Download size={16} strokeWidth={2} aria-hidden="true" />
         {busy ? "Working…" : "Download image"}
       </button>
       <div className="share-icon-row" role="group" aria-label="Share image to apps">
@@ -1553,7 +1553,7 @@ function DailyDilemmaCard({ session }) {
           {loadingAi && !aiPick ? <p className="meta">AI verdict is loading...</p> : null}
           {aiPick ? <p className="daily-ai-verdict">{formatAIVerdict(aiPick)}</p> : null}
 
-          <div className="daily-dilemma-share-pack">
+          <div className="daily-dilemma-share-pack share-widget">
             <p className="hero-kicker daily-dilemma-share-kicker">Share</p>
             <div className="life-cc-share-preview-shell">
               <div
@@ -3582,9 +3582,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
-        <article className="life-cc-share-card">
+        <article className="life-cc-share-card share-widget">
           <p className="hero-kicker life-cc-kicker-quiet">Share</p>
-          <p className="meta life-cc-share-intro">Download a story-ready card for TikTok / Instagram, or copy your caption.</p>
+          <p className="meta life-cc-share-intro">Card preview · download or share.</p>
 
           <div className="life-cc-share-preview-shell">
             <div ref={lifeModeShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
@@ -3675,9 +3675,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       {!lifeModeSession && lifeModeRecap ? (
-        <article className="life-mission-share-wrap">
+        <article className="life-mission-share-wrap share-widget">
           <p className="hero-kicker">Mission report · share</p>
-          <p className="meta life-cc-share-intro">Your Life Mode debrief as a story-ready card.</p>
+          <p className="meta life-cc-share-intro">Compact card for Stories or posts.</p>
           <div className="life-cc-share-preview-shell">
             <div
               ref={lifeMissionShareCardRef}
@@ -4087,9 +4087,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       </div>
       {conversation.length ? (
-        <div className="chat-share-pack">
+        <div className="chat-share-pack share-widget">
           <p className="hero-kicker chat-share-pack-kicker">Share</p>
-          <p className="meta life-cc-share-intro">Export your latest exchange as an image for Stories or posts.</p>
+          <p className="meta life-cc-share-intro">Latest exchange as an image.</p>
           <div className="life-cc-share-preview-shell">
             <div ref={chatShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
               <div className="life-mode-share-export-bg" aria-hidden="true" />
@@ -4682,11 +4682,11 @@ function DecisionProfileScreen({ session }) {
             </article>
           </div>
 
-          <article className="dp-share-section">
+          <article className="dp-share-section share-widget">
             <p className="dp-panel-title">Share your Decision Personality card</p>
-            <p className="meta dp-share-blurb">Download a square-ish graphic for Stories or posts, or copy a caption.</p>
+            <p className="meta dp-share-blurb">Preview, download, or share — optional caption copy.</p>
 
-            <div className="dp-share-layout">
+            <div className="dp-share-layout dp-share-widget-stack">
               <div className="dp-share-preview">
                 <div
                   ref={shareCardRef}
@@ -4890,9 +4890,9 @@ function StatsScreen({ session }) {
         </article>
       ) : null}
 
-      <article className="stats-wrapped-share-section">
+      <article className="stats-wrapped-share-section share-widget">
         <p className="hero-kicker">Share your Wrapped</p>
-        <p className="meta life-cc-share-intro">Download or share your snapshot card — includes weekly insights when it&apos;s Monday recap.</p>
+        <p className="meta life-cc-share-intro">Includes weekly lines on recap Mondays.</p>
         <div className="life-cc-share-preview-shell">
           <div
             ref={statsWrappedShareRef}
@@ -5445,9 +5445,9 @@ function LeaderboardScreen({ session }) {
       </article>
 
       {session?.user?.id && myRank ? (
-        <article className="leaderboard-share-pack">
+        <article className="leaderboard-share-pack share-widget">
           <p className="hero-kicker">Share your rank</p>
-          <p className="meta life-cc-share-intro">Post your spot on the board — image includes your prestige tier.</p>
+          <p className="meta life-cc-share-intro">Prestige tier on the card.</p>
           <div className="life-cc-share-preview-shell">
             <div
               ref={leaderboardShareCardRef}
