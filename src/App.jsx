@@ -1827,6 +1827,8 @@ function ChatScreen({ session }) {
   const [lifeModeCountdownLabel, setLifeModeCountdownLabel] = useState("");
   const [lifeModeGlobalCount, setLifeModeGlobalCount] = useState(0);
   const [lifeModeRecap, setLifeModeRecap] = useState(null);
+  /** Mission share UI only after ending Life Mode in this session (timer hit zero), not from DB hydrate */
+  const [showMissionReportShare, setShowMissionReportShare] = useState(false);
   const [activatingLifeMode, setActivatingLifeMode] = useState(false);
   const [copiedLifeCaption, setCopiedLifeCaption] = useState(false);
   const [lifeModeDecisionFeed, setLifeModeDecisionFeed] = useState([]);
@@ -2406,6 +2408,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     if (persisted) {
       setLifeModeSession(persisted);
       setLifeModeRecap(null);
+      setShowMissionReportShare(false);
     }
   }, []);
 
@@ -2415,6 +2418,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       if (!persisted) {
         setLifeModeSession(null);
         setLifeModeRecap(null);
+        setShowMissionReportShare(false);
       }
       setLifeModeHydrated(true);
       return;
@@ -2434,6 +2438,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         if (activeSession) {
           setLifeModeSession(activeSession);
           setLifeModeRecap(null);
+          setShowMissionReportShare(false);
         } else {
           const persisted = loadLifeModeFromStorage();
           setLifeModeSession(persisted || null);
@@ -2444,11 +2449,8 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
             .order("started_at", { ascending: false })
             .limit(1)
             .single();
-          if (lastSession && !lastSession.is_active && lastSession.recap_json) {
-            setLifeModeRecap(lastSession.recap_json);
-          } else if (lastSession && lastSession.is_active && new Date(lastSession.ends_at).getTime() <= Date.now()) {
-            const recap = await finalizeLifeModeIfNeeded(lastSession);
-            setLifeModeRecap(recap);
+          if (lastSession && lastSession.is_active && new Date(lastSession.ends_at).getTime() <= Date.now()) {
+            await finalizeLifeModeIfNeeded(lastSession);
           }
         }
         refreshLifeModeGlobalCount();
@@ -2491,6 +2493,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         setLifeModeSession(null);
         localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
         setLifeModeRecap(recap);
+        setShowMissionReportShare(true);
         refreshLifeModeGlobalCount();
         setLifeModeCountdownLabel("00:00:00");
       } else {
@@ -2651,6 +2654,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeEmergencyShame("");
     setLifeModeSession(optimisticSession);
     setLifeModeRecap(null);
+    setShowMissionReportShare(false);
     setLifeModeWizardOpen(false);
 
     if (setupPayload && typeof setupPayload === "object") {
@@ -3836,7 +3840,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="home-brand-tagline">Stop Overthinking. Just Decide.</p>
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
-      {!lifeModeSession && lifeModeRecap ? (
+      {!lifeModeSession && lifeModeRecap && showMissionReportShare ? (
         <article className="life-mission-share-wrap">
           <CollapsibleShareImageBlock
             className="share-widget"
