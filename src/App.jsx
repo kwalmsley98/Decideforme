@@ -10,6 +10,7 @@ import {
   useParams,
   useSearchParams
 } from "react-router-dom";
+import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import {
   ArrowUp,
@@ -18,12 +19,14 @@ import {
   Clock,
   Copy,
   Compass,
+  Download,
   Flame,
   History,
   LogIn,
   MessageCircle,
   Paperclip,
   ShieldAlert,
+  Sparkles,
   Trophy,
   User,
   Users,
@@ -579,6 +582,200 @@ function inferStatTopicFromUserText(text) {
   if (/\b(watch\b|netflix|movie|film|series|stream|disney|prime video|hbo)\b/.test(t)) return "Watch";
   if (/\b(eat|food|restaurant|dinner|lunch|breakfast|takeout|cook\b|cooking|recipe|snack)\b/.test(t)) return "Food";
   return "Life & plans";
+}
+
+const DP_ANALYTICAL_RE =
+  /\b(pros?\s+and\s+cons|\bpros\b|\bcons\b|compare|comparison|weigh|trade-?offs?|analyze|research|break\s+down|on\s+one\s+hand|list\s+(of\s+)?options|evaluate|versus|\bvs\.?\b)\b/i;
+
+const DP_SOCIAL_RE =
+  /\b(we\s+should|with\s+(my\s+)?friends?|\bgroup\b|date\s+night|together|\bparty\b|partner|family)\b/i;
+
+const DP_RECONSIDER_RE =
+  /\b(actually|instead|wait|not\s+sure|maybe|change\s+my\s+mind|on\s+second\s+thought|\bhmm\b|\bidk\b)\b/i;
+
+function decisionProfileUserMessages(conv) {
+  if (!Array.isArray(conv)) return [];
+  return conv.filter((m) => m && m.role === "user");
+}
+
+function topicEmojiForDecisionProfile(topic) {
+  const map = {
+    Food: "🍕",
+    Travel: "✈️",
+    Fitness: "💪",
+    Wellness: "💆",
+    Gaming: "🎮",
+    Shopping: "🛍️",
+    Nightlife: "🍺",
+    Watch: "🎬",
+    "Life & plans": "📌",
+    General: "✨"
+  };
+  return map[topic] || "✨";
+}
+
+function formatMedianDecisionGap(ms) {
+  if (ms < 120000) return "Usually within minutes";
+  if (ms < 3600000) return `About ${Math.round(ms / 60000)} min apart`;
+  if (ms < 86400000) {
+    const h = ms / 3600000;
+    return h < 8 ? `About ${h.toFixed(1)} hours apart` : `About ${Math.round(h)} hours apart`;
+  }
+  const d = ms / 86400000;
+  if (d < 14) return `About ${d.toFixed(1)} days apart`;
+  return `About ${(d / 7).toFixed(1)} weeks apart`;
+}
+
+/** Aggregates conversation-backed signals from decision_history rows (sorted ascending by created_at inside). */
+function analyzeDecisionHistoryRows(rows) {
+  const raw = Array.isArray(rows) ? rows.filter((r) => r && r.conversation) : [];
+  const list = [...raw].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const n = list.length;
+
+  if (n === 0) {
+    return {
+      personality: {
+        emoji: "✨",
+        title: "Your Decision Personality",
+        tagline: "Make a few calls here — we’ll translate your habits into a fun profile.",
+        variant: "empty"
+      },
+      topics: [],
+      pace: {
+        label: "—",
+        detail: "After two decisions we’ll show how often you tend to come back."
+      },
+      decisiveness: {
+        score: null,
+        label: "—",
+        detail: "Your decisiveness score appears once we have enough to compare patterns."
+      },
+      avgUserTurns: 0,
+      sampleSize: 0
+    };
+  }
+
+  let analyticalHits = 0;
+  let spontaneousHits = 0;
+  let socialHits = 0;
+  let reconsiderHits = 0;
+  let totalUserTurns = 0;
+  const topicCounts = {};
+
+  for (const row of list) {
+    const conv = row.conversation;
+    const users = decisionProfileUserMessages(conv);
+    const userTurns = users.length;
+    totalUserTurns += userTurns;
+    const allUserText = users.map((u) => String(u.content || "")).join(" ");
+    const first = firstUserPromptFromConversation(conv);
+
+    if (DP_ANALYTICAL_RE.test(allUserText)) analyticalHits += 1;
+    if (DP_SOCIAL_RE.test(allUserText)) socialHits += 1;
+    if (DP_RECONSIDER_RE.test(allUserText)) reconsiderHits += 1;
+    if (userTurns === 1 && first.length <= 120 && !DP_ANALYTICAL_RE.test(first)) spontaneousHits += 1;
+
+    const topic = inferStatTopicFromUserText(first);
+    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+  }
+
+  const analyticalRatio = analyticalHits / n;
+  const spontaneousRatio = spontaneousHits / n;
+  const socialRatio = socialHits / n;
+  const reconsiderRatio = reconsiderHits / n;
+  const avgUserTurns = totalUserTurns / n;
+
+  let personality;
+  if (n >= 4 && reconsiderRatio >= 0.38) {
+    personality = {
+      emoji: "🔄",
+      title: "The pivot-friendly decider",
+      tagline: "You explore alternatives before locking in — curiosity beats stubbornness.",
+      variant: "pivot"
+    };
+  } else if (analyticalRatio >= 0.34 && avgUserTurns >= 1.45) {
+    personality = {
+      emoji: "📐",
+      title: "Analytical decider",
+      tagline: "You ask for structure — pros, lists, and tradeoffs feel like home.",
+      variant: "analytical"
+    };
+  } else if (spontaneousRatio >= 0.4 && avgUserTurns <= 1.45 && reconsiderRatio < 0.28) {
+    personality = {
+      emoji: "⚡",
+      title: "Spontaneous decider",
+      tagline: "You rarely overthink — short asks, fast verdicts, let’s roll.",
+      variant: "spontaneous"
+    };
+  } else if (socialRatio >= 0.3) {
+    personality = {
+      emoji: "🎉",
+      title: "Social strategist",
+      tagline: "People factor into your calls — dates, crews, and shared plans.",
+      variant: "social"
+    };
+  } else if (avgUserTurns >= 2.25) {
+    personality = {
+      emoji: "🌊",
+      title: "Deep diver",
+      tagline: "You like a real back-and-forth until the answer feels right.",
+      variant: "deep"
+    };
+  } else {
+    personality = {
+      emoji: "⚖️",
+      title: "Balanced decider",
+      tagline: "You mix gut checks with just enough detail — pragmatic and adaptable.",
+      variant: "balanced"
+    };
+  }
+
+  const topics = Object.entries(topicCounts)
+    .map(([topic, count]) => ({ topic, count, pct: Math.round((count / n) * 100) }))
+    .sort((a, b) => b.count - a.count);
+
+  const times = list.map((r) => new Date(r.created_at).getTime()).filter((t) => !Number.isNaN(t));
+  let pace;
+  if (times.length >= 2) {
+    const gaps = [];
+    for (let i = 1; i < times.length; i += 1) gaps.push(times[i] - times[i - 1]);
+    gaps.sort((a, b) => a - b);
+    const median = gaps[Math.floor(gaps.length / 2)];
+    pace = {
+      label: formatMedianDecisionGap(median),
+      detail: "Median time between completed decisions — your natural comeback rhythm."
+    };
+  } else {
+    pace = {
+      label: "One decision logged",
+      detail: "Stack one more decision and we’ll chart the gap between visits."
+    };
+  }
+
+  let score = 72;
+  score -= Math.min(38, Math.max(0, avgUserTurns - 1) * 15);
+  score -= Math.min(30, reconsiderRatio * 42);
+  if (spontaneousRatio >= 0.42) score += 10;
+  if (analyticalRatio >= 0.36) score -= 5;
+  score = Math.max(14, Math.min(98, Math.round(score)));
+
+  let label = "Thoughtful";
+  if (score >= 82) label = "Highly decisive";
+  else if (score >= 68) label = "Pretty decisive";
+  else if (score >= 54) label = "Balanced";
+
+  return {
+    personality,
+    topics,
+    pace,
+    decisiveness: {
+      score,
+      label,
+      detail: `~${avgUserTurns.toFixed(1)} user messages per decision on average.`
+    },
+    avgUserTurns,
+    sampleSize: n
+  };
 }
 
 function nextMidnightCountdown() {
@@ -3872,6 +4069,210 @@ function MomentumScreen({ session }) {
   );
 }
 
+function DecisionProfileScreen({ session }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+  const shareCardRef = useRef(null);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await supabase
+          .from("decision_history")
+          .select("conversation, created_at")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false })
+          .limit(250);
+        if (!cancelled) setRows(data ?? []);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  const insights = useMemo(() => analyzeDecisionHistoryRows(rows), [rows]);
+  const maxTopicCount = useMemo(
+    () => Math.max(1, ...insights.topics.map((t) => t.count)),
+    [insights.topics]
+  );
+
+  const shareCaption = useMemo(() => {
+    const top = insights.topics[0]?.topic ?? "everything";
+    return `My Decide For Me personality: ${insights.personality.title}\n${insights.personality.tagline}\nMost common lane: ${top}.`;
+  }, [insights]);
+
+  const exportCard = async () => {
+    const el = shareCardRef.current;
+    if (!el) return;
+    setExporting(true);
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#070910"
+      });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = "decide-for-me-decision-profile.png";
+      a.click();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (!session) return <Navigate to="/login" replace />;
+
+  const { personality, topics, pace, decisiveness, sampleSize } = insights;
+  const topTopic = topics[0];
+
+  return (
+    <section className="card premium decision-profile-page">
+      <header className="dp-head">
+        <h1>Decision Profile</h1>
+        <p className="muted dp-lead">
+          Your habits, favorite lanes, and a card worth posting — generated from how you actually decide.
+        </p>
+      </header>
+
+      {loading ? (
+        <p className="meta">Reading your decision DNA…</p>
+      ) : (
+        <>
+          <article className={`dp-hero dp-hero--${personality.variant}`}>
+            <span className="dp-hero-emoji" aria-hidden="true">
+              {personality.emoji}
+            </span>
+            <div className="dp-hero-text">
+              <p className="hero-kicker">
+                <Sparkles size={14} strokeWidth={2} className="dp-kicker-icon" aria-hidden="true" /> Your style
+              </p>
+              <h2 className="dp-hero-title">{personality.title}</h2>
+              <p className="dp-hero-tagline">{personality.tagline}</p>
+              <p className="meta dp-sample-note">Based on {sampleSize} saved decision{sampleSize === 1 ? "" : "s"}.</p>
+            </div>
+          </article>
+
+          <article className="dp-panel">
+            <p className="dp-panel-title">Top categories</p>
+            {topics.length === 0 ? (
+              <p className="meta">No topics yet — your first prompts will fill this chart.</p>
+            ) : (
+              <div className="dp-topic-list" role="list">
+                {topics.slice(0, 10).map((t) => (
+                  <div key={t.topic} className="dp-topic-row" role="listitem">
+                    <span className="dp-topic-label">
+                      <span className="dp-topic-emoji" aria-hidden="true">
+                        {topicEmojiForDecisionProfile(t.topic)}
+                      </span>
+                      {t.topic}
+                    </span>
+                    <div className="dp-topic-track" aria-hidden="true">
+                      <div
+                        className="dp-topic-fill"
+                        style={{ width: `${Math.max(6, (t.count / maxTopicCount) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="dp-topic-pct">
+                      {t.pct}% · {t.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <div className="dp-two-col">
+            <article className="dp-panel dp-panel--stat">
+              <p className="dp-panel-title">Your pace</p>
+              <p className="dp-stat-value">{pace.label}</p>
+              <p className="meta dp-stat-detail">{pace.detail}</p>
+            </article>
+            <article className="dp-panel dp-panel--stat">
+              <p className="dp-panel-title">Decisiveness</p>
+              {decisiveness.score != null ? (
+                <>
+                  <p className="dp-stat-value">
+                    {decisiveness.label}{" "}
+                    <span className="dp-score-pill">
+                      <strong>{decisiveness.score}</strong>/100
+                    </span>
+                  </p>
+                  <div className="dp-score-track" role="progressbar" aria-valuenow={decisiveness.score} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="dp-score-fill" style={{ width: `${decisiveness.score}%` }} />
+                  </div>
+                  <p className="meta dp-stat-detail">{decisiveness.detail}</p>
+                </>
+              ) : (
+                <p className="meta dp-stat-detail">{decisiveness.detail}</p>
+              )}
+            </article>
+          </div>
+
+          <article className="dp-share-section">
+            <p className="dp-panel-title">Share your Decision Personality card</p>
+            <p className="meta dp-share-blurb">Download a square-ish graphic for Stories or posts, or copy a caption.</p>
+
+            <div className="dp-share-layout">
+              <div className="dp-share-preview">
+                <div
+                  ref={shareCardRef}
+                  className={`dp-share-card dp-share-card--${personality.variant}`}
+                >
+                  <div className="dp-share-card-bg" aria-hidden="true" />
+                  <div className="dp-share-card-inner">
+                    <p className="dp-share-brand">Decide For Me</p>
+                    <p className="dp-share-emoji">{personality.emoji}</p>
+                    <h3 className="dp-share-card-title">{personality.title}</h3>
+                    <p className="dp-share-card-line">{personality.tagline}</p>
+                    <div className="dp-share-meta-row">
+                      {topTopic ? (
+                        <span className="dp-share-chip">
+                          {topicEmojiForDecisionProfile(topTopic.topic)} {topTopic.topic} · {topTopic.pct}%
+                        </span>
+                      ) : (
+                        <span className="dp-share-chip">Ready to decide</span>
+                      )}
+                      {decisiveness.score != null ? (
+                        <span className="dp-share-chip">{decisiveness.label}</span>
+                      ) : null}
+                    </div>
+                    <p className="dp-share-foot">{sampleSize} decision{sampleSize === 1 ? "" : "s"} in this profile</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="dp-share-actions">
+                <button type="button" className="primary-btn dp-share-btn" disabled={exporting} onClick={exportCard}>
+                  <Download size={18} strokeWidth={2} aria-hidden="true" />
+                  {exporting ? "Preparing…" : "Download PNG"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn dp-share-btn"
+                  onClick={() => copyText(shareCaption)}
+                >
+                  <Copy size={18} strokeWidth={2} aria-hidden="true" />
+                  Copy caption
+                </button>
+              </div>
+            </div>
+          </article>
+        </>
+      )}
+    </section>
+  );
+}
+
 function HistoryScreen({ session }) {
   const [history, setHistory] = useState([]);
 
@@ -4070,12 +4471,12 @@ function ExploreScreen({ session }) {
               <span className="explore-tile-title">Momentum</span>
               <span className="explore-tile-desc">Streaks, weekly rhythm &amp; rank progress</span>
             </Link>
-            <Link to="/profile" className="explore-tile">
+            <Link to="/decision-profile" className="explore-tile">
               <span className="explore-tile-icon" aria-hidden="true">
                 <User size={22} strokeWidth={1.75} />
               </span>
               <span className="explore-tile-title">Decision Profile</span>
-              <span className="explore-tile-desc">Your style and behavior patterns</span>
+              <span className="explore-tile-desc">Personality, categories &amp; share card</span>
             </Link>
             <Link to="/profile" className="explore-tile">
               <span className="explore-tile-icon" aria-hidden="true">
@@ -5564,6 +5965,14 @@ export default function App() {
             element={
               <ProtectedRoute session={session}>
                 <MomentumScreen session={session} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/decision-profile"
+            element={
+              <ProtectedRoute session={session}>
+                <DecisionProfileScreen session={session} />
               </ProtectedRoute>
             }
           />
