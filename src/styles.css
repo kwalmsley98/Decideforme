@@ -5848,3 +5848,132 @@ a.nearby-inline-maps:hover {
   word-break: break-all;
   color: rgba(200, 210, 245, 0.92);
 }
+
+/* ----- Site footer (legal links) ----- */
+.site-footer {
+  padding: 14px 20px 20px;
+  text-align: center;
+}
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(180, 195, 235, 0.85);
+}
+
+.site-footer-nav a {
+  color: rgba(200, 210, 250, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.site-footer-nav a:hover {
+  color: #f5e642;
+}
+
+.site-footer-sep {
+  opacity: 0.45;
+  user-select: none;
+}
+
+.profile-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin: 12px 0 20px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.profile-legal-links a {
+  color: rgba(180, 195, 235, 0.92);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.profile-legal-links a:hover {
+  color: #f5e642;
+}
+
+/* ----- Legal document pages ----- */
+.legal-doc {
+  max-width: 720px;
+  margin: 0 auto 32px;
+}
+
+.legal-doc-header {
+  margin-bottom: 20px;
+}
+
+.legal-doc-title {
+  margin: 0 0 8px;
+  font-size: 1.65rem;
+  line-height: 1.25;
+}
+
+.legal-doc-updated {
+  margin: 0;
+}
+
+.legal-doc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.legal-section h2 {
+  margin: 0 0 10px;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #f5e642;
+}
+
+.legal-section p,
+.legal-section li {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(220, 228, 250, 0.92);
+}
+
+.legal-section ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.legal-section a {
+  color: #8eb8ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-doc-footer {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.legal-doc-crossnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.legal-doc-crossnav a {
+  color: rgba(200, 210, 250, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.upgrade-limit-copy {
+  margin-bottom: 12px;
+  line-height: 1.5;
+}

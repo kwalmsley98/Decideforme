@@ -13,6 +13,8 @@ import {
 import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import { DocumentMeta, applyPageMeta, SITE_CANONICAL } from "./seoMeta.jsx";
+import { TermsOfServicePage, PrivacyPolicyPage, CookiePolicyPage } from "./LegalPages.jsx";
+import { DAILY_FREE_DECISION_LIMIT } from "./constants/freeTier.js";
 import {
   ArrowUp,
   BadgePercent,
@@ -1343,6 +1345,19 @@ function Layout({ session, onSignOut, children }) {
         </nav>
       </header>
       <main className="content">{children}</main>
+      <footer className="site-footer" role="contentinfo">
+        <nav className="site-footer-nav" aria-label="Legal and policies">
+          <Link to="/terms">Terms of Service</Link>
+          <span className="site-footer-sep" aria-hidden="true">
+            ·
+          </span>
+          <Link to="/privacy">Privacy Policy</Link>
+          <span className="site-footer-sep" aria-hidden="true">
+            ·
+          </span>
+          <Link to="/cookies">Cookie Policy</Link>
+        </nav>
+      </footer>
       <nav
         className="mobile-tabbar"
         aria-label="Primary tabs"
@@ -1992,8 +2007,8 @@ function DailyDilemmaCard({ session }) {
 
 function ChatScreen({ session }) {
   const { currency, formatMonth, formatYear } = useCommerceCurrency();
-  const DAILY_FREE_LIMIT = 100;
-  const GUEST_DAILY_FREE_LIMIT = 100;
+  const DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
+  const GUEST_DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const LIFE_SETUP_STORAGE_KEY = "dfm_lm_setup_v2";
   const LIFE_STREAK_STORAGE_KEY = "dfm_lm_consecutive_days";
@@ -2087,6 +2102,7 @@ function ChatScreen({ session }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
+  const [syncProAfterCheckout, setSyncProAfterCheckout] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
   const [lifeModeWizardOpen, setLifeModeWizardOpen] = useState(false);
@@ -2155,7 +2171,8 @@ function ChatScreen({ session }) {
     const checkout = searchParams.get("checkout");
     if (!checkout) return;
     if (checkout === "success") {
-      setCheckoutNotice("Payment successful. Pro is now active on your account.");
+      setCheckoutNotice("Welcome to Pro — unlimited decisions and full Life Mode are unlocked.");
+      setSyncProAfterCheckout(true);
     } else if (checkout === "cancelled") {
       setCheckoutNotice("Checkout was cancelled. No charge was made.");
     }
@@ -2168,6 +2185,33 @@ function ChatScreen({ session }) {
       { replace: true }
     );
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!syncProAfterCheckout) return undefined;
+    if (!supabase || !session?.user?.id) {
+      setSyncProAfterCheckout(false);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        for (let i = 0; i < 15 && !cancelled; i++) {
+          const { data } = await supabase.from("profiles").select("is_pro").eq("id", session.user.id).maybeSingle();
+          if (data?.is_pro) {
+            setIsProUser(true);
+            setShowUpgradePrompt(false);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 450));
+        }
+      } finally {
+        if (!cancelled) setSyncProAfterCheckout(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [syncProAfterCheckout, session?.user?.id, supabase]);
 
   useEffect(() => {
     const raw = searchParams.get("lifeMode") ?? searchParams.get("lifemode");
@@ -2384,6 +2428,28 @@ function ChatScreen({ session }) {
 
     loadPersonalization();
   }, [session?.user?.id, todayKey]);
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return undefined;
+    const uid = session.user.id;
+    const channel = supabase
+      .channel(`profiles-pro-${uid}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles", filter: `id=eq.${uid}` },
+        (payload) => {
+          const row = payload.new;
+          if (row && typeof row.is_pro === "boolean") {
+            setIsProUser(Boolean(row.is_pro));
+            if (row.is_pro) setShowUpgradePrompt(false);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, supabase]);
 
   useEffect(() => {
     if (session?.user?.id) return;
@@ -4399,6 +4465,22 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 share-ready mission reports.
               </p>
             ) : null}
+            {upgradePromptReason === "limit" ? (
+              <p className="muted upgrade-limit-copy">
+                {session?.user?.id ? (
+                  <>
+                    You&apos;ve used all {DAILY_FREE_LIMIT} free decisions for today on the free plan. Upgrade to Pro for{" "}
+                    <strong>unlimited decisions</strong>, Life Mode, chat history, and the full experience — starting with a{" "}
+                    <strong>3-day free trial</strong> when you subscribe.
+                  </>
+                ) : (
+                  <>
+                    You&apos;ve used all {GUEST_DAILY_FREE_LIMIT} free guest decisions for today. Create an account and go Pro for unlimited
+                    decisions and full features — or come back after midnight.
+                  </>
+                )}
+              </p>
+            ) : null}
             <p className="plan-price">
               {formatMonth()}/mo · {formatYear()}/yr
             </p>
@@ -6412,6 +6494,11 @@ function ProfileScreen({ session }) {
           Contact support
         </a>
       </div>
+      <nav className="profile-legal-links" aria-label="Legal">
+        <Link to="/terms">Terms of Service</Link>
+        <Link to="/privacy">Privacy Policy</Link>
+        <Link to="/cookies">Cookie Policy</Link>
+      </nav>
       <article className={`prestige-rank-card prestige-rank-card--${profileRank.tier}`}>
         <div className="prestige-rank-card-bg" aria-hidden="true" />
         <div className="prestige-rank-main">
@@ -6826,7 +6913,7 @@ function PlansScreen({ session }) {
         </p>
       </article>
       <h2 className="plans-upgrade-heading">Upgrade to Pro</h2>
-      <p className="muted">7-day trial, then choose monthly or yearly billing.</p>
+      <p className="muted">3-day free trial, then monthly or yearly billing. Cancel anytime.</p>
       <div className="plans-grid plans-grid--two">
         <article className="plan-card">
           <h3>Pro · Monthly</h3>
@@ -7016,6 +7103,9 @@ export default function App() {
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
           <Route path="/plans" element={<PlansScreen session={session} />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/cookies" element={<CookiePolicyPage />} />
           <Route path="/invite/:code" element={<InfluencerInviteLanding />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/login" element={<AuthScreen mode="login" />} />

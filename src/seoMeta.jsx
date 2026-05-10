@@ -116,6 +116,18 @@ const STATIC_ROUTES = {
   "/admin": {
     title: "Admin | Decide For Me",
     description: "Internal administration — not indexed."
+  },
+  "/terms": {
+    title: "Terms of Service | Decide For Me",
+    description: "Terms of Service for Decide For Me — subscriptions, AI disclaimer, referrals, liability."
+  },
+  "/privacy": {
+    title: "Privacy Policy | Decide For Me",
+    description: "Privacy Policy — how Decide For Me collects and uses personal data."
+  },
+  "/cookies": {
+    title: "Cookie Policy | Decide For Me",
+    description: "Cookie Policy — cookies and similar technologies on decideforme.org."
   }
 };
 

@@ -90,7 +90,7 @@ export async function createCheckoutSessionHandler(stripe, req, res, appBaseUrl,
       client_reference_id: userId,
       metadata: { supabase_user_id: userId, plan, billing_currency: currency },
       subscription_data: {
-        trial_period_days: 7,
+        trial_period_days: 3,
         metadata: { supabase_user_id: userId, plan, billing_currency: currency }
       },
       success_url: `${returnOrigin}/?checkout=success`,

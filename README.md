@@ -5,7 +5,7 @@ React + Vite app with:
 - Mood selection screen
 - Claude-powered AI answer screen
 - Supabase auth (login/signup) and decision history
-- Stripe subscription checkout (Plus and Pro, both with 7-day trial)
+- Stripe subscription checkout (Pro with 3-day trial)
 
 ## 1) Install prerequisites
 
