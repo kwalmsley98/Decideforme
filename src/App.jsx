@@ -3617,6 +3617,261 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   );
 }
 
+const MOMENTUM_WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MOMENTUM_WEEKDAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function startOfWeekMonday(d = new Date()) {
+  const date = new Date(d.getTime());
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function sameLocalCalendarDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  );
+}
+
+function momentumHourBucket(hour) {
+  if (hour >= 5 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 17) return "Afternoon";
+  if (hour >= 17 && hour < 21) return "Evening";
+  return "Night";
+}
+
+function MomentumScreen({ session }) {
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [weekBars, setWeekBars] = useState([]);
+  const [thisWeekCount, setThisWeekCount] = useState(0);
+  const [lastWeekCount, setLastWeekCount] = useState(0);
+  const [peakWeekday, setPeakWeekday] = useState("—");
+  const [peakTimeBucket, setPeakTimeBucket] = useState("—");
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("current_streak, longest_streak, total_decisions")
+          .eq("id", session.user.id)
+          .single();
+        if (cancelled) return;
+        setProfile(prof ?? null);
+
+        const now = new Date();
+        const weekStart = startOfWeekMonday(now);
+        const nextWeekStart = new Date(weekStart.getTime());
+        nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+        const lastWeekStart = new Date(weekStart.getTime());
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+        const { data: twoWeekRows } = await supabase
+          .from("decision_history")
+          .select("created_at")
+          .eq("user_id", session.user.id)
+          .gte("created_at", lastWeekStart.toISOString())
+          .lt("created_at", nextWeekStart.toISOString());
+
+        const rows = twoWeekRows ?? [];
+        let tw = 0;
+        let lw = 0;
+        for (const r of rows) {
+          const t = new Date(r.created_at);
+          if (t >= weekStart && t < nextWeekStart) tw += 1;
+          else if (t >= lastWeekStart && t < weekStart) lw += 1;
+        }
+
+        const bars = [];
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(weekStart.getTime());
+          day.setDate(weekStart.getDate() + i);
+          let c = 0;
+          for (const r of rows) {
+            const t = new Date(r.created_at);
+            if (t >= weekStart && t < nextWeekStart && sameLocalCalendarDay(t, day)) c += 1;
+          }
+          bars.push({
+            shortLabel: MOMENTUM_WEEKDAY_SHORT[day.getDay()],
+            count: c,
+            key: `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
+          });
+        }
+
+        const since = new Date();
+        since.setDate(since.getDate() - 120);
+        const { data: patternRows } = await supabase
+          .from("decision_history")
+          .select("created_at")
+          .eq("user_id", session.user.id)
+          .gte("created_at", since.toISOString());
+
+        const wd = [0, 0, 0, 0, 0, 0, 0];
+        const buckets = { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 };
+        for (const r of patternRows ?? []) {
+          const t = new Date(r.created_at);
+          wd[t.getDay()] += 1;
+          buckets[momentumHourBucket(t.getHours())] += 1;
+        }
+        let maxWd = 0;
+        let maxWi = 0;
+        wd.forEach((n, i) => {
+          if (n > maxWd) {
+            maxWd = n;
+            maxWi = i;
+          }
+        });
+        let maxBk = "Afternoon";
+        let maxBv = -1;
+        for (const [k, v] of Object.entries(buckets)) {
+          if (v > maxBv) {
+            maxBv = v;
+            maxBk = k;
+          }
+        }
+
+        if (cancelled) return;
+        setWeekBars(bars);
+        setThisWeekCount(tw);
+        setLastWeekCount(lw);
+        setPeakWeekday(maxWd > 0 ? MOMENTUM_WEEKDAY_FULL[maxWi] : "—");
+        setPeakTimeBucket(maxBv > 0 ? maxBk : "—");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  const rank = useMemo(() => getDecisionRank(profile?.total_decisions ?? 0), [profile?.total_decisions]);
+  const maxBar = useMemo(() => Math.max(1, ...weekBars.map((b) => b.count)), [weekBars]);
+  const weekDelta = thisWeekCount - lastWeekCount;
+
+  if (!session) return <Navigate to="/login" replace />;
+
+  return (
+    <section className="card premium momentum-page">
+      <header className="momentum-head">
+        <h1>Momentum</h1>
+        <p className="muted momentum-lead">Streaks, rhythm, and how you&apos;re climbing the ranks.</p>
+      </header>
+
+      {loading ? (
+        <p className="meta">Loading your activity…</p>
+      ) : (
+        <>
+          <div className="momentum-streak-row">
+            <article className="momentum-stat-card">
+              <p className="momentum-stat-label">Current streak</p>
+              <p className="momentum-stat-value">🔥 {profile?.current_streak ?? 0} days</p>
+            </article>
+            <article className="momentum-stat-card">
+              <p className="momentum-stat-label">Longest streak</p>
+              <p className="momentum-stat-value">{profile?.longest_streak ?? 0} days</p>
+            </article>
+          </div>
+
+          <article className="momentum-panel">
+            <p className="momentum-panel-title">This week · decisions per day</p>
+            <div className="momentum-chart" role="img" aria-label="Decisions per day this week">
+              {weekBars.map((b) => (
+                <div key={b.key} className="momentum-chart-col">
+                  <div className="momentum-chart-bar-wrap">
+                    <div
+                      className="momentum-chart-bar"
+                      style={{ height: `${Math.max(8, (b.count / maxBar) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="momentum-chart-count">{b.count}</span>
+                  <span className="momentum-chart-day">{b.shortLabel}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <div className="momentum-two-col">
+            <article className="momentum-panel momentum-panel--compact">
+              <p className="momentum-panel-title">Most active</p>
+              <p className="momentum-detail">
+                <span className="momentum-detail-label">Day</span>
+                <span className="momentum-detail-value">{peakWeekday}</span>
+              </p>
+              <p className="momentum-detail">
+                <span className="momentum-detail-label">Time</span>
+                <span className="momentum-detail-value">{peakTimeBucket}</span>
+              </p>
+              <p className="meta momentum-pattern-note">Based on the last ~4 months of decisions.</p>
+            </article>
+            <article className="momentum-panel momentum-panel--compact">
+              <p className="momentum-panel-title">Weekly volume</p>
+              <p className="momentum-compare">
+                <span className="momentum-compare-num">{thisWeekCount}</span>
+                <span className="momentum-compare-label">this week</span>
+              </p>
+              <p className="momentum-compare">
+                <span className="momentum-compare-num momentum-compare-num--muted">{lastWeekCount}</span>
+                <span className="momentum-compare-label">last week</span>
+              </p>
+              <p className={`momentum-delta ${weekDelta >= 0 ? "momentum-delta--up" : "momentum-delta--down"}`}>
+                {weekDelta >= 0 ? "+" : ""}
+                {weekDelta} vs last week
+              </p>
+            </article>
+          </div>
+
+          <article className={`prestige-rank-card prestige-rank-card--${rank.tier} momentum-rank-card`}>
+            <div className="prestige-rank-card-bg" aria-hidden="true" />
+            <div className="prestige-rank-main">
+              <div className={`prestige-rank-emblem prestige-rank-emblem--${rank.tier}`}>
+                <span className="prestige-rank-emoji" aria-hidden="true">
+                  {rank.emoji}
+                </span>
+              </div>
+              <div className="prestige-rank-text">
+                <p className="prestige-rank-kicker">Rank</p>
+                <h2 className="prestige-rank-title">{rank.label}</h2>
+                <p className="prestige-rank-meta">
+                  <strong>{profile?.total_decisions ?? 0}</strong> lifetime decisions
+                  <span className="prestige-rank-dot"> · </span>
+                  {rank.rangeLabel}
+                </p>
+              </div>
+            </div>
+            <div
+              className="prestige-progress-track momentum-rank-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(rank.progress * 100)}
+              aria-label={`Progress toward ${rank.nextRankLabel}`}
+            >
+              <div className="prestige-progress-fill" style={{ width: `${Math.min(100, rank.progress * 100)}%` }} />
+            </div>
+            <p className="momentum-next-rank">
+              {rank.toNext > 0 ? (
+                <>
+                  <span className="momentum-next-num">{rank.toNext}</span> more{" "}
+                  {rank.toNext === 1 ? "decision" : "decisions"} to <strong>{rank.nextRankLabel}</strong>
+                </>
+              ) : (
+                <span className="prestige-next-maxed">Top of bracket — keep going to advance.</span>
+              )}
+            </p>
+          </article>
+        </>
+      )}
+    </section>
+  );
+}
+
 function HistoryScreen({ session }) {
   const [history, setHistory] = useState([]);
 
@@ -3808,12 +4063,12 @@ function ExploreScreen({ session }) {
               <span className="explore-tile-title">History</span>
               <span className="explore-tile-desc">Past decisions</span>
             </Link>
-            <Link to="/profile" className="explore-tile">
+            <Link to="/momentum" className="explore-tile">
               <span className="explore-tile-icon" aria-hidden="true">
                 <Flame size={22} strokeWidth={1.75} />
               </span>
               <span className="explore-tile-title">Momentum</span>
-              <span className="explore-tile-desc">Streaks and consistency signals</span>
+              <span className="explore-tile-desc">Streaks, weekly rhythm &amp; rank progress</span>
             </Link>
             <Link to="/profile" className="explore-tile">
               <span className="explore-tile-icon" aria-hidden="true">
@@ -5301,6 +5556,14 @@ export default function App() {
             element={
               <ProtectedRoute session={session}>
                 <HistoryScreen session={session} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/momentum"
+            element={
+              <ProtectedRoute session={session}>
+                <MomentumScreen session={session} />
               </ProtectedRoute>
             }
           />
