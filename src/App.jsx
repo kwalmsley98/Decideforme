@@ -1304,20 +1304,8 @@ function Layout({ session, onSignOut, children }) {
     <div className="app-shell page-enter">
       {showOnboarding ? <OnboardingOverlay onComplete={finishOnboarding} /> : null}
       <header className="topbar">
-        <Link to="/" className="brand brand-logo-link" aria-label="Decide For Me — Home">
-          <img
-            src="/brand/logo-horizontal.png"
-            alt="Decide For Me"
-            className="brand-logo brand-logo--horizontal"
-            decoding="async"
-          />
-          <img
-            src="/brand/logo-icon.png"
-            alt=""
-            className="brand-logo brand-logo--icon"
-            decoding="async"
-            aria-hidden="true"
-          />
+        <Link to="/" className="brand">
+          Decide For Me
         </Link>
         <nav className="nav-links desktop-only-nav">
           {desktopNavItems.map(({ to, label, icon: Icon }) => (

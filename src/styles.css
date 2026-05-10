@@ -110,9 +110,7 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
-  min-height: 72px;
-  box-sizing: border-box;
+  padding: 10px 12px;
   border-radius: 16px;
   background: rgba(8, 10, 16, 0.56);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -124,60 +122,10 @@ a {
 }
 
 .brand {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  line-height: 0;
-  text-decoration: none;
-  flex-shrink: 0;
-  padding: 6px 8px;
-  box-sizing: border-box;
-}
-
-.brand-logo-link:focus-visible {
-  outline: 2px solid rgba(245, 230, 66, 0.85);
-  outline-offset: 4px;
-  border-radius: 8px;
-}
-
-.brand-logo {
-  display: block;
-  object-fit: contain;
-}
-
-/* Desktop / tablet: full horizontal wordmark */
-.brand-logo--horizontal {
-  display: block;
-  width: 180px;
-  max-width: min(180px, 48vw);
-  height: auto;
-}
-
-.brand-logo--icon {
-  display: none;
-  width: 120px;
-  height: 120px;
-  max-width: 120px;
-  max-height: 120px;
-}
-
-@media (max-width: 768px) {
-  .brand-logo--horizontal {
-    display: none;
-  }
-
-  .brand-logo--icon {
-    display: block;
-  }
-
-  .brand {
-    padding: 8px 10px;
-  }
-
-  .topbar {
-    min-height: 92px;
-  }
+  color: #fbf096;
+  font-weight: 800;
+  letter-spacing: 0.1px;
+  font-size: 1.03rem;
 }
 
 .nav-links {
@@ -3523,7 +3471,7 @@ a.nearby-inline-maps:hover {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
   }
   .topbar {
-    align-items: center;
+    align-items: flex-start;
     flex-direction: column;
     margin-bottom: 8px;
   }
