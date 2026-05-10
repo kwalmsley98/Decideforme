@@ -1835,6 +1835,7 @@ function ChatScreen({ session }) {
   const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
   const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
+  const [showLifeEmergencyModal, setShowLifeEmergencyModal] = useState(false);
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
   /** undefined = loading AI orders; null = fallback to built-in library; array = Claude-generated */
@@ -1960,6 +1961,24 @@ function ChatScreen({ session }) {
       document.body.style.overflow = prev;
     };
   }, [chatHistoryOpen]);
+
+  useEffect(() => {
+    if (!showLifeEmergencyModal) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowLifeEmergencyModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showLifeEmergencyModal]);
+
+  useEffect(() => {
+    if (!showLifeEmergencyModal) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showLifeEmergencyModal]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const userTimeZone = useMemo(() => getUserTimeZone(), []);
@@ -3338,6 +3357,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     setLifeModeResponsePicks({});
     persistLifeEngagementToDay({}, {});
     setLifeModeEmergencyShame("Weakness detected 😤");
+    setShowLifeEmergencyModal(false);
   };
 
   const renderChatRankStrip = (compact) => (
@@ -3686,7 +3706,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
-        <button type="button" className="life-cc-emergency" onClick={triggerLifeEmergencyOverride}>
+        <button type="button" className="life-cc-emergency" onClick={() => setShowLifeEmergencyModal(true)}>
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
@@ -3760,6 +3780,45 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <p className="hero-kicker life-cc-kicker-quiet">Pulse</p>
           <p className="life-cc-feed-line">{pulseLine}</p>
         </section>
+
+        {showLifeEmergencyModal ? (
+          <div
+            className="life-emergency-confirm-overlay"
+            role="presentation"
+            onClick={() => setShowLifeEmergencyModal(false)}
+          >
+            <div
+              className="life-emergency-confirm-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="life-emergency-override-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="life-emergency-override-title" className="life-emergency-confirm-title">
+                Emergency Override
+              </h2>
+              <p className="life-emergency-confirm-message">
+                Are you sure? This will forfeit your Life Mode streak.
+              </p>
+              <div className="life-emergency-confirm-actions">
+                <button
+                  type="button"
+                  className="ghost-btn life-emergency-confirm-cancel"
+                  onClick={() => setShowLifeEmergencyModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="primary-btn life-emergency-confirm-danger"
+                  onClick={() => triggerLifeEmergencyOverride()}
+                >
+                  Override — forfeit streak
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}

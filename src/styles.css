@@ -3345,12 +3345,21 @@ a.nearby-inline-maps:hover {
   text-align: center;
 }
 
+.life-emergency-confirm-title {
+  margin: 0 0 14px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: rgba(248, 242, 255, 0.98);
+}
+
 .life-emergency-confirm-message {
   margin: 0;
   font-size: 1.05rem;
   line-height: 1.55;
-  font-weight: 600;
-  color: rgba(248, 242, 255, 0.96);
+  font-weight: 500;
+  color: rgba(220, 212, 232, 0.92);
 }
 
 .life-emergency-confirm-actions {
