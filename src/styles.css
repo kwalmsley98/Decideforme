@@ -5647,7 +5647,7 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
   line-height: 1.45;
 }
 
-/* ----- Splash (first visit per browser session) ----- */
+/* ----- Splash (first visit per browser session; max ~2s) ----- */
 .splash-overlay {
   position: fixed;
   inset: 0;
@@ -5655,39 +5655,60 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at 50% 28%, rgba(125, 103, 255, 0.14), #05070e 58%);
-  pointer-events: auto;
+  background: radial-gradient(ellipse at 50% 22%, rgba(125, 103, 255, 0.12), #03040a 55%, #000000 100%);
+  pointer-events: none;
 }
 
-.splash-inner {
+.splash-inner.splash-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+  gap: 0;
+}
+
+@keyframes splash-brand-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.splash-brand {
+  animation: splash-brand-fade-in 0.65s ease-out both;
 }
 
 @keyframes splash-bolt-pulse {
   0%,
   100% {
     transform: scale(1) rotate(-8deg);
-    opacity: 0.82;
-    filter: drop-shadow(0 0 10px rgba(245, 230, 66, 0.28));
+    opacity: 0.9;
+    filter: drop-shadow(0 0 12px rgba(245, 230, 66, 0.35));
   }
   50% {
-    transform: scale(1.1) rotate(0deg);
+    transform: scale(1.08) rotate(0deg);
     opacity: 1;
-    filter: drop-shadow(0 0 26px rgba(245, 230, 66, 0.55));
+    filter: drop-shadow(0 0 28px rgba(245, 230, 66, 0.6));
   }
 }
 
 .splash-bolt {
   color: #f5e642;
-  animation: splash-bolt-pulse 0.9s ease-in-out infinite;
+  animation: splash-bolt-pulse 0.9s ease-in-out 0.15s infinite;
 }
 
 .splash-title {
-  margin: 20px 0 0;
-  font-size: 1.4rem;
+  margin: 18px 0 0;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
   font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #eef1ff;
+  letter-spacing: 0.06em;
+  color: #f5e642;
+  text-shadow: 0 0 28px rgba(245, 230, 66, 0.25);
 }
 
 /* ----- Offline ----- */

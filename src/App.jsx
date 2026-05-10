@@ -63,6 +63,15 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 const DFM_INVITE_STORAGE_KEY = "dfm_influencer_invite_code";
 const DFM_ADMIN_TOKEN_KEY = "dfm_admin_token";
+const DFM_SPLASH_SESSION_KEY = "dfm_branded_splash_seen";
+/** Bumped when leaving Life Mode (or from App) so the splash overlay never blocks the main UI. */
+const DFM_DISMISS_SPLASH_EVENT = "dfm-dismiss-splash";
+const SPLASH_MAX_DISPLAY_MS = 2000;
+
+function dispatchDismissSplash() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(DFM_DISMISS_SPLASH_EVENT));
+}
 
 function formatGbpFromPence(pence) {
   const n = Number(pence);
@@ -2823,6 +2832,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         setLifeModeRecap(recap);
         refreshLifeModeGlobalCount();
         setLifeModeCountdownLabel("00:00:00");
+        dispatchDismissSplash();
       } else {
         setLifeModeCountdownLabel(lifeModeCountdown(lifeModeSession.ends_at));
       }
@@ -3726,6 +3736,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     } finally {
       setEmergencyExitWorking(false);
       setShowEmergencyExitModal(false);
+      dispatchDismissSplash();
     }
   };
 
@@ -7054,8 +7065,6 @@ function PlansScreen({ session }) {
   );
 }
 
-const DFM_SPLASH_SESSION_KEY = "dfm_branded_splash_seen";
-
 export default function App() {
   const [session, setSession] = useState(null);
   const [showSplash, setShowSplash] = useState(() => {
@@ -7067,16 +7076,29 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!showSplash) return undefined;
-    const t = setTimeout(() => {
+    const dismiss = () => {
       try {
         sessionStorage.setItem(DFM_SPLASH_SESSION_KEY, "1");
       } catch {
         /* ignore */
       }
       setShowSplash(false);
-    }, 1500);
-    return () => clearTimeout(t);
+    };
+    window.addEventListener(DFM_DISMISS_SPLASH_EVENT, dismiss);
+    return () => window.removeEventListener(DFM_DISMISS_SPLASH_EVENT, dismiss);
+  }, []);
+
+  useEffect(() => {
+    if (!showSplash) return undefined;
+    try {
+      sessionStorage.setItem(DFM_SPLASH_SESSION_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    const t = window.setTimeout(() => {
+      setShowSplash(false);
+    }, SPLASH_MAX_DISPLAY_MS);
+    return () => window.clearTimeout(t);
   }, [showSplash]);
 
   useEffect(() => {
@@ -7221,9 +7243,9 @@ export default function App() {
       </Layout>
     </CommerceCurrencyProvider>
       {showSplash ? (
-        <div className="splash-overlay" aria-hidden="true">
-          <div className="splash-inner">
-            <Zap className="splash-bolt" size={52} strokeWidth={2} aria-hidden="true" />
+        <div className="splash-overlay" role="presentation" aria-hidden="true">
+          <div className="splash-brand splash-inner">
+            <Zap className="splash-bolt" size={56} strokeWidth={2} aria-hidden="true" />
             <p className="splash-title">Decide For Me</p>
           </div>
         </div>
