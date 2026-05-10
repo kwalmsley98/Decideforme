@@ -835,6 +835,173 @@ app.post("/api/nearby-places", async (req, res) => {
   }
 });
 
+const LIFE_PHASES = new Set(["morning", "midday", "afternoon", "evening", "night"]);
+
+function extractJsonObjectFromClaudeText(text) {
+  const raw = String(text ?? "").trim();
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const inner = fence ? fence[1].trim() : raw;
+  return JSON.parse(inner);
+}
+
+function sanitizeLifeModeCommand(raw, phaseHint, index) {
+  const idBase = String(raw?.id ?? `cmd-${index}`)
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  const id = idBase || `ai-${phaseHint}-${index}`;
+
+  let tl = String(raw?.timeLabel ?? "").replace(/\D/g, "");
+  if (tl.length < 4) tl = String(index + 1).padStart(2, "0") + "00";
+  tl = tl.padStart(4, "0").slice(0, 4);
+
+  const text = String(raw?.text ?? "").trim();
+  if (!text) return null;
+
+  const phase = LIFE_PHASES.has(String(raw?.phase)) ? raw.phase : phaseHint;
+
+  const responsesIn = Array.isArray(raw?.responses) ? raw.responses : [];
+  const responses = [];
+  for (let j = 0; j < responsesIn.length && responses.length < 5; j++) {
+    const r = responsesIn[j];
+    const rid = String(r?.id ?? `r${j}`)
+      .replace(/[^a-zA-Z0-9_-]/g, "-")
+      .slice(0, 32);
+    const emoji = String(r?.emoji ?? "💬").trim().slice(0, 8);
+    const label = String(r?.label ?? "").trim().slice(0, 120);
+    const instantRoast = String(r?.instantRoast ?? "").trim().slice(0, 400);
+    if (!label || !instantRoast) continue;
+    const out = {
+      id: rid || `r-${j}`,
+      emoji,
+      label,
+      instantRoast
+    };
+    const lr = String(r?.laterRoast ?? "").trim();
+    if (lr) out.laterRoast = lr.slice(0, 400);
+    const fp = String(r?.fireLaterInPhase ?? "").trim();
+    if (fp && LIFE_PHASES.has(fp)) out.fireLaterInPhase = fp;
+    const tag = String(r?.excuseTag ?? "").trim();
+    if (tag) out.excuseTag = tag.replace(/[^a-z0-9_]/gi, "_").slice(0, 48);
+    responses.push(out);
+  }
+  if (responses.length < 3) return null;
+  if (responses.length > 4) responses.length = 4;
+
+  return { id, timeLabel: tl, text, phase, responses };
+}
+
+function normalizeLifeCommandsPayload(parsed, phaseHint) {
+  const cmds = Array.isArray(parsed?.commands) ? parsed.commands : [];
+  const out = [];
+  for (let i = 0; i < cmds.length && out.length < 4; i++) {
+    const one = sanitizeLifeModeCommand(cmds[i], phaseHint, i);
+    if (one) out.push(one);
+  }
+  return out;
+}
+
+app.post("/api/life-mode-commands", async (req, res) => {
+  const body = req.body ?? {};
+  const userName = String(body.userName ?? "Operator").trim().slice(0, 80);
+  const rankName = String(body.rankName ?? "Recruit").trim().slice(0, 80);
+  const rankLabel = String(body.rankLabel ?? rankName).trim().slice(0, 120);
+  const codename = String(body.codename ?? "COMMANDER").trim().slice(0, 40);
+  const intensity = String(body.intensity ?? "strict").toLowerCase();
+  const intensitySafe = ["gentle", "strict", "brutal"].includes(intensity) ? intensity : "strict";
+  const dayType = body.dayType === "rest" ? "rest" : "work";
+  const energy = String(body.energy ?? "medium").toLowerCase();
+  const energySafe = ["low", "medium", "high"].includes(energy) ? energy : "medium";
+  const wakeHour = Math.min(23, Math.max(5, Math.floor(Number(body.wakeHour) || 7)));
+  const phase = LIFE_PHASES.has(String(body.phase)) ? body.phase : "morning";
+  const localTime = String(body.localTime ?? "").trim().slice(0, 16);
+  const timeZone = String(body.timeZone ?? "UTC").trim().slice(0, 80);
+  const isoTimestamp = String(body.isoTimestamp ?? new Date().toISOString()).slice(0, 40);
+  const weather =
+    body.weather && typeof body.weather === "object"
+      ? {
+          tempC: typeof body.weather.tempC === "number" ? body.weather.tempC : null,
+          isRainy: Boolean(body.weather.isRainy)
+        }
+      : null;
+
+  const intensityGuide = {
+    gentle: "Warm but knowing — like a wise friend who teases you lovingly. Never cruel.",
+    strict: "Firm and slightly disappointed — like a parent who expected better. Still funny.",
+    brutal: "Full roast mode — savage one-liners, no mercy, but never mean-spirited or hateful."
+  };
+
+  const phaseGuide = {
+    morning: "Early-day reality: alarms, coffee lies, inbox dread, breakfast avoidance.",
+    midday: "Lunch, scrolling instead of eating, meeting regret, same meal order again.",
+    afternoon: "Slump, snacks, fridge tourism, pretending work is happening.",
+    evening: "Sofa gravity, Netflix bargaining, phone addiction, fake productive nights.",
+    night: "Bedtime lies, revenge bedtime procrastination, scroll spirals, tomorrow denial."
+  };
+
+  const weatherLine = weather
+    ? typeof weather.tempC === "number"
+      ? `Weather: ~${Math.round(weather.tempC)}°C, ${weather.isRainy ? "rain / gloomy" : "dry"}.`
+      : `Weather: ${weather.isRainy ? "wet out" : "not rainy"}.`
+    : "Weather: unknown — ignore unless you keep it generic.";
+
+  const userBlock = `CONTEXT (JSON facts — obey them):
+- User first name or handle: ${userName}
+- Rank (short): ${rankName}
+- Rank (full label): ${rankLabel}
+- AI codename addressing them: ${codename}
+- Intensity mode: ${intensitySafe} → ${intensityGuide[intensitySafe]}
+- Day type: ${dayType === "work" ? "work day" : "rest / weekend vibe"}
+- Energy: ${energySafe}
+- Typical wake hour: ${String(wakeHour).padStart(2, "0")}:00
+- Time zone: ${timeZone}
+- Local time now: ${localTime || "(see iso)"}
+- ISO now: ${isoTimestamp}
+- Life phase bucket: ${phase} → ${phaseGuide[phase]}
+- ${weatherLine}
+
+TASK:
+Generate EXACTLY 3 or 4 Life Mode "commands" for RIGHT NOW in phase "${phase}".
+Each command is a timely directive line the AI gives as a sarcastic best friend who hijacked their life.
+Use varied scenarios — never reuse the same joke structure across commands.
+Reference their name or rank occasionally (not every line).
+Assign each command a plausible wall-clock timeLabel for TODAY in their timezone (24h clock as HHMM string only, e.g. "0930", "2045"). Spread times across the remaining part of this phase where realistic.
+
+Each command must include 3 or 4 funny "response" options the user can tap — labels must feel like real excuses or commitments (too honest).
+Each response needs: id (unique snake_case), emoji (one), label (short), instantRoast (AI snaps back immediately).
+Optionally add laterRoast + fireLaterInPhase (one of: morning|midday|afternoon|evening|night) for ONE callback later in the day — use sparingly (max 1–2 responses total across all commands).
+
+Return ONLY valid JSON with this shape (no markdown fences, no commentary):
+{"commands":[{"id":"...","timeLabel":"HHMM","text":"...","responses":[{"id":"...","emoji":"...","label":"...","instantRoast":"..."}]}]}`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 4200,
+      temperature: 0.88,
+      system: `You write Life Mode push notifications for an app. Output ONLY compact JSON. No markdown. No prose before or after.`,
+      messages: [{ role: "user", content: userBlock }]
+    });
+    const text = message.content?.find((p) => p.type === "text")?.text?.trim() || "";
+    let parsed;
+    try {
+      parsed = extractJsonObjectFromClaudeText(text);
+    } catch (e) {
+      console.error("[life-mode-commands] JSON parse:", e, text?.slice(0, 500));
+      return res.status(502).json({ error: "Invalid AI response shape.", commands: [] });
+    }
+    const commands = normalizeLifeCommandsPayload(parsed, phase);
+    if (!commands.length) {
+      return res.status(502).json({ error: "No valid commands after normalization.", commands: [] });
+    }
+    return res.json({ commands });
+  } catch (error) {
+    console.error("[life-mode-commands]", error);
+    const status = error.statusCode === 400 ? 400 : 500;
+    return res.status(status).json({ error: error.message || "Life Mode command generation failed.", commands: [] });
+  }
+});
+
 app.post("/api/extract-preferences", async (req, res) => {
   const { conversation = [], answer = "" } = req.body ?? {};
   const priorMessages = Array.isArray(conversation)

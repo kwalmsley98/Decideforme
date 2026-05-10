@@ -1030,7 +1030,12 @@ export function buildLifeOrders({ setup, phase, weather, rankName: _rankName, op
     });
   }
 
-  return orders.map((o) => {
+  return attachCommunitySplitsToOrders(orders);
+}
+
+/** Attach deterministic demo community % to each response (same as built-in orders). */
+export function attachCommunitySplitsToOrders(orders) {
+  return (orders || []).map((o) => {
     if (!o.responses?.length) return o;
     const split = communitySplitForResponses(
       o.id,

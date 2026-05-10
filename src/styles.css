@@ -3520,6 +3520,17 @@ a.nearby-inline-maps:hover {
   margin-top: 10px;
 }
 
+.life-cc-ai-loading {
+  margin: 14px 0 0;
+  font-style: italic;
+  color: rgba(220, 210, 255, 0.78);
+}
+
+.life-cc-ai-warning {
+  margin: 10px 0 0;
+  color: rgba(255, 200, 140, 0.85);
+}
+
 .life-cc-orders {
   position: relative;
   z-index: 1;

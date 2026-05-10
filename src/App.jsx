@@ -34,6 +34,7 @@ import remarkGfm from "remark-gfm";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { CommerceCurrencyProvider, useCommerceCurrency } from "./lib/commerceCurrency.jsx";
 import {
+  attachCommunitySplitsToOrders,
   buildFallbackLifeOrder,
   buildLifeOrders,
   calendarDayKeyInTimeZone,
@@ -1280,6 +1281,9 @@ function ChatScreen({ session }) {
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
+  /** undefined = loading AI orders; null = fallback to built-in library; array = Claude-generated */
+  const [lifeAiCommands, setLifeAiCommands] = useState(undefined);
+  const [lifeAiCommandsError, setLifeAiCommandsError] = useState(null);
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [chatHistoryRows, setChatHistoryRows] = useState([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
@@ -2525,7 +2529,80 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     [lifeModePhaseTick, userTimeZone]
   );
 
-  const lifeOrdersRaw = useMemo(
+  useEffect(() => {
+    if (!lifeModeSession?.id) {
+      setLifeAiCommands(undefined);
+      setLifeAiCommandsError(null);
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setLifeAiCommands(undefined);
+    setLifeAiCommandsError(null);
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/life-mode-commands"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ac.signal,
+          body: JSON.stringify({
+            userName: chatOperatorName,
+            rankName: decisionRank.name,
+            rankLabel: decisionRank.label,
+            codename: effectiveLifeSetup.codename,
+            intensity: effectiveLifeSetup.intensity,
+            dayType: effectiveLifeSetup.dayType,
+            energy: effectiveLifeSetup.energy,
+            wakeHour: effectiveLifeSetup.wakeHour,
+            phase: lifePhaseNow,
+            localTime: formatLocalTimeShort(new Date(), userTimeZone),
+            timeZone: getUserTimeZone(userTimeZone),
+            isoTimestamp: new Date().toISOString(),
+            weather: lifeModeWeather
+              ? {
+                  tempC: typeof lifeModeWeather.tempC === "number" ? lifeModeWeather.tempC : undefined,
+                  isRainy: Boolean(lifeModeWeather.isRainy)
+                }
+              : undefined
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const cmds = Array.isArray(data.commands) ? data.commands : [];
+        if (res.ok && cmds.length > 0) {
+          setLifeAiCommands(cmds);
+          setLifeAiCommandsError(null);
+        } else {
+          setLifeAiCommands(null);
+          setLifeAiCommandsError(data?.error || "Using built-in orders.");
+        }
+      } catch (e) {
+        if (cancelled || e?.name === "AbortError") return;
+        setLifeAiCommands(null);
+        setLifeAiCommandsError(e?.message || "Using built-in orders.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [
+    lifeModeSession?.id,
+    lifePhaseNow,
+    chatOperatorName,
+    decisionRank.name,
+    decisionRank.label,
+    effectiveLifeSetup.codename,
+    effectiveLifeSetup.intensity,
+    effectiveLifeSetup.dayType,
+    effectiveLifeSetup.energy,
+    effectiveLifeSetup.wakeHour,
+    userTimeZone,
+    lifeModeWeather?.tempC,
+    lifeModeWeather?.isRainy
+  ]);
+
+  const staticLifeOrdersLibrary = useMemo(
     () =>
       buildLifeOrders({
         setup: effectiveLifeSetup,
@@ -2537,12 +2614,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     [effectiveLifeSetup, lifeModeWeather, decisionRank.name, chatOperatorName, lifePhaseNow]
   );
 
+  const lifeOrdersRawUnsplit = useMemo(() => {
+    if (lifeAiCommands === undefined) return null;
+    if (Array.isArray(lifeAiCommands) && lifeAiCommands.length > 0) return lifeAiCommands;
+    return staticLifeOrdersLibrary;
+  }, [lifeAiCommands, staticLifeOrdersLibrary]);
+
+  const lifeOrdersRaw = useMemo(() => {
+    if (lifeOrdersRawUnsplit === null) return null;
+    return attachCommunitySplitsToOrders(lifeOrdersRawUnsplit);
+  }, [lifeOrdersRawUnsplit]);
+
   const lifeOrdersFiltered = useMemo(
-    () => filterOrdersFromLocalNow(lifeOrdersRaw, new Date(), userTimeZone),
+    () =>
+      lifeOrdersRaw === null ? null : filterOrdersFromLocalNow(lifeOrdersRaw, new Date(), userTimeZone),
     [lifeOrdersRaw, lifeModePhaseTick, userTimeZone]
   );
 
   const lifeOrders = useMemo(() => {
+    if (lifeOrdersFiltered === null) return [];
     if (lifeOrdersFiltered.length > 0) return lifeOrdersFiltered;
     return [
       buildFallbackLifeOrder(
@@ -2902,6 +2992,16 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           </p>
         ) : null}
 
+        {lifeAiCommands === undefined ? (
+          <p className="meta life-cc-ai-loading" role="status">
+            Cooking up personalised orders…
+          </p>
+        ) : null}
+        {lifeAiCommands !== undefined && lifeAiCommandsError ? (
+          <p className="meta life-cc-ai-warning">{lifeAiCommandsError}</p>
+        ) : null}
+
+        {lifeAiCommands !== undefined ? (
           <ul className="life-cc-orders" aria-label="Today's orders">
             {lifeOrders.map((order) => (
               <li
@@ -2954,6 +3054,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
               </li>
             ))}
           </ul>
+        ) : null}
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
