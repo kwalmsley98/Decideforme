@@ -6394,10 +6394,12 @@ async function ensureProfileAndReferral(user) {
     .maybeSingle();
   if (!existing) {
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
+    const referralCode = await reserveRandomReferralCode(user.id);
     await supabase.from("profiles").insert({
       id: user.id,
       username,
-      public_ref_slug: publicRefSlug
+      public_ref_slug: publicRefSlug,
+      referral_code: referralCode
     });
   } else if (!existing.public_ref_slug) {
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
