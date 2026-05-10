@@ -57,7 +57,7 @@ import {
   roastFromCompliance,
   summarizeLifeDayVirality
 } from "./lifeModeV2.js";
-import { DAILY_FREE_DECISION_LIMIT } from "./constants/freeTier.js";
+import { DAILY_FREE_DECISION_LIMIT, freeDecisionsPerDayLabel } from "./constants/freeTier.js";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
@@ -916,7 +916,7 @@ function OnboardingOverlay({ onComplete }) {
   const slides = [
     {
       title: "Ask anything",
-      body: "Decisions, comparisons, travel, food, style — type it or drop a photo."
+      body: `Decisions, comparisons, travel, food, style — type it or drop a photo. ${freeDecisionsPerDayLabel()} for guests and the Free plan.`
     },
     {
       title: "Get a decisive answer",
@@ -3937,11 +3937,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
       {session?.user?.id ? (
         <p className="meta usage-meter">
-          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} decisions today
+          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} · {freeDecisionsPerDayLabel(DAILY_FREE_LIMIT)}
         </p>
       ) : (
         <p className="meta usage-meter">
-          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} free decisions today
+          Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} · {freeDecisionsPerDayLabel(GUEST_DAILY_FREE_LIMIT)}
         </p>
       )}
       {showFirstTimeNote ? (
@@ -4208,6 +4208,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                   : "Daily limit reached"}
             </p>
             <h2>{upgradePromptReason === "lifemode" ? "Unlock the drill sergeant in your pocket" : "Upgrade to Pro"}</h2>
+            {upgradePromptReason === "limit" ? (
+              <p className="muted upgrade-limit-blurb">
+                You&apos;ve used all {DAILY_FREE_DECISION_LIMIT} free decisions for today
+                {session?.user?.id ? " on the Free plan" : " in Guest mode"}. Pro includes unlimited chat decisions every day.
+              </p>
+            ) : null}
             {upgradePromptReason === "lifemode" ? (
               <p className="muted upgrade-life-blurb">
                 Pro includes the complete Command Centre: timed orders, weather-aware directives, compliance scoring, streaks, and

@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
+import { DAILY_FREE_DECISION_LIMIT } from "./constants/freeTier.js";
 
 export const SITE_CANONICAL = "https://decideforme.org";
 
-export const DEFAULT_DESCRIPTION =
-  "Stop overthinking. AI-powered decisions, Life Mode Command Centre, Daily Dilemmas, prestige ranks, shareable cards, and your Decision Profile — decideforme.org";
+export const DEFAULT_DESCRIPTION = `Stop overthinking. AI-powered decisions, Life Mode Command Centre, Daily Dilemmas, prestige ranks, shareable cards, and your Decision Profile — free tier includes ${DAILY_FREE_DECISION_LIMIT} free chat decisions per day — decideforme.org`;
 
 export function ensureMetaName(name, content) {
   let el = document.querySelector(`meta[name="${name}"]`);
@@ -57,8 +57,7 @@ export function applyPageMeta({ title, description, path }) {
 const STATIC_ROUTES = {
   "/": {
     title: "Decide For Me",
-    description:
-      "Your AI decision partner — chat, Life Mode, Daily Dilemmas, and prestige ranks. Stop overthinking at decideforme.org."
+    description: `Your AI decision partner — chat, Life Mode, Daily Dilemmas, and prestige ranks. Free tier: ${DAILY_FREE_DECISION_LIMIT} free chat decisions per day — decideforme.org.`
   },
   "/explore": {
     title: "Explore | Decide For Me",
