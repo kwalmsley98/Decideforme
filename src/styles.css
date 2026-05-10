@@ -110,8 +110,8 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  padding: 12px 14px;
-  min-height: 56px;
+  padding: 14px 16px;
+  min-height: 72px;
   box-sizing: border-box;
   border-radius: 16px;
   background: rgba(8, 10, 16, 0.56);
@@ -146,20 +146,20 @@ a {
   object-fit: contain;
 }
 
-/* Desktop / tablet: full horizontal wordmark (~120px wide) */
+/* Desktop / tablet: full horizontal wordmark */
 .brand-logo--horizontal {
   display: block;
-  width: 120px;
-  max-width: 120px;
+  width: 180px;
+  max-width: min(180px, 48vw);
   height: auto;
 }
 
 .brand-logo--icon {
   display: none;
-  width: 90px;
-  height: 90px;
-  max-width: 90px;
-  max-height: 90px;
+  width: 120px;
+  height: 120px;
+  max-width: 120px;
+  max-height: 120px;
 }
 
 @media (max-width: 768px) {
@@ -176,7 +176,7 @@ a {
   }
 
   .topbar {
-    min-height: 64px;
+    min-height: 92px;
   }
 }
 
