@@ -1697,6 +1697,87 @@ a.nearby-inline-maps:hover {
   gap: 10px;
 }
 
+.history-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.history-page-head {
+  margin-bottom: 18px;
+}
+
+.history-page-head h1 {
+  margin: 0 0 8px;
+}
+
+.history-page-lead {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.history-card-list {
+  display: grid;
+  gap: 14px;
+}
+
+.history-entry-card {
+  margin: 0;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: rgba(12, 14, 22, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  display: grid;
+  gap: 10px;
+}
+
+.history-entry-question {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: #f7f8ff;
+}
+
+.history-entry-preview {
+  font-size: 0.94rem;
+  line-height: 1.45;
+  max-height: calc(1.45em * 2 + 4px);
+  overflow: hidden;
+  color: rgba(210, 218, 245, 0.9);
+}
+
+.history-entry-preview p,
+.history-entry-preview ul,
+.history-entry-preview ol {
+  margin: 0 0 0.35em;
+}
+
+.history-entry-preview p:last-child,
+.history-entry-preview ul:last-child,
+.history-entry-preview ol:last-child {
+  margin-bottom: 0;
+}
+
+.history-entry-preview strong {
+  font-weight: 700;
+  color: rgba(248, 250, 255, 0.95);
+}
+
+.history-entry-preview a {
+  color: #b8c4ff;
+}
+
+.history-entry-date {
+  margin: 0;
+  padding-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(160, 170, 200, 0.85);
+}
+
 .vote-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

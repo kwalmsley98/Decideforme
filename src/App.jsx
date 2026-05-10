@@ -3624,7 +3624,7 @@ function HistoryScreen({ session }) {
     if (!supabase) return;
     supabase
       .from("decision_history")
-      .select("id, answer, mood, created_at")
+      .select("id, answer, created_at, conversation")
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: false })
       .limit(25)
@@ -3632,16 +3632,33 @@ function HistoryScreen({ session }) {
   }, [session.user.id]);
 
   return (
-    <section className="card">
-      <h1>History</h1>
-      <div className="history-list">
-        {history.map((item) => (
-          <article key={item.id} className="history-item">
-            <p className="meta">{item.mood}</p>
-            <p>{item.answer}</p>
-            <p className="meta">{new Date(item.created_at).toLocaleString()}</p>
-          </article>
-        ))}
+    <section className="card premium history-page">
+      <header className="history-page-head">
+        <h1>History</h1>
+        <p className="muted history-page-lead">Newest first — your question and a snippet of what you decided.</p>
+      </header>
+      <div className="history-card-list">
+        {history.length === 0 ? (
+          <p className="meta">No decisions yet — ask something on the home screen.</p>
+        ) : null}
+        {history.map((item) => {
+          const rawQ = firstUserPromptFromConversation(item.conversation);
+          const questionTitle =
+            rawQ.trim() ||
+            trimDecisionSnippet(String(item.answer || "").replace(/\*\*/g, ""), 72) ||
+            "Decision";
+          return (
+            <article key={item.id} className="history-entry-card">
+              <h2 className="history-entry-question">{questionTitle}</h2>
+              <div className="history-entry-preview" aria-label="Answer preview">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{String(item.answer || "").trim()}</ReactMarkdown>
+              </div>
+              <time className="history-entry-date" dateTime={item.created_at}>
+                {new Date(item.created_at).toLocaleString()}
+              </time>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
