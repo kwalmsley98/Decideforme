@@ -555,6 +555,32 @@ function getDecisionRank(totalRaw) {
   };
 }
 
+/** First user message text from stored decision_history.conversation */
+function firstUserPromptFromConversation(conv) {
+  if (!Array.isArray(conv)) return "";
+  const u = conv.find((m) => m && m.role === "user");
+  const c = u?.content;
+  return typeof c === "string" ? c.trim() : "";
+}
+
+/** Topic bucket for stats (aligned with quick categories: Food, Travel, Fitness, etc.) */
+function inferStatTopicFromUserText(text) {
+  const t = String(text || "").toLowerCase();
+  if (!t.trim()) return "General";
+  if (
+    /\b(flight|flights|airport|hotel|hotels|\btrip\b|holiday|vacation|travel\b|abroad|itinerary|getaway|airbnb|booking)\b/.test(t)
+  )
+    return "Travel";
+  if (/\b(gym|workout|fitness|exercise|\brun\b|running|lift|cardio|training|reps|steps)\b/.test(t)) return "Fitness";
+  if (/\b(wellness|self-care|meditat|spa\b|therapy|sleep hygiene|mental health)\b/.test(t)) return "Wellness";
+  if (/\b(game\b|gaming|playstation|xbox|nintendo|steam|multiplayer|esports)\b/.test(t)) return "Gaming";
+  if (/\b(shop|shopping|\bbuy\b|purchase|amazon|cart|checkout|retail)\b/.test(t)) return "Shopping";
+  if (/\b(bar|club|night out|nightlife|pub\b|going out)\b/.test(t)) return "Nightlife";
+  if (/\b(watch\b|netflix|movie|film|series|stream|disney|prime video|hbo)\b/.test(t)) return "Watch";
+  if (/\b(eat|food|restaurant|dinner|lunch|breakfast|takeout|cook\b|cooking|recipe|snack)\b/.test(t)) return "Food";
+  return "Life & plans";
+}
+
 function nextMidnightCountdown() {
   const now = new Date();
   const next = new Date();
@@ -3631,32 +3657,30 @@ function StatsScreen({ session }) {
       const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
       const { data: history } = await supabase
         .from("decision_history")
-        .select("created_at, category, conversation, answer")
+        .select("created_at, conversation")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: true });
       const list = history ?? [];
-      const categoryMap = {};
-      let mindChanges = 0;
+      const topicCounts = {};
       for (const item of list) {
-        categoryMap[item.category] = (categoryMap[item.category] || 0) + 1;
-        if (Array.isArray(item.conversation)) {
-          mindChanges += item.conversation.filter((x) => /actually|instead|change/i.test(x.content || "")).length;
-        }
+        const promptText = firstUserPromptFromConversation(item.conversation);
+        const topic = inferStatTopicFromUserText(promptText);
+        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
       }
-      const mostIndecisive = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]?.[0] || "General";
+      const mostIndecisive =
+        Object.entries(topicCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "General";
+      const firstPrompt = firstUserPromptFromConversation(list[0]?.conversation);
       setStats({
         totalDecisions: profile?.total_decisions || list.length,
         mostIndecisive,
         longestStreak: profile?.longest_streak || 0,
-        mindChanges,
-        firstDecision: list[0]?.answer || "No decisions yet"
+        firstDecision: firstPrompt || "No decisions yet"
       });
 
       const monday = new Date().getDay() === 1;
       const insights = [
-        `You move fastest when choices are practical (${mostIndecisive} dominates your log).`,
-        `You reconsider details ${mindChanges} times, showing high intention not indecision.`,
-        `Your momentum score is strong: ${profile?.current_streak || 0} day streak with ${profile?.total_votes || 0} social votes.`
+        `Your log leans heaviest on ${mostIndecisive} — that theme shows up most often.`,
+        `Momentum: ${profile?.current_streak || 0} day streak and ${profile?.total_votes || 0} community votes.`
       ];
       if (monday) {
         setWeeklyRecap(insights);
@@ -3667,33 +3691,52 @@ function StatsScreen({ session }) {
     load();
   }, [session?.user?.id]);
 
+  const statsRank = useMemo(() => (stats ? getDecisionRank(stats.totalDecisions) : null), [stats]);
+
   if (!stats) return <section className="card">Loading your wrapped...</section>;
 
   return (
-    <section className="card premium wrapped-card">
+    <section className="card premium wrapped-card stats-wrapped-page">
       <h1>Your Decision Wrapped</h1>
       <p className="muted">Your habits, streaks and decision personality in one snapshot.</p>
-      <div className="stats-grid">
+      {statsRank ? (
+        <article className={`prestige-rank-card prestige-rank-card--${statsRank.tier} stats-wrapped-rank`}>
+          <div className="prestige-rank-card-bg" aria-hidden="true" />
+          <div className="prestige-rank-main">
+            <div className={`prestige-rank-emblem prestige-rank-emblem--${statsRank.tier}`}>
+              <span className="prestige-rank-emoji" aria-hidden="true">
+                {statsRank.emoji}
+              </span>
+            </div>
+            <div className="prestige-rank-text">
+              <p className="prestige-rank-kicker">Combat record</p>
+              <h2 className="prestige-rank-title">{statsRank.label}</h2>
+              <p className="prestige-rank-meta">
+                <strong>{stats.totalDecisions}</strong> lifetime decisions
+                <span className="prestige-rank-dot"> · </span>
+                {statsRank.rangeLabel}
+              </p>
+            </div>
+          </div>
+        </article>
+      ) : null}
+      <div className="stats-grid stats-grid--three">
         <article className="history-item">
           <p className="meta">Total decisions</p>
           <p className="answer">{stats.totalDecisions}</p>
         </article>
         <article className="history-item">
           <p className="meta">Most indecisive about</p>
-          <p>{stats.mostIndecisive}</p>
+          <p className="answer">{stats.mostIndecisive}</p>
         </article>
         <article className="history-item">
           <p className="meta">Longest streak</p>
           <p className="answer">🔥 {stats.longestStreak} days</p>
         </article>
-        <article className="history-item">
-          <p className="meta">Minds changed</p>
-          <p>{stats.mindChanges}</p>
-        </article>
       </div>
-      <article className="history-item">
+      <article className="history-item stats-first-decision">
         <p className="meta">First ever decision</p>
-        <p>{stats.firstDecision}</p>
+        <p className="stats-first-prompt">{stats.firstDecision}</p>
       </article>
       {weeklyRecap ? (
         <article className="history-item weekly-recap">

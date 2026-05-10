@@ -1719,6 +1719,32 @@ a.nearby-inline-maps:hover {
   gap: 10px;
 }
 
+.stats-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .stats-grid--three {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stats-wrapped-page .stats-wrapped-rank {
+  margin-top: 8px;
+}
+
+.stats-first-decision {
+  margin-top: 6px;
+}
+
+.stats-first-prompt {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(244, 246, 255, 0.96);
+}
+
 .weekly-recap ul {
   margin: 8px 0;
   padding-left: 18px;
