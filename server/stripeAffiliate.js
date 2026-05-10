@@ -365,22 +365,22 @@ export async function recordAffiliateConversionHandler(req, res, getUser) {
   if (!service) return res.status(503).json({ error: "Database not configured." });
 
   try {
-    const { data: refRow, error: findErr } = await service
-      .from("referrals")
-      .select("referrer_id")
+    const { data: refProf, error: findErr } = await service
+      .from("profiles")
+      .select("id")
       .eq("referral_code", referralCode)
-      .limit(1)
       .maybeSingle();
     if (findErr) return res.status(400).json({ error: findErr.message });
-    if (!refRow?.referrer_id) return res.status(404).json({ error: "Referral code not found." });
-    if (refRow.referrer_id === userId) return res.status(400).json({ error: "Self-referrals are not allowed." });
+    const referrerId = refProf?.id;
+    if (!referrerId) return res.status(404).json({ error: "Referral code not found." });
+    if (referrerId === userId) return res.status(400).json({ error: "Self-referrals are not allowed." });
 
     await service.rpc("record_affiliate_conversion", {
-      p_referrer_id: refRow.referrer_id,
+      p_referrer_id: referrerId,
       p_increment_pence: 749
     });
 
-    return res.json({ ok: true, referrer_id: refRow.referrer_id, commission_pence: 749 });
+    return res.json({ ok: true, referrer_id: referrerId, commission_pence: 749 });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Could not record conversion." });
   }

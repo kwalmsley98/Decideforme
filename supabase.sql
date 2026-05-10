@@ -651,6 +651,10 @@ where r.referrer_id = p.id
   and p.referral_code is not null
   and (r.referral_code is null or btrim(r.referral_code) = '');
 
+-- Attribution: which referral slug/code was used at signup (denormalized for analytics).
+alter table public.profiles add column if not exists referred_via_code text;
+
+-- Denormalized counters live on the earliest referrals row per referrer (one row per referred user otherwise multiplies updates).
 create or replace function public.increment_referral_clicks_for_referrer(p_referrer_id uuid)
 returns void
 language plpgsql
@@ -660,7 +664,13 @@ as $$
 begin
   update public.referrals
   set clicks = coalesce(clicks, 0) + 1
-  where referrer_id = p_referrer_id;
+  where id = (
+    select r.id
+    from public.referrals r
+    where r.referrer_id = p_referrer_id
+    order by r.id asc
+    limit 1
+  );
 end;
 $$;
 
@@ -676,7 +686,13 @@ as $$
 begin
   update public.referrals
   set total_earnings_pence = coalesce(total_earnings_pence, 0) + greatest(coalesce(p_increment_pence, 0), 0)
-  where referrer_id = p_referrer_id;
+  where id = (
+    select r.id
+    from public.referrals r
+    where r.referrer_id = p_referrer_id
+    order by r.id asc
+    limit 1
+  );
 end;
 $$;
 
@@ -709,7 +725,13 @@ begin
   update public.referrals
   set paying_users = coalesce(paying_users, 0) + 1,
       total_earnings_pence = coalesce(total_earnings_pence, 0) + greatest(coalesce(p_increment_pence, 0), 0)
-  where referrer_id = p_referrer_id;
+  where id = (
+    select r.id
+    from public.referrals r
+    where r.referrer_id = p_referrer_id
+    order by r.id asc
+    limit 1
+  );
 end;
 $$;
 

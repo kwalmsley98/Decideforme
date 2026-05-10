@@ -1472,6 +1472,11 @@ function ChatScreen({ session }) {
         .single();
       setCurrentStreak(profile?.current_streak || 0);
       setIsProUser(Boolean(profile?.is_pro));
+      if (profile?.is_pro && !String(profile?.referral_code || "").trim()) {
+        const generatedCode = await reserveRandomReferralCode(session.user.id);
+        await supabase.from("profiles").update({ referral_code: generatedCode }).eq("id", session.user.id);
+        await supabase.from("referrals").update({ referral_code: generatedCode }).eq("referrer_id", session.user.id);
+      }
 
       const { count: decisionHistoryTotal, data: decisionHistoryRows } = await supabase
         .from("decision_history")
@@ -4240,6 +4245,8 @@ function AffiliatesPage() {
   const [refLink, setRefLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [connectStatus, setConnectStatus] = useState({ connected: false, onboarded: false });
+  /** `null` = loading; `"anon"` = not signed in */
+  const [affiliateGate, setAffiliateGate] = useState(null);
   const shareText = refLink
     ? `I’m using Decide For Me and earning recurring affiliate income. Join with my link: ${refLink}`
     : "I’m using Decide For Me. Join me at decideforme.org";
@@ -4283,9 +4290,15 @@ function AffiliatesPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("id, email, username, referral_code, public_ref_slug")
+        .select("id, email, username, referral_code, public_ref_slug, is_pro")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (!profile?.is_pro) {
+        setLinkError("Upgrade to Pro to unlock referral earnings.");
+        setLinkLoading(false);
+        return;
+      }
 
       const username =
         profile?.username ||
@@ -4382,7 +4395,21 @@ function AffiliatesPage() {
       } = await supabase.auth.getSession();
       const user = authSession?.user || null;
       const accessToken = authSession?.access_token || "";
-      if (!user) return;
+      if (!user) {
+        if (!cancelled) setAffiliateGate("anon");
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("referral_code, is_pro")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!cancelled) setAffiliateGate(profile?.is_pro ? "pro" : "free");
+      if (!profile?.is_pro) {
+        if (!cancelled) setRefLink("");
+        if (!cancelled && accessToken) await fetchConnectStatus(accessToken);
+        return;
+      }
       const { data: refRows } = await supabase
         .from("referrals")
         .select("referral_code")
@@ -4390,7 +4417,6 @@ function AffiliatesPage() {
         .not("referral_code", "is", null)
         .limit(1);
       const tableCode = String(refRows?.[0]?.referral_code || "").trim().toLowerCase();
-      const { data: profile } = await supabase.from("profiles").select("referral_code").eq("id", user.id).maybeSingle();
       const code = tableCode || String(profile?.referral_code || "").trim().toLowerCase();
       if (!cancelled && code) {
         setRefLink(`https://decideforme.org/ref/${code}`);
@@ -4435,51 +4461,70 @@ function AffiliatesPage() {
             <p>See clicks, signups, paying users, and earnings live in your dashboard.</p>
           </article>
         </div>
-        <div className="history-item affiliates-link-card">
-          <p className="meta">Your referral link</p>
-          <p className={`${refLink ? "answer" : "affiliates-link-placeholder"} referral-link-break`}>
-            {refLink || "Generate your personal link to start earning commissions."}
-          </p>
-          <div className="affiliates-link-actions">
-            <button type="button" className="primary-btn" onClick={copyRefLink} disabled={!refLink}>
-              {copied ? "Copied!" : "Copy link"}
-            </button>
-            <button type="button" className="ghost-btn" onClick={ensureReferralLink} disabled={linkLoading}>
-              {linkLoading ? "Refreshing…" : refLink ? "Refresh link" : "Generate link"}
-            </button>
+        {affiliateGate === null ? (
+          <p className="meta">Checking your account…</p>
+        ) : affiliateGate === "anon" ? (
+          <div className="history-item">
+            <p className="answer">
+              <Link to="/login">Sign in</Link> to manage your referral link and payouts.
+            </p>
           </div>
-        </div>
-        <div className="seo-landing-cta-row">
-          <button type="button" className="primary-btn seo-landing-cta" onClick={ensureReferralLink} disabled={linkLoading}>
-            {linkLoading ? "Checking account…" : "Sign up & get your link"}
-          </button>
-          <Link to="/referrals" className="ghost-btn seo-landing-secondary">
-            View leaderboard
-          </Link>
-        </div>
-        <div className="history-item affiliates-share-card">
-          <p className="meta">Share your link</p>
-          <div className="affiliates-share-actions" role="group" aria-label="Share referral link">
-            <a className="ghost-btn affiliates-share-btn" href={shareLinks.whatsapp} target="_blank" rel="noreferrer">
-              WhatsApp
-            </a>
-            <a className="ghost-btn affiliates-share-btn" href={shareLinks.x} target="_blank" rel="noreferrer">
-              X
-            </a>
-            <button type="button" className="ghost-btn affiliates-share-btn" onClick={copyRefLink} disabled={!refLink}>
-              Copy link
-            </button>
+        ) : affiliateGate === "pro" ? (
+          <>
+            <div className="history-item affiliates-link-card">
+              <p className="meta">Your referral link</p>
+              <p className={`${refLink ? "answer" : "affiliates-link-placeholder"} referral-link-break`}>
+                {refLink || "Generate your personal link to start earning commissions."}
+              </p>
+              <div className="affiliates-link-actions">
+                <button type="button" className="primary-btn" onClick={copyRefLink} disabled={!refLink}>
+                  {copied ? "Copied!" : "Copy link"}
+                </button>
+                <button type="button" className="ghost-btn" onClick={ensureReferralLink} disabled={linkLoading}>
+                  {linkLoading ? "Refreshing…" : refLink ? "Refresh link" : "Generate link"}
+                </button>
+              </div>
+            </div>
+            <div className="seo-landing-cta-row">
+              <button type="button" className="primary-btn seo-landing-cta" onClick={ensureReferralLink} disabled={linkLoading}>
+                {linkLoading ? "Checking account…" : "Refresh referral link"}
+              </button>
+              <Link to="/referrals" className="ghost-btn seo-landing-secondary">
+                View leaderboard
+              </Link>
+            </div>
+            <div className="history-item affiliates-share-card">
+              <p className="meta">Share your link</p>
+              <div className="affiliates-share-actions" role="group" aria-label="Share referral link">
+                <a className="ghost-btn affiliates-share-btn" href={shareLinks.whatsapp} target="_blank" rel="noreferrer">
+                  WhatsApp
+                </a>
+                <a className="ghost-btn affiliates-share-btn" href={shareLinks.x} target="_blank" rel="noreferrer">
+                  X
+                </a>
+                <button type="button" className="ghost-btn affiliates-share-btn" onClick={copyRefLink} disabled={!refLink}>
+                  Copy link
+                </button>
+              </div>
+            </div>
+            <div className="history-item">
+              {connectStatus.onboarded ? (
+                <p className="answer">✅ Bank account connected</p>
+              ) : (
+                <button type="button" className="ghost-btn" onClick={startConnectOnboarding} disabled={connectLoading}>
+                  {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="history-item">
+            <p className="answer">Upgrade to Pro to unlock referral earnings.</p>
+            <p className="muted">
+              <Link to="/plans">View Pro plans</Link>
+            </p>
           </div>
-        </div>
-        <div className="history-item">
-          {connectStatus.onboarded ? (
-            <p className="answer">✅ Bank account connected</p>
-          ) : (
-            <button type="button" className="ghost-btn" onClick={startConnectOnboarding} disabled={connectLoading}>
-              {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
-            </button>
-          )}
-        </div>
+        )}
         {linkError ? <p className="error">{linkError}</p> : null}
       </div>
     </section>
@@ -4506,7 +4551,7 @@ function ProfileScreen({ session }) {
       .single();
     let normalizedProfile = profileData;
     const existingCode = String(profileData?.referral_code || "").trim().toLowerCase();
-    if (!existingCode) {
+    if (profileData?.is_pro && !existingCode) {
       const generatedCode = await reserveRandomReferralCode(session.user.id);
       const { data: updated } = await supabase
         .from("profiles")
@@ -4515,6 +4560,7 @@ function ProfileScreen({ session }) {
         .select("*")
         .single();
       if (updated) normalizedProfile = updated;
+      await supabase.from("referrals").update({ referral_code: generatedCode }).eq("referrer_id", session.user.id);
     }
     setProfile(normalizedProfile);
     const { data: refData } = await supabase
@@ -4619,7 +4665,10 @@ function ProfileScreen({ session }) {
   };
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const canonicalCode = referralCodeFromReferrals || String(profile?.referral_code || "").toLowerCase();
+  const isProReferrer = Boolean(profile?.is_pro);
+  const canonicalCode = isProReferrer
+    ? referralCodeFromReferrals || String(profile?.referral_code || "").trim().toLowerCase()
+    : "";
   const prettyRefLink = canonicalCode && origin ? `${origin}/ref/${canonicalCode}` : "";
 
   const removePreference = async (id) => {
@@ -4729,46 +4778,55 @@ function ProfileScreen({ session }) {
           Earn <strong>50%</strong> recurring on Pro subscriptions from your referrals.{" "}
           <Link to="/affiliates">Program details</Link> · <Link to="/referrals">Leaderboard</Link>
         </p>
-        {prettyRefLink ? (
+        {isProReferrer ? (
           <>
-            <p className="muted">Your share link</p>
-            <p className="answer referral-link-break">{prettyRefLink}</p>
-            <SharePanel text={prettyRefLink} />
+            {prettyRefLink ? (
+              <>
+                <p className="muted">Your share link</p>
+                <p className="answer referral-link-break">{prettyRefLink}</p>
+                <SharePanel text={prettyRefLink} />
+              </>
+            ) : (
+              <p className="meta">Generating your link… refresh if this persists.</p>
+            )}
+            <div className="referral-dash-grid">
+              <div>
+                <p className="meta">Link clicks</p>
+                <p className="answer">{referralDash.clicks}</p>
+              </div>
+              <div>
+                <p className="meta">Signups</p>
+                <p className="answer">{referralDash.signups}</p>
+              </div>
+              <div>
+                <p className="meta">Paying users</p>
+                <p className="answer">{referralDash.paying_users}</p>
+              </div>
+              <div>
+                <p className="meta">Total earnings</p>
+                <p className="answer">
+                  £{((referralDash.total_earnings_pence || 0) / 100).toFixed(2)}
+                </p>
+              </div>
+            </div>
+            {referralDashError ? <p className="meta">{referralDashError} Showing zeros.</p> : null}
+            {connectStatus.onboarded ? (
+              <p className="answer">✅ Bank account connected</p>
+            ) : (
+              <button type="button" className="ghost-btn" disabled={connectLoading} onClick={startConnectOnboarding}>
+                {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
+              </button>
+            )}
+            <p className="muted small-print">
+              Connect once so we can pay your commission. Requires a Stripe Express account.
+            </p>
           </>
         ) : (
-          <p className="meta">Generating your link… refresh if this persists.</p>
+          <p className="answer">
+            Upgrade to Pro to unlock referral earnings.{" "}
+            <Link to="/plans">View Pro plans</Link>
+          </p>
         )}
-        <div className="referral-dash-grid">
-          <div>
-            <p className="meta">Link clicks</p>
-            <p className="answer">{referralDash.clicks}</p>
-          </div>
-          <div>
-            <p className="meta">Signups</p>
-            <p className="answer">{referralDash.signups}</p>
-          </div>
-          <div>
-            <p className="meta">Paying users</p>
-            <p className="answer">{referralDash.paying_users}</p>
-          </div>
-          <div>
-            <p className="meta">Total earnings</p>
-            <p className="answer">
-              £{((referralDash.total_earnings_pence || 0) / 100).toFixed(2)}
-            </p>
-          </div>
-        </div>
-        {referralDashError ? <p className="meta">{referralDashError} Showing zeros.</p> : null}
-        {connectStatus.onboarded ? (
-          <p className="answer">✅ Bank account connected</p>
-        ) : (
-          <button type="button" className="ghost-btn" disabled={connectLoading} onClick={startConnectOnboarding}>
-            {connectLoading ? "Opening Stripe…" : "Connect bank account to receive payouts"}
-          </button>
-        )}
-        <p className="muted small-print">
-          Connect once so we can pay your commission. Requires a Stripe Express account.
-        </p>
       </article>
 
       <p className="muted">Referrals recorded: {referrals.length}</p>
@@ -4812,31 +4870,30 @@ async function ensureProfileAndReferral(user) {
 
   const { data: existing } = await supabase
     .from("profiles")
-    .select("id, public_ref_slug, referral_code")
+    .select("id, public_ref_slug, referral_code, is_pro")
     .eq("id", user.id)
     .maybeSingle();
   if (!existing) {
-    const referralCode = await reserveRandomReferralCode(user.id);
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
     await supabase.from("profiles").insert({
       id: user.id,
       username,
-      referral_code: referralCode,
       public_ref_slug: publicRefSlug
     });
-  } else if (!existing.public_ref_slug || !existing.referral_code) {
+  } else if (!existing.public_ref_slug) {
     const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
-    const patch = { public_ref_slug: publicRefSlug };
-    if (!existing.referral_code) patch.referral_code = await reserveRandomReferralCode(user.id);
-    await supabase.from("profiles").update(patch).eq("id", user.id);
+    await supabase.from("profiles").update({ public_ref_slug: publicRefSlug }).eq("id", user.id);
   }
 
   const pendingSlug = localStorage.getItem("pending_ref_slug");
-  const pendingCode = localStorage.getItem("pending_referral_code");
+  const pendingCodeRaw = localStorage.getItem("pending_referral_code");
+  const pendingCode = pendingCodeRaw ? String(pendingCodeRaw).trim().toLowerCase() : "";
 
   let referrerId = null;
+  let attributionLabel = "";
   if (pendingSlug) {
     const normalized = String(pendingSlug).trim().toLowerCase();
+    attributionLabel = normalized;
     const { data: bySlug } = await supabase
       .from("profiles")
       .select("id")
@@ -4846,6 +4903,7 @@ async function ensureProfileAndReferral(user) {
     localStorage.removeItem("pending_ref_slug");
   }
   if (!referrerId && pendingCode) {
+    attributionLabel = pendingCode;
     const { data: byCode } = await supabase.from("profiles").select("id").eq("referral_code", pendingCode).maybeSingle();
     if (byCode?.id && byCode.id !== user.id) referrerId = byCode.id;
     localStorage.removeItem("pending_referral_code");
@@ -4856,7 +4914,13 @@ async function ensureProfileAndReferral(user) {
   const { data: me } = await supabase.from("profiles").select("referred_by").eq("id", user.id).maybeSingle();
   if (me?.referred_by) return;
 
-  await supabase.from("profiles").update({ referred_by: referrerId }).eq("id", user.id);
+  await supabase
+    .from("profiles")
+    .update({
+      referred_by: referrerId,
+      ...(attributionLabel ? { referred_via_code: attributionLabel.slice(0, 64) } : {})
+    })
+    .eq("id", user.id);
 
   await supabase.from("referrals").upsert(
     {
@@ -5095,7 +5159,6 @@ function PlansScreen({ session }) {
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const location = useLocation();
 
   useEffect(() => {
     if (!supabase) return;
@@ -5126,33 +5189,6 @@ export default function App() {
       cancelled = true;
     };
   }, [session?.user?.id, session?.access_token]);
-
-  useEffect(() => {
-    if (!session?.access_token) return;
-    const search = new URLSearchParams(location.search || "");
-    if (search.get("checkout") !== "success") return;
-    const referralCode = String(localStorage.getItem("referral_code") || "")
-      .trim()
-      .toLowerCase();
-    if (!referralCode) return;
-    (async () => {
-      try {
-        const res = await fetch(apiUrl("/api/affiliate/conversion"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ referral_code: referralCode })
-        });
-        if (res.ok) {
-          localStorage.removeItem("referral_code");
-        }
-      } catch {
-        /* non-blocking */
-      }
-    })();
-  }, [location.search, session?.access_token]);
 
   const signOut = async () => {
     if (!supabase) return;
