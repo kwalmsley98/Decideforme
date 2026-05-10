@@ -1,17 +1,4 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
-
-const DEFAULT_TITLE = "Decide For Me";
-
-function upsertMetaDescription(content) {
-  let el = document.querySelector('meta[name="description"]');
-  if (!el) {
-    el = document.createElement("meta");
-    el.setAttribute("name", "description");
-    document.head.appendChild(el);
-  }
-  el.setAttribute("content", content);
-}
 
 export const SEO_LANDING_ROUTES = [
   {
@@ -58,17 +45,6 @@ export const SEO_LANDING_ROUTES = [
 
 export function SeoLandingPage({ config }) {
   const chatHref = `/?q=${encodeURIComponent(config.chatPrefill)}`;
-
-  useEffect(() => {
-    document.title = config.metaTitle;
-    upsertMetaDescription(config.metaDescription);
-    return () => {
-      document.title = DEFAULT_TITLE;
-      upsertMetaDescription(
-        "Stop overthinking. Just decide. AI-powered decisions for food, travel, life choices, and more."
-      );
-    };
-  }, [config.metaTitle, config.metaDescription]);
 
   return (
     <section className="card premium seo-landing">

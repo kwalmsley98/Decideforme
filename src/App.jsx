@@ -12,6 +12,7 @@ import {
 } from "react-router-dom";
 import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
+import { DocumentMeta, applyPageMeta } from "./seoMeta.jsx";
 import {
   ArrowUp,
   BadgePercent,
@@ -1302,6 +1303,8 @@ function Layout({ session, onSignOut, children }) {
 
   return (
     <div className="app-shell page-enter">
+      <DocumentMeta />
+      <OfflineBanner />
       {showOnboarding ? <OnboardingOverlay onComplete={finishOnboarding} /> : null}
       <header className="topbar">
         <Link to="/" className="brand">
@@ -1361,6 +1364,50 @@ function ProtectedRoute({ session, children }) {
   if (!isSupabaseConfigured) return <Navigate to="/" replace />;
   if (!session) return <Navigate to="/login" replace />;
   return children;
+}
+
+function OfflineBanner() {
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
+  useEffect(() => {
+    const up = () => setOffline(false);
+    const down = () => setOffline(true);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div className="offline-banner" role="status" aria-live="polite">
+      The AI needs WiFi to make decisions. Reconnect and we&apos;ll get back to controlling your life.
+    </div>
+  );
+}
+
+function NotFoundPage() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    applyPageMeta({
+      title: "Page not found | Decide For Me",
+      description: "This page doesn’t exist — head back to Decide For Me at decideforme.org.",
+      path: pathname
+    });
+  }, [pathname]);
+  return (
+    <section className="card premium not-found-card">
+      <p className="hero-kicker not-found-kicker">404</p>
+      <h1 className="not-found-title">Well, this is awkward</h1>
+      <p className="answer not-found-lede">
+        The AI couldn&apos;t decide where this page went. Neither can we.
+      </p>
+      <p className="meta not-found-hint">Maybe it&apos;s meditating. Maybe it ghosted us. Either way — home is safe.</p>
+      <Link to="/" className="primary-btn not-found-cta">
+        Back home
+      </Link>
+    </section>
+  );
 }
 
 function DailyDilemmaCard({ session }) {
@@ -5775,23 +5822,6 @@ function AffiliatesPage() {
   };
 
   useEffect(() => {
-    document.title = "Affiliate Program | Decide For Me";
-    let el = document.querySelector('meta[name="description"]');
-    if (!el) {
-      el = document.createElement("meta");
-      el.setAttribute("name", "description");
-      document.head.appendChild(el);
-    }
-    el.setAttribute(
-      "content",
-      "50% recurring commission on Decide For Me Pro. Referral leaderboard, Stripe payouts, earn while you sleep."
-    );
-    return () => {
-      document.title = "Decide For Me";
-    };
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!supabase) return;
@@ -5938,6 +5968,7 @@ function AffiliatesPage() {
 
 function ProfileScreen({ session }) {
   const navigate = useNavigate();
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [referralCodeFromReferrals, setReferralCodeFromReferrals] = useState("");
@@ -6041,6 +6072,15 @@ function ProfileScreen({ session }) {
     loadProfile();
   }, [session?.user?.id, session?.access_token]);
 
+  useEffect(() => {
+    if (!whatsNewOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setWhatsNewOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [whatsNewOpen]);
+
   const startConnectOnboarding = async () => {
     if (!session?.access_token) return;
     setConnectLoading(true);
@@ -6086,6 +6126,14 @@ function ProfileScreen({ session }) {
   return (
     <section className="card profile-screen-card">
       <h1>Profile</h1>
+      <div className="profile-support-links">
+        <button type="button" className="ghost-btn profile-whats-new-btn" onClick={() => setWhatsNewOpen(true)}>
+          What&apos;s new
+        </button>
+        <a className="profile-contact-support" href="mailto:support@decideforme.org">
+          Contact support
+        </a>
+      </div>
       <article className={`prestige-rank-card prestige-rank-card--${profileRank.tier}`}>
         <div className="prestige-rank-card-bg" aria-hidden="true" />
         <div className="prestige-rank-main">
@@ -6191,6 +6239,47 @@ function ProfileScreen({ session }) {
       </article>
 
       <p className="muted">Referrals recorded: {referrals.length}</p>
+
+      {whatsNewOpen ? (
+        <div className="whats-new-overlay" role="presentation" onClick={() => setWhatsNewOpen(false)}>
+          <div
+            className="whats-new-modal card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="whats-new-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="whats-new-modal-head">
+              <h2 id="whats-new-title">What&apos;s new</h2>
+              <button type="button" className="ghost-btn whats-new-close" aria-label="Close" onClick={() => setWhatsNewOpen(false)}>
+                <X size={20} strokeWidth={2} />
+              </button>
+            </div>
+            <ul className="whats-new-list">
+              <li>
+                <strong>Life Mode Command Centre</strong>
+                <span>Directives, compliance roasts, and a shareable rank card while AI runs your day.</span>
+              </li>
+              <li>
+                <strong>Prestige ranks</strong>
+                <span>Progress through tiers from your lifetime decisions — shown on Profile and share cards.</span>
+              </li>
+              <li>
+                <strong>Chat history</strong>
+                <span>Revisit recent prompts and answers from the chat toolbar.</span>
+              </li>
+              <li>
+                <strong>Decision Wrapped</strong>
+                <span>Stats page snapshot of habits, streaks, and weekly recap lines when it&apos;s recap Monday.</span>
+              </li>
+              <li>
+                <strong>Shareable cards</strong>
+                <span>Export PNGs for Daily Dilemma, leaderboard, Wrapped, Life Mode, Decision Profile, and chat.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -6494,8 +6583,30 @@ function PlansScreen({ session }) {
   );
 }
 
+const DFM_SPLASH_SESSION_KEY = "dfm_branded_splash_seen";
+
 export default function App() {
   const [session, setSession] = useState(null);
+  const [showSplash, setShowSplash] = useState(() => {
+    try {
+      return !sessionStorage.getItem(DFM_SPLASH_SESSION_KEY);
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    if (!showSplash) return undefined;
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem(DFM_SPLASH_SESSION_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setShowSplash(false);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [showSplash]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -6533,7 +6644,8 @@ export default function App() {
   };
 
   return (
-    <CommerceCurrencyProvider>
+    <>
+      <CommerceCurrencyProvider>
       <Layout session={session} onSignOut={signOut}>
         {!isSupabaseConfigured ? (
           <section className="card">
@@ -6589,8 +6701,18 @@ export default function App() {
           <Route path="/plans" element={<PlansScreen session={session} />} />
           <Route path="/login" element={<AuthScreen mode="login" />} />
           <Route path="/signup" element={<AuthScreen mode="signup" />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Layout>
     </CommerceCurrencyProvider>
+      {showSplash ? (
+        <div className="splash-overlay" aria-hidden="true">
+          <div className="splash-inner">
+            <Zap className="splash-bolt" size={52} strokeWidth={2} aria-hidden="true" />
+            <p className="splash-title">Decide For Me</p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
