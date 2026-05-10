@@ -122,10 +122,47 @@ a {
 }
 
 .brand {
-  color: #fbf096;
-  font-weight: 800;
-  letter-spacing: 0.1px;
-  font-size: 1.03rem;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.brand-logo-link:focus-visible {
+  outline: 2px solid rgba(245, 230, 66, 0.85);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.brand-logo {
+  display: block;
+  height: auto;
+  width: auto;
+  max-height: 40px;
+  object-fit: contain;
+}
+
+/* Desktop / tablet: full horizontal wordmark */
+.brand-logo--horizontal {
+  display: block;
+  max-width: min(240px, 42vw);
+}
+
+.brand-logo--icon {
+  display: none;
+  max-height: 42px;
+  max-width: 42px;
+}
+
+@media (max-width: 768px) {
+  .brand-logo--horizontal {
+    display: none;
+  }
+
+  .brand-logo--icon {
+    display: block;
+  }
 }
 
 .nav-links {
