@@ -1725,8 +1725,12 @@ a.nearby-inline-maps:hover {
   padding-bottom: 12px;
 }
 
-.share-widget-reveal-btn {
-  margin-top: 4px;
+.share-widget-reveal-btn.primary-btn {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: block;
+  text-align: center;
 }
 
 .share-widget-expanded {

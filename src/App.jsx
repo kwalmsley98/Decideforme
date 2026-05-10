@@ -1139,7 +1139,7 @@ function ShareImageToolbar({
   );
 }
 
-/** PNG share card + toolbar; preview stays hidden until the user taps Share. */
+/** PNG share card + toolbar; preview stays hidden until the user taps the primary Share button. */
 function CollapsibleShareImageBlock({
   className = "",
   header,
@@ -1162,7 +1162,7 @@ function CollapsibleShareImageBlock({
       {!open ? (
         <button
           type="button"
-          className="share-widget-reveal-btn ghost-btn"
+          className="primary-btn share-widget-reveal-btn"
           aria-expanded="false"
           onClick={() => setOpen(true)}
         >
@@ -1613,7 +1613,7 @@ function DailyDilemmaCard({ session }) {
 
           <div className="daily-dilemma-share-pack">
             <CollapsibleShareImageBlock
-              header={<p className="hero-kicker daily-dilemma-share-kicker">Share</p>}
+              revealLabel="Share your Daily Dilemma"
               exportRef={dailyShareCardRef}
               captionText={dailyShareCaption}
               filename="decide-for-me-daily-dilemma.png"
@@ -3641,8 +3641,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <article className="life-cc-share-card">
           <CollapsibleShareImageBlock
             className="share-widget"
-            header={<p className="hero-kicker life-cc-kicker-quiet">Share</p>}
-            expandedIntro={<p className="meta life-cc-share-intro">Card preview · download or share.</p>}
+            revealLabel="Share today's orders"
             toolbarClassName="life-cc-actions life-cc-share-toolbar"
             exportRef={lifeModeShareCardRef}
             captionText={missionShareLine}
@@ -3730,8 +3729,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <article className="life-mission-share-wrap">
           <CollapsibleShareImageBlock
             className="share-widget"
-            header={<p className="hero-kicker">Mission report · share</p>}
-            expandedIntro={<p className="meta life-cc-share-intro">Compact card for Stories or posts.</p>}
+            revealLabel="Share your mission report"
             exportRef={lifeMissionShareCardRef}
             captionText={buildMissionRecapCaption(lifeModeRecap, lifeModeCaption)}
             filename="decide-for-me-life-mode-mission.png"
@@ -4141,8 +4139,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <div className="chat-share-pack">
           <CollapsibleShareImageBlock
             className="share-widget"
-            header={<p className="hero-kicker chat-share-pack-kicker">Share</p>}
-            expandedIntro={<p className="meta life-cc-share-intro">Latest exchange as an image.</p>}
+            revealLabel="Share this chat snapshot"
             exportRef={chatShareCardRef}
             captionText={chatShareCaption}
             filename="decide-for-me-chat.png"
@@ -4713,7 +4710,7 @@ function DecisionProfileScreen({ session }) {
           <article className="dp-share-section">
             <CollapsibleShareImageBlock
               className="share-widget"
-              header={<p className="dp-panel-title">Share your Decision Personality card</p>}
+              revealLabel="Share your decision profile"
               expandedIntro={<p className="meta dp-share-blurb">Preview, download, or share — optional caption copy.</p>}
               toolbarClassName="dp-share-toolbar"
               exportRef={shareCardRef}
@@ -4918,7 +4915,7 @@ function StatsScreen({ session }) {
       <article className="stats-wrapped-share-section">
         <CollapsibleShareImageBlock
           className="share-widget"
-          header={<p className="hero-kicker">Share your Wrapped</p>}
+          revealLabel="Share your Wrapped"
           expandedIntro={<p className="meta life-cc-share-intro">Includes weekly lines on recap Mondays.</p>}
           exportRef={statsWrappedShareRef}
           captionText={wrappedShareCaption}
@@ -5472,7 +5469,7 @@ function LeaderboardScreen({ session }) {
         <article className="leaderboard-share-pack">
           <CollapsibleShareImageBlock
             className="share-widget"
-            header={<p className="hero-kicker">Share your rank</p>}
+            revealLabel="Share your rank"
             expandedIntro={<p className="meta life-cc-share-intro">Prestige tier on the card.</p>}
             exportRef={leaderboardShareCardRef}
             captionText={leaderboardShareCaption}
