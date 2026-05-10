@@ -24,6 +24,13 @@ import {
   recordReferralClick,
   runAffiliatePayoutHandler
 } from "./stripeAffiliate.js";
+import {
+  getAdminInvites,
+  postAdminCreateInvite,
+  postAdminLogin,
+  postInviteRedeem,
+  requireAdmin
+} from "./influencerInvites.js";
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -1187,6 +1194,11 @@ app.post("/api/ref/track-click", async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+app.post("/api/admin/login", (req, res) => postAdminLogin(req, res));
+app.get("/api/admin/invites", requireAdmin, (req, res) => getAdminInvites(req, res));
+app.post("/api/admin/invites", requireAdmin, (req, res) => postAdminCreateInvite(req, res));
+app.post("/api/invite/redeem", (req, res) => postInviteRedeem(req, res));
 
 app.listen(PORT, () => {
   console.log(

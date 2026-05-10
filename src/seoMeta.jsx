@@ -7,7 +7,7 @@ export const SITE_CANONICAL = "https://decideforme.org";
 export const DEFAULT_DESCRIPTION =
   "Stop overthinking. AI-powered decisions, Life Mode Command Centre, Daily Dilemmas, prestige ranks, shareable cards, and your Decision Profile — decideforme.org";
 
-function ensureMetaName(name, content) {
+export function ensureMetaName(name, content) {
   let el = document.querySelector(`meta[name="${name}"]`);
   if (!el) {
     el = document.createElement("meta");
@@ -112,6 +112,10 @@ const STATIC_ROUTES = {
   "/signup": {
     title: "Sign up | Decide For Me",
     description: "Create your Decide For Me account — decideforme.org."
+  },
+  "/admin": {
+    title: "Admin | Decide For Me",
+    description: "Internal administration — not indexed."
   }
 };
 
@@ -157,6 +161,14 @@ export function DocumentMeta() {
   useEffect(() => {
     const m = metaForPath(pathname);
     applyPageMeta(m);
+    if (pathname === "/admin") {
+      ensureMetaName("robots", "noindex, nofollow");
+    } else {
+      const robotsEl = document.querySelector('meta[name="robots"]');
+      if (robotsEl?.getAttribute("content") === "noindex, nofollow") {
+        robotsEl.remove();
+      }
+    }
   }, [pathname]);
   return null;
 }

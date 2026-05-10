@@ -438,6 +438,14 @@ export async function handleStripeWebhook(stripe, req, res) {
         const userId = sub.metadata?.supabase_user_id;
         const active = sub.status === "active" || sub.status === "trialing";
         if (service && userId) {
+          const { data: lifetimeRow } = await service
+            .from("profiles")
+            .select("lifetime_pro_granted")
+            .eq("id", userId)
+            .maybeSingle();
+          if (lifetimeRow?.lifetime_pro_granted) {
+            break;
+          }
           await service.from("profiles").update({ is_pro: active }).eq("id", userId);
         }
         break;

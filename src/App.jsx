@@ -12,7 +12,7 @@ import {
 } from "react-router-dom";
 import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
-import { DocumentMeta, applyPageMeta } from "./seoMeta.jsx";
+import { DocumentMeta, applyPageMeta, SITE_CANONICAL } from "./seoMeta.jsx";
 import {
   ArrowUp,
   BadgePercent,
@@ -59,6 +59,14 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
+const DFM_INVITE_STORAGE_KEY = "dfm_influencer_invite_code";
+const DFM_ADMIN_TOKEN_KEY = "dfm_admin_token";
+
+function formatGbpFromPence(pence) {
+  const n = Number(pence);
+  if (!Number.isFinite(n)) return "£0.00";
+  return `£${(n / 100).toFixed(2)}`;
+}
 
 function isStripeHostedCheckoutUrl(urlString) {
   try {
@@ -1357,6 +1365,276 @@ function Layout({ session, onSignOut, children }) {
         ))}
       </nav>
     </div>
+  );
+}
+
+function InfluencerInviteLanding() {
+  const { code } = useParams();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const normalized = String(code || "")
+      .trim()
+      .toLowerCase();
+    if (/^[a-z0-9]{6,16}$/.test(normalized)) {
+      try {
+        localStorage.setItem(DFM_INVITE_STORAGE_KEY, normalized);
+      } catch {
+        /* ignore */
+      }
+    }
+    applyPageMeta({
+      title: "You're invited | Decide For Me",
+      description: "Lifetime Pro and your referral code — decideforme.org.",
+      path: pathname
+    });
+  }, [code, pathname]);
+
+  const valid = /^[a-z0-9]{6,16}$/.test(String(code || "").trim().toLowerCase());
+  const inviteUrl = `${SITE_CANONICAL}/invite/${String(code || "").trim().toLowerCase()}`;
+
+  return (
+    <section className="card premium">
+      <p className="hero-kicker">Influencer invite</p>
+      <h1 className="decision-title">You&apos;ve got lifetime Pro</h1>
+      <p className="answer">
+        Sign in or create an account to unlock Pro forever on this device — no card, no trial timer — plus your referral code so you can{" "}
+        <Link to="/affiliates">earn 50% commissions</Link> when you share Decide For Me.
+      </p>
+      {!valid ? (
+        <p className="error">This invite link doesn&apos;t look valid. Ask for a fresh link.</p>
+      ) : (
+        <p className="meta referral-link-break">
+          Link saved for after you sign in: <code className="invite-url-code">{inviteUrl}</code>
+        </p>
+      )}
+      <div className="invite-landing-actions">
+        <Link to="/signup" className="primary-btn">
+          Create account
+        </Link>
+        <Link to="/login" className="secondary-btn">
+          Log in
+        </Link>
+        <button type="button" className="ghost-btn" onClick={() => navigate("/")}>
+          Back to app
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function AdminPage() {
+  const { pathname } = useLocation();
+  const [password, setPassword] = useState("");
+  const [adminToken, setAdminToken] = useState(() => {
+    try {
+      return sessionStorage.getItem(DFM_ADMIN_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [invites, setInvites] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const publicSiteOrigin = SITE_CANONICAL.replace(/\/$/, "");
+
+  const loadInvites = async (tok) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(apiUrl("/api/admin/invites"), {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401) {
+          try {
+            sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
+          } catch {
+            /* ignore */
+          }
+          setAdminToken("");
+          setError(typeof data?.error === "string" ? data.error : "Session expired. Sign in again.");
+        } else {
+          setError(typeof data?.error === "string" ? data.error : "Could not load invites.");
+        }
+        setInvites([]);
+        return;
+      }
+      setInvites(Array.isArray(data.invites) ? data.invites : []);
+    } catch {
+      setError("Could not reach the server.");
+      setInvites([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    applyPageMeta({
+      title: "Admin | Decide For Me",
+      description: "Invite administration.",
+      path: pathname
+    });
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    loadInvites(adminToken);
+  }, [adminToken]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    try {
+      const res = await fetch(apiUrl("/api/admin/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoginError(typeof data?.error === "string" ? data.error : "Login failed.");
+        return;
+      }
+      const tok = typeof data?.token === "string" ? data.token : "";
+      if (!tok) {
+        setLoginError("Invalid response from server.");
+        return;
+      }
+      try {
+        sessionStorage.setItem(DFM_ADMIN_TOKEN_KEY, tok);
+      } catch {
+        /* ignore */
+      }
+      setAdminToken(tok);
+      setPassword("");
+    } catch {
+      setLoginError("Could not reach the server.");
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    if (!adminToken) return;
+    setError("");
+    try {
+      const res = await fetch(apiUrl("/api/admin/invites"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({ label: newLabel.trim() || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Could not create invite.");
+        return;
+      }
+      setNewLabel("");
+      await loadInvites(adminToken);
+    } catch {
+      setError("Could not reach the server.");
+    }
+  };
+
+  const handleLogout = () => {
+    try {
+      sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+    setAdminToken("");
+    setInvites([]);
+  };
+
+  if (!adminToken) {
+    return (
+      <section className="card premium admin-gate">
+        <p className="hero-kicker">Admin</p>
+        <h1 className="decision-title">Sign in</h1>
+        <form onSubmit={handleLogin} className="form admin-login-form">
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Admin password"
+          />
+          {loginError ? <p className="error">{loginError}</p> : null}
+          <button type="submit" className="primary-btn">
+            Continue
+          </button>
+        </form>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card premium admin-dashboard">
+      <div className="admin-dashboard-head">
+        <div>
+          <p className="hero-kicker">Admin</p>
+          <h1 className="decision-title">Influencer invites</h1>
+          <p className="meta">One-time links in the form {publicSiteOrigin}/invite/[code]</p>
+        </div>
+        <button type="button" className="ghost-btn" onClick={handleLogout}>
+          Sign out
+        </button>
+      </div>
+
+      <div className="admin-create-row">
+        <input
+          type="text"
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          placeholder="Label (optional), e.g. TikTok — @creator"
+          className="admin-label-input"
+        />
+        <button type="button" className="primary-btn" onClick={handleCreateInvite} disabled={loading}>
+          Generate invite link
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      {loading ? <p className="meta">Loading…</p> : null}
+
+      <div className="admin-invites-table-wrap">
+        <table className="admin-invites-table">
+          <thead>
+            <tr>
+              <th>Invite link</th>
+              <th>Label</th>
+              <th>Used at</th>
+              <th>User</th>
+              <th>Decisions</th>
+              <th>Referral commissions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invites.map((row) => {
+              const link = `${publicSiteOrigin}/invite/${row.code}`;
+              return (
+                <tr key={row.id}>
+                  <td>
+                    <code className="admin-code">{link}</code>
+                  </td>
+                  <td>{row.label || "—"}</td>
+                  <td>{row.used_at ? new Date(row.used_at).toLocaleString() : "—"}</td>
+                  <td>{row.user_email || (row.used_by_user_id ? row.used_by_user_id.slice(0, 8) + "…" : "—")}</td>
+                  <td>{row.used_by_user_id != null ? row.total_decisions ?? 0 : "—"}</td>
+                  <td>{row.used_by_user_id != null ? formatGbpFromPence(row.referral_commission_pence) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!loading && invites.length === 0 ? <p className="meta">No invites yet. Generate one above.</p> : null}
+      </div>
+    </section>
   );
 }
 
@@ -6638,6 +6916,45 @@ export default function App() {
     };
   }, [session?.user?.id, session?.access_token]);
 
+  useEffect(() => {
+    if (!session?.access_token || !supabase) return undefined;
+    let cancelled = false;
+    let code = "";
+    try {
+      code = localStorage.getItem(DFM_INVITE_STORAGE_KEY) || "";
+    } catch {
+      return undefined;
+    }
+    const trimmed = code.trim().toLowerCase();
+    if (!trimmed || !/^[a-z0-9]{6,16}$/.test(trimmed)) return undefined;
+
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/invite/redeem"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ code: trimmed })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok || !data?.ok) return;
+        try {
+          localStorage.removeItem(DFM_INVITE_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+      } catch {
+        /* network — retry on next mount */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.access_token]);
+
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -6699,6 +7016,8 @@ export default function App() {
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
           <Route path="/plans" element={<PlansScreen session={session} />} />
+          <Route path="/invite/:code" element={<InfluencerInviteLanding />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/login" element={<AuthScreen mode="login" />} />
           <Route path="/signup" element={<AuthScreen mode="signup" />} />
           <Route path="*" element={<NotFoundPage />} />
