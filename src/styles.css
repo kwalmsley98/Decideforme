@@ -5044,6 +5044,8 @@ a.nearby-inline-maps:hover {
 }
 
 .life-cc-emergency {
+  position: relative;
+  z-index: 2;
   margin-top: 16px;
   width: 100%;
   display: inline-flex;

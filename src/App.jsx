@@ -2102,6 +2102,7 @@ function ChatScreen({ session }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
+  const [lifeModeExitNotice, setLifeModeExitNotice] = useState("");
   const [syncProAfterCheckout, setSyncProAfterCheckout] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
@@ -2650,14 +2651,21 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       streakPrev = 0;
     }
     let streakNext = streakPrev;
-    if (complianceScore != null && Number.isFinite(complianceScore)) {
-      if (complianceScore >= 50 && !emergencyOverride) streakNext = streakPrev + 1;
+    if (emergencyOverride) {
+      streakNext = 0;
+    } else if (complianceScore != null && Number.isFinite(complianceScore)) {
+      if (complianceScore >= 50) streakNext = streakPrev + 1;
       else streakNext = 0;
     }
     try {
       localStorage.setItem(LIFE_STREAK_STORAGE_KEY, String(streakNext));
     } catch {
       /* ignore */
+    }
+
+    const profileUserId = sessionRow.user_id;
+    if (supabase && profileUserId) {
+      await supabase.from("profiles").update({ life_mode_streak_days: streakNext }).eq("id", profileUserId);
     }
 
     let viralSummary = null;
@@ -3665,18 +3673,55 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     });
   };
 
-  const triggerLifeEmergencyOverride = () => {
+  const confirmEmergencyLifeExit = async () => {
     if (!lifeModeSession?.id) return;
+    const ok = window.confirm("Are you sure? This will forfeit your Life Mode streak.");
+    if (!ok) return;
+
+    const snap = lifeModeSession;
+    const sid = snap.id;
+
     try {
-      localStorage.setItem(`dfm_lm_emergency_${lifeModeSession.id}`, "1");
+      localStorage.setItem(`dfm_lm_emergency_${sid}`, "1");
       localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
     } catch {
       /* ignore */
     }
+
+    if (supabase && session?.user?.id) {
+      const { error: streakErr } = await supabase.from("profiles").update({ life_mode_streak_days: 0 }).eq("id", session.user.id);
+      if (streakErr) console.warn("[life mode emergency] profile streak reset:", streakErr.message);
+    }
+
+    const persistedToDb = Boolean(sid && !String(sid).startsWith("local-"));
+    if (supabase && persistedToDb) {
+      await finalizeLifeModeIfNeeded(snap);
+      if (session?.user?.id) {
+        await supabase.from("life_mode_sessions").update({ is_active: false }).eq("id", sid).eq("user_id", session.user.id);
+      }
+    }
+
+    try {
+      localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+      localStorage.removeItem(LIFE_SETUP_STORAGE_KEY);
+      localStorage.removeItem(`dfm_lm_pct_${sid}`);
+      localStorage.removeItem(`dfm_lm_emergency_${sid}`);
+      const dayKey = new Date().toISOString().slice(0, 10);
+      localStorage.removeItem(`dfm_lm_cmp_${sid}_${dayKey}`);
+    } catch {
+      /* ignore */
+    }
+
     setLifeModeComplianceMap({});
     setLifeModeResponsePicks({});
-    persistLifeEngagementToDay({}, {});
-    setLifeModeEmergencyShame("Weakness detected 😤");
+    setLifeModeEmergencyShame("");
+    setLifeModeSetup(null);
+    setLifeModeSession(null);
+    setLifeModeRecap(null);
+    await refreshLifeModeGlobalCount();
+
+    setLifeModeExitNotice("Streak forfeited. The machine is disappointed.");
+    window.setTimeout(() => setLifeModeExitNotice(""), 4800);
   };
 
   const renderChatRankStrip = (compact) => (
@@ -4025,7 +4070,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
-        <button type="button" className="life-cc-emergency" onClick={triggerLifeEmergencyOverride}>
+        <button type="button" className="life-cc-emergency" onClick={() => void confirmEmergencyLifeExit()}>
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
@@ -4585,6 +4630,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
+      {lifeModeExitNotice ? <p className="answer chat-checkout-notice">{lifeModeExitNotice}</p> : null}
       {lifeModeWizardOpen ? (
         <div className="life-mode-modal life-cc-wizard-overlay" role="dialog" aria-modal="true" aria-label="Life Mode setup">
           <div className="life-mode-modal-card life-cc-wizard-card">

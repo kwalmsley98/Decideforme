@@ -613,6 +613,7 @@ alter table public.profiles add column if not exists stripe_subscription_id text
 alter table public.profiles add column if not exists stripe_connect_account_id text;
 alter table public.profiles add column if not exists lifetime_pro_granted boolean not null default false;
 alter table public.profiles add column if not exists influencer_invite_code text;
+alter table public.profiles add column if not exists life_mode_streak_days int not null default 0;
 
 create index if not exists profiles_public_ref_slug_idx on public.profiles (lower(public_ref_slug));
 
