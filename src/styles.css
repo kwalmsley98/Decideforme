@@ -1691,6 +1691,150 @@ a.nearby-inline-maps:hover {
   transform: translateY(0);
 }
 
+.share-image-toolbar {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.share-image-toolbar .share-icon-row {
+  margin: 0;
+}
+
+.share-image-download-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.share-image-toolbar .share-native-btn:disabled,
+.share-image-toolbar .share-icon-btn:disabled,
+.share-image-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.life-mission-export-hero-pct {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #f5e642;
+}
+
+.life-mission-share-wrap {
+  margin-bottom: 8px;
+}
+
+.chat-share-pack {
+  margin-top: 18px;
+}
+
+.chat-share-pack-kicker {
+  margin-bottom: 4px;
+}
+
+.chat-share-export-inner {
+  text-align: left;
+}
+
+.chat-share-export-rank-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.chat-share-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(230, 236, 255, 0.94);
+}
+
+.chat-share-export-msg {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chat-share-export-msg--user {
+  background: rgba(70, 110, 255, 0.14);
+}
+
+.chat-share-export-msg--ai {
+  background: rgba(245, 230, 66, 0.07);
+}
+
+.chat-share-export-text {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(228, 234, 255, 0.94);
+}
+
+.stats-wrapped-share-section {
+  margin-top: 22px;
+}
+
+.stats-wrapped-export-rank-title {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: -0.02em;
+  color: #fafbff;
+}
+
+.stats-wrapped-recap-line {
+  margin: 6px 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(205, 214, 245, 0.88);
+}
+
+.leaderboard-share-pack {
+  margin-top: 22px;
+}
+
+.daily-dilemma-share-pack {
+  margin-top: 18px;
+}
+
+.daily-dilemma-share-kicker {
+  margin-bottom: 4px;
+}
+
+.daily-share-export-question {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0 0 12px;
+  color: rgba(236, 240, 255, 0.96);
+}
+
+.daily-share-split-line {
+  margin: 4px 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: rgba(190, 200, 230, 0.85);
+}
+
+.dp-share-toolbar {
+  min-width: 0;
+}
+
 .history-list {
   margin-top: 12px;
   display: grid;
@@ -4651,17 +4795,280 @@ a.nearby-inline-maps:hover {
 
 .life-cc-share-card {
   margin-top: 18px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
   background: rgba(0, 0, 0, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.life-cc-share-text {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin: 8px 0 12px;
-  word-break: break-word;
+.life-cc-share-intro {
+  margin: 0 0 14px;
+  font-size: 0.86rem;
+}
+
+.life-cc-share-preview-shell {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.life-mode-share-export-card {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 9 / 16;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.life-mode-share-export-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 70% at 15% 12%, rgba(125, 103, 255, 0.28), transparent 52%),
+    radial-gradient(90% 60% at 92% 78%, rgba(245, 230, 66, 0.14), transparent 48%),
+    linear-gradient(168deg, #0b0d18 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-recruit .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 12% 14%, rgba(110, 231, 183, 0.22), transparent 52%),
+    linear-gradient(168deg, #081216 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-sergeant .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 14% 12%, rgba(245, 230, 66, 0.22), transparent 52%),
+    linear-gradient(168deg, #141005 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-lieutenant .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 14% 12%, rgba(96, 165, 250, 0.24), transparent 52%),
+    linear-gradient(168deg, #081018 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-commander .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 14% 12%, rgba(167, 139, 250, 0.28), transparent 52%),
+    linear-gradient(168deg, #0c0818 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-elite .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 14% 12%, rgba(248, 113, 113, 0.2), transparent 52%),
+    linear-gradient(168deg, #140808 0%, #05060e 100%);
+}
+
+.life-mode-share-export-card--rank-prestige .life-mode-share-export-bg {
+  background: radial-gradient(120% 70% at 14% 10%, rgba(245, 230, 66, 0.26), transparent 50%),
+    linear-gradient(145deg, rgba(42, 28, 10, 0.92), #060510 100%);
+}
+
+.life-mode-share-export-body {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-sizing: border-box;
+  justify-content: flex-start;
+}
+
+.life-mode-share-export-head {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.life-mode-share-export-brand {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(185, 195, 230, 0.92);
+}
+
+.life-mode-share-export-mode {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(245, 230, 66, 0.82);
+}
+
+.life-mode-share-export-identity {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.life-mode-share-export-codename {
+  margin: 0 0 10px;
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  color: #fafbff;
+}
+
+.life-mode-share-export-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(165deg, rgba(38, 42, 58, 0.92), rgba(18, 20, 30, 0.96));
+  color: #d8def8;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+.life-mode-share-export-rank-emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.life-mode-share-export-rank-label {
+  font-size: 0.72rem;
+}
+
+.life-mode-share-export-rank--recruit {
+  border-color: rgba(110, 231, 183, 0.42);
+  box-shadow: 0 0 18px rgba(56, 189, 148, 0.2);
+}
+
+.life-mode-share-export-rank--sergeant {
+  border-color: rgba(245, 230, 66, 0.42);
+  box-shadow: 0 0 18px rgba(245, 230, 66, 0.18);
+}
+
+.life-mode-share-export-rank--lieutenant {
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.22);
+}
+
+.life-mode-share-export-rank--commander {
+  border-color: rgba(167, 139, 250, 0.48);
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.24);
+}
+
+.life-mode-share-export-rank--elite {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.life-mode-share-export-rank--prestige {
+  border-color: rgba(245, 230, 66, 0.55);
+  background: linear-gradient(135deg, rgba(58, 42, 12, 0.92), rgba(22, 16, 8, 0.96));
+  color: #ffe08a;
+}
+
+.life-mode-share-export-spacer {
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+
+.life-mode-share-export-block {
+  margin-bottom: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.life-mode-share-export-block--command {
+  margin-bottom: 10px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.life-mode-share-export-kicker {
+  margin: 0 0 6px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(160, 172, 210, 0.88);
+}
+
+.life-mode-share-export-command {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.45;
+  color: rgba(235, 240, 255, 0.96);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+  overflow: hidden;
+}
+
+.life-mode-share-export-excuse {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  font-style: italic;
+  color: rgba(200, 210, 235, 0.82);
+}
+
+.life-mode-share-export-compliance-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.life-mode-share-export-pct {
+  font-size: 1.45rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #f5e642;
+}
+
+.life-mode-share-export-status {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(210, 220, 245, 0.9);
+}
+
+.life-mode-share-export-verdict {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: rgba(130, 210, 255, 0.95);
+}
+
+.life-mode-share-export-roast {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(210, 218, 245, 0.82);
+}
+
+.life-mode-share-export-foot {
+  flex-shrink: 0;
+  padding-top: 4px;
+  text-align: center;
+}
+
+.life-mode-share-export-url {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(140, 155, 195, 0.85);
+}
+
+@media (max-width: 480px) {
+  .life-mode-share-export-card {
+    max-width: 100%;
+  }
 }
 
 .life-cc-global-feed {

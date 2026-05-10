@@ -306,6 +306,12 @@ function trimDecisionSnippet(text, max) {
   return `${s.slice(0, max - 1)}…`;
 }
 
+function clampShareCardLine(text, max = 220) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
 /** Strip UI-only messages and extra fields before sending history to the AI */
 function conversationForApi(messages) {
   return (Array.isArray(messages) ? messages : [])
@@ -972,6 +978,167 @@ function AnimatedCounter({ value }) {
   return <>{display.toLocaleString()}</>;
 }
 
+function buildMissionRecapCaption(recap, captionLead) {
+  if (!recap) return `${captionLead}\n\ndecideforme.org`;
+  return `${captionLead}\n\nCompliance: ${recap.complianceScore ?? "—"}%\nWorst excuse: ${recap.viralSummary?.worstExcuse?.label ?? "—"}\n${recap.roast ? `${recap.roast}\n` : ""}${recap.viralSummary?.shareCaption ? `${recap.viralSummary.shareCaption}\n` : ""}Streak after mission: ${recap.lifeModeStreakAfter ?? "—"}\nDecisions logged: ${recap.totalDecisions}\nVerdict: ${recap.verdict}\n\ndecideforme.org`;
+}
+
+/** Download / social share for PNG cards generated from a DOM ref (html-to-image). */
+function ShareImageToolbar({
+  exportRef,
+  captionText,
+  filename = "decide-for-me.png",
+  className = "",
+  copyLabel = "Copy caption",
+  showCopyCaption = false,
+  onCopyCaption
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const captureBlob = async () => {
+    const el = exportRef?.current;
+    if (!el) throw new Error("Share card not ready");
+    if (document.fonts?.ready) await document.fonts.ready;
+    const dataUrl = await toPng(el, {
+      pixelRatio: 2,
+      cacheBust: true,
+      backgroundColor: "#070910"
+    });
+    const res = await fetch(dataUrl);
+    return res.blob();
+  };
+
+  const triggerBlobDownload = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadImage = async () => {
+    setBusy(true);
+    try {
+      const blob = await captureBlob();
+      triggerBlobDownload(blob);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fallbackText = `${captionText}\n\ndecideforme.org`;
+
+  const tryShareImageFiles = async () => {
+    try {
+      const blob = await captureBlob();
+      const file = new File([blob], filename, { type: "image/png" });
+      const data = { files: [file], text: captionText, title: "Decide For Me" };
+      if (navigator.share && navigator.canShare?.(data)) {
+        await navigator.share(data);
+        return true;
+      }
+    } catch (e) {
+      if (e?.name === "AbortError") return true;
+      console.error(e);
+    }
+    return false;
+  };
+
+  const shareWhatsApp = async () => {
+    setBusy(true);
+    try {
+      if (await tryShareImageFiles()) return;
+      const blob = await captureBlob();
+      triggerBlobDownload(blob);
+      window.open(`https://wa.me/?text=${encodeURIComponent(fallbackText)}`, "_blank", "noopener,noreferrer");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shareFacebook = async () => {
+    setBusy(true);
+    try {
+      if (await tryShareImageFiles()) return;
+      const blob = await captureBlob();
+      triggerBlobDownload(blob);
+      const u = encodeURIComponent("https://decideforme.org");
+      const quote = encodeURIComponent(captionText);
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`, "_blank", "noopener,noreferrer");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shareX = async () => {
+    setBusy(true);
+    try {
+      if (await tryShareImageFiles()) return;
+      const blob = await captureBlob();
+      triggerBlobDownload(blob);
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(fallbackText)}`, "_blank", "noopener,noreferrer");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const nativeShare = async () => {
+    setBusy(true);
+    try {
+      if (await tryShareImageFiles()) return;
+      if (navigator.share) {
+        try {
+          await navigator.share({ text: fallbackText });
+        } catch {
+          /* ignore */
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={`share-image-toolbar ${className}`.trim()}>
+      <button type="button" className="primary-btn share-image-download-btn" disabled={busy} onClick={() => void downloadImage()}>
+        <Download size={18} strokeWidth={2} aria-hidden="true" />
+        {busy ? "Working…" : "Download image"}
+      </button>
+      <div className="share-icon-row" role="group" aria-label="Share image to apps">
+        <button type="button" className="share-icon-btn" aria-label="Share on WhatsApp" disabled={busy} onClick={() => void shareWhatsApp()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3a9 9 0 0 0-7.7 13.7L3 21l4.5-1.2A9 9 0 1 0 12 3Z" fill="none" stroke="currentColor" strokeWidth="1.6"/>
+            <path d="M8.8 9.2c.2-.5.5-.5.7-.5h.6c.2 0 .4.1.4.3l.7 1.7c.1.2 0 .4-.1.5l-.5.6c-.1.1-.1.3 0 .4.3.6.9 1.2 1.6 1.6.1.1.3.1.4 0l.6-.5c.1-.1.3-.1.5-.1l1.7.7c.2.1.3.2.3.4v.6c0 .2 0 .5-.5.7-.4.2-.9.3-1.4.2-1.1-.2-2.2-.8-3.2-1.8S8.5 11.7 8.3 10.6c-.1-.5 0-1 .2-1.4Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button type="button" className="share-icon-btn" aria-label="Share on Facebook" disabled={busy} onClick={() => void shareFacebook()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 8h2V5h-2c-2.2 0-4 1.8-4 4v2H8v3h2v5h3v-5h2.1l.4-3H13V9c0-.6.4-1 1-1Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button type="button" className="share-icon-btn" aria-label="Share on X" disabled={busy} onClick={() => void shareX()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 4 5.6 7.4L5.3 20h2.4l4-6 4.6 6H20l-5.8-7.6L19.2 4h-2.4l-3.8 5.7L8.8 4H5Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+      {navigator.share ? (
+        <button type="button" className="share-native-btn" disabled={busy} onClick={() => void nativeShare()}>
+          Share image via…
+        </button>
+      ) : null}
+      {showCopyCaption && typeof onCopyCaption === "function" ? (
+        <button type="button" className="ghost-btn share-image-copy-caption" disabled={busy} onClick={() => onCopyCaption()}>
+          {copyLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function SharePanel({ text, className = "" }) {
   const [copied, setCopied] = useState(false);
   const urls = shareUrls(text);
@@ -1139,6 +1306,7 @@ function ProtectedRoute({ session, children }) {
 }
 
 function DailyDilemmaCard({ session }) {
+  const dailyShareCardRef = useRef(null);
   const [countdown, setCountdown] = useState(nextMidnightCountdown());
   const [dilemma, setDilemma] = useState(null);
   const [userVote, setUserVote] = useState("");
@@ -1333,6 +1501,13 @@ function DailyDilemmaCard({ session }) {
   const bPercent = Math.round((bVotes / total) * 100);
   const majority = aVotes === bVotes ? "It's a tie right now." : aVotes > bVotes ? `Majority chose: ${dilemma.option_a}` : `Majority chose: ${dilemma.option_b}`;
 
+  const dailyShareCaption = useMemo(() => {
+    if (!dilemma || !userVote) return "Daily Dilemma · decideforme.org";
+    const pickLabel = userVote === "A" ? dilemma.option_a : dilemma.option_b;
+    const verdictLine = aiPick ? formatAIVerdict(aiPick) : "";
+    return `Daily Dilemma · ${dilemma.question}\nMy pick ${userVote}: ${pickLabel}\n${verdictLine ? `${verdictLine}\n` : ""}Community split: ${aPercent}% vs ${bPercent}%\n\ndecideforme.org`;
+  }, [dilemma, userVote, aiPick, aPercent, bPercent]);
+
   return (
     <section className="card premium daily-card">
       <p className="hero-kicker timer-pulse">Daily Dilemma · next in {countdown}</p>
@@ -1377,6 +1552,55 @@ function DailyDilemmaCard({ session }) {
           <p className="daily-ai-label">⚡ AI Verdict</p>
           {loadingAi && !aiPick ? <p className="meta">AI verdict is loading...</p> : null}
           {aiPick ? <p className="daily-ai-verdict">{formatAIVerdict(aiPick)}</p> : null}
+
+          <div className="daily-dilemma-share-pack">
+            <p className="hero-kicker daily-dilemma-share-kicker">Share</p>
+            <div className="life-cc-share-preview-shell">
+              <div
+                ref={dailyShareCardRef}
+                className="life-mode-share-export-card life-mode-share-export-card--rank-lieutenant daily-dilemma-share-card"
+              >
+                <div className="life-mode-share-export-bg" aria-hidden="true" />
+                <div className="life-mode-share-export-body">
+                  <header className="life-mode-share-export-head">
+                    <p className="life-mode-share-export-brand">Decide For Me</p>
+                    <p className="life-mode-share-export-mode">Daily Dilemma</p>
+                  </header>
+                  <p className="daily-share-export-question">{clampShareCardLine(dilemma.question, 220)}</p>
+                  <section className="life-mode-share-export-block life-mode-share-export-block--command">
+                    <p className="life-mode-share-export-kicker">My pick · {userVote}</p>
+                    <p className="life-mode-share-export-command">
+                      {userVote === "A" ? dilemma.option_a : dilemma.option_b}
+                    </p>
+                  </section>
+                  <section className="life-mode-share-export-block">
+                    <p className="life-mode-share-export-kicker">Community</p>
+                    <p className="daily-share-split-line">
+                      {aPercent}% · A · {clampShareCardLine(dilemma.option_a, 80)}
+                    </p>
+                    <p className="daily-share-split-line">
+                      {bPercent}% · B · {clampShareCardLine(dilemma.option_b, 80)}
+                    </p>
+                  </section>
+                  {aiPick ? (
+                    <section className="life-mode-share-export-block">
+                      <p className="life-mode-share-export-kicker">AI verdict</p>
+                      <p className="life-mode-share-export-verdict">{formatAIVerdict(aiPick)}</p>
+                    </section>
+                  ) : null}
+                  <div className="life-mode-share-export-spacer" aria-hidden="true" />
+                  <footer className="life-mode-share-export-foot">
+                    <p className="life-mode-share-export-url">decideforme.org</p>
+                  </footer>
+                </div>
+              </div>
+            </div>
+            <ShareImageToolbar
+              exportRef={dailyShareCardRef}
+              captionText={dailyShareCaption}
+              filename="decide-for-me-daily-dilemma.png"
+            />
+          </div>
         </>
       ) : (
         <p className="meta">You can vote once today. Results unlock right after you vote.</p>
@@ -1512,6 +1736,9 @@ function ChatScreen({ session }) {
   const [chatHistoryRows, setChatHistoryRows] = useState([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
   const activeChatSessionIdRef = useRef(null);
+  const lifeModeShareCardRef = useRef(null);
+  const lifeMissionShareCardRef = useRef(null);
+  const chatShareCardRef = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [lifeModeHydrated, setLifeModeHydrated] = useState(() => !session?.user?.id);
@@ -2403,9 +2630,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
   };
 
   const copyLifeModeCaption = async () => {
-    const recapText = lifeModeRecap
-      ? `${lifeModeCaption}\n\nCompliance: ${lifeModeRecap.complianceScore ?? "—"}%\nWorst excuse: ${lifeModeRecap.viralSummary?.worstExcuse?.label ?? "—"}\n${lifeModeRecap.roast ? `${lifeModeRecap.roast}\n` : ""}${lifeModeRecap.viralSummary?.shareCaption ? `${lifeModeRecap.viralSummary.shareCaption}\n` : ""}Streak after mission: ${lifeModeRecap.lifeModeStreakAfter ?? "—"}\nDecisions logged: ${lifeModeRecap.totalDecisions}\nVerdict: ${lifeModeRecap.verdict}`
-      : lifeModeCaption;
+    const recapText = buildMissionRecapCaption(lifeModeRecap, lifeModeCaption);
     await copyText(recapText);
     setCopiedLifeCaption(true);
     setTimeout(() => setCopiedLifeCaption(false), 1400);
@@ -3147,6 +3372,24 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       </div>
     ) : null;
 
+  const chatExportLines = useMemo(() => {
+    if (!conversation.length) return { userLine: "", assistantLine: "" };
+    let u = "";
+    let a = "";
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      const m = conversation[i];
+      if (!a && m.role === "assistant") a = trimDecisionSnippet(String(m.content || ""), 320);
+      if (!u && m.role === "user") u = trimDecisionSnippet(String(m.content || ""), 200);
+      if (u && a) break;
+    }
+    return { userLine: u, assistantLine: a };
+  }, [conversation]);
+
+  const chatShareCaption = useMemo(() => {
+    if (!chatExportLines.userLine && !chatExportLines.assistantLine) return "Decide For Me · decideforme.org";
+    return `Decide For Me — latest decision\nMe: ${chatExportLines.userLine}\nAI: ${chatExportLines.assistantLine}\n\ndecideforme.org`;
+  }, [chatExportLines]);
+
   if (lifeModeSession) {
     const nowTimeLabel = formatLocalTimeShort(new Date(), userTimeZone);
     const checkInLine = pickCheckIn(lifeModePhaseTick);
@@ -3167,6 +3410,25 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         break;
       }
     }
+
+    const commandOfDayLine = (() => {
+      if (!lifeOrders?.length) return "";
+      const withText = lifeOrders.filter((o) => String(o.text || "").trim());
+      if (!withText.length) return "";
+      const pick = [...withText].sort((a, b) => String(b.text || "").length - String(a.text || "").length)[0];
+      return clampShareCardLine(pick.text, 260);
+    })();
+
+    const complianceWord =
+      Number.isFinite(lifeCompliancePct) && lifeCompliancePct != null
+        ? lifeCompliancePct >= 78
+          ? "Actually acceptable"
+          : lifeCompliancePct >= 55
+            ? "Questionable"
+            : lifeCompliancePct >= 35
+              ? "Rough"
+              : "A cry for help"
+        : "—";
 
     const copyMissionShare = async () => {
       await copyText(missionShareLine);
@@ -3322,10 +3584,73 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <article className="life-cc-share-card">
           <p className="hero-kicker life-cc-kicker-quiet">Share</p>
-          <p className="life-cc-share-text">{missionShareLine}</p>
-          <button type="button" className="ghost-btn" onClick={() => void copyMissionShare()}>
-            {lifeModeMissionShareCopied ? "Copied" : "Copy TikTok / IG caption"}
-          </button>
+          <p className="meta life-cc-share-intro">Download a story-ready card for TikTok / Instagram, or copy your caption.</p>
+
+          <div className="life-cc-share-preview-shell">
+            <div ref={lifeModeShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
+              <div className="life-mode-share-export-bg" aria-hidden="true" />
+              <div className="life-mode-share-export-body">
+                <header className="life-mode-share-export-head">
+                  <p className="life-mode-share-export-brand">Decide For Me</p>
+                  <p className="life-mode-share-export-mode">Life Mode</p>
+                </header>
+
+                <div className="life-mode-share-export-identity">
+                  <p className="life-mode-share-export-codename">{effectiveLifeSetup.codename}</p>
+                  <div className={`life-mode-share-export-rank life-mode-share-export-rank--${decisionRank.tier}`}>
+                    <span className="life-mode-share-export-rank-emoji" aria-hidden="true">
+                      {decisionRank.emoji}
+                    </span>
+                    <span className="life-mode-share-export-rank-label">{decisionRank.label}</span>
+                  </div>
+                </div>
+
+                <section className="life-mode-share-export-block life-mode-share-export-block--command" aria-label="Command of the day">
+                  <p className="life-mode-share-export-kicker">Today&apos;s command</p>
+                  <p className="life-mode-share-export-command">
+                    {commandOfDayLine || "Your personalised directives are on the way…"}
+                  </p>
+                  {viralShare.worstExcuse?.label ? (
+                    <p className="life-mode-share-export-excuse">
+                      Most relatable excuse: &ldquo;{viralShare.worstExcuse.label}&rdquo;
+                    </p>
+                  ) : null}
+                </section>
+
+                <section className="life-mode-share-export-block" aria-label="Compliance">
+                  <p className="life-mode-share-export-kicker">Compliance</p>
+                  <div className="life-mode-share-export-compliance-row">
+                    <span className="life-mode-share-export-pct">
+                      {Number.isFinite(lifeCompliancePct) ? `${Math.round(lifeCompliancePct)}%` : "—"}
+                    </span>
+                    <span className="life-mode-share-export-status">{complianceWord}</span>
+                  </div>
+                </section>
+
+                <section className="life-mode-share-export-block" aria-label="AI verdict">
+                  <p className="life-mode-share-export-kicker">AI verdict</p>
+                  <p className="life-mode-share-export-verdict">&ldquo;{viralShare.verdict}&rdquo;</p>
+                  <p className="life-mode-share-export-roast">{viralShare.roastLine}</p>
+                </section>
+
+                <div className="life-mode-share-export-spacer" aria-hidden="true" />
+
+                <footer className="life-mode-share-export-foot">
+                  <p className="life-mode-share-export-url">decideforme.org</p>
+                </footer>
+              </div>
+            </div>
+          </div>
+
+          <ShareImageToolbar
+            className="life-cc-actions life-cc-share-toolbar"
+            exportRef={lifeModeShareCardRef}
+            captionText={missionShareLine}
+            filename="decide-for-me-life-mode.png"
+            showCopyCaption
+            onCopyCaption={() => void copyMissionShare()}
+            copyLabel={lifeModeMissionShareCopied ? "Copied caption" : "Copy caption"}
+          />
         </article>
 
         <section className="life-cc-global-feed" aria-label="Community pulse">
@@ -3350,25 +3675,72 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       {!lifeModeSession && lifeModeRecap ? (
-        <article className="life-mission-report-card">
-          <p className="hero-kicker">Mission report · shareable roast</p>
-          <h2 className="life-mission-compliance">
-            Honesty score {lifeModeRecap.complianceScore != null ? `${lifeModeRecap.complianceScore}%` : "—"}
-          </h2>
-          {lifeModeRecap.viralSummary?.worstExcuse ? (
-            <p className="life-mission-worst">
-              Worst excuse of the day: <strong>{lifeModeRecap.viralSummary.worstExcuse.label}</strong> —{" "}
-              {lifeModeRecap.viralSummary.worstExcuse.roast}
-            </p>
-          ) : null}
-          {lifeModeRecap.viralSummary?.verdict ? (
-            <p className="life-mission-ai-verdict">&ldquo;{lifeModeRecap.viralSummary.verdict}&rdquo;</p>
-          ) : null}
-          {lifeModeRecap.roast ? <p className="life-mission-roast">{lifeModeRecap.roast}</p> : null}
-          <p className="meta">{lifeModeRecap.verdict}</p>
-          <button type="button" className="ghost-btn" onClick={() => void copyLifeModeCaption()}>
-            {copiedLifeCaption ? "Copied summary" : "Copy TikTok / IG story caption"}
-          </button>
+        <article className="life-mission-share-wrap">
+          <p className="hero-kicker">Mission report · share</p>
+          <p className="meta life-cc-share-intro">Your Life Mode debrief as a story-ready card.</p>
+          <div className="life-cc-share-preview-shell">
+            <div
+              ref={lifeMissionShareCardRef}
+              className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}
+            >
+              <div className="life-mode-share-export-bg" aria-hidden="true" />
+              <div className="life-mode-share-export-body">
+                <header className="life-mode-share-export-head">
+                  <p className="life-mode-share-export-brand">Decide For Me</p>
+                  <p className="life-mode-share-export-mode">Life Mode · Mission report</p>
+                </header>
+                <div className="life-mode-share-export-identity">
+                  <p className="life-mode-share-export-codename">{lifeModeRecap.codename || effectiveLifeSetup.codename}</p>
+                  <div className={`life-mode-share-export-rank life-mode-share-export-rank--${decisionRank.tier}`}>
+                    <span className="life-mode-share-export-rank-emoji" aria-hidden="true">
+                      {decisionRank.emoji}
+                    </span>
+                    <span className="life-mode-share-export-rank-label">{decisionRank.label}</span>
+                  </div>
+                </div>
+                <section className="life-mode-share-export-block life-mode-share-export-block--command">
+                  <p className="life-mode-share-export-kicker">Honesty score</p>
+                  <p className="life-mission-export-hero-pct">
+                    {lifeModeRecap.complianceScore != null ? `${lifeModeRecap.complianceScore}%` : "—"}
+                  </p>
+                </section>
+                {lifeModeRecap.viralSummary?.worstExcuse ? (
+                  <section className="life-mode-share-export-block">
+                    <p className="life-mode-share-export-kicker">Most relatable excuse</p>
+                    <p className="life-mode-share-export-command">
+                      {clampShareCardLine(lifeModeRecap.viralSummary.worstExcuse.label, 140)}
+                    </p>
+                    <p className="life-mode-share-export-excuse">
+                      {clampShareCardLine(lifeModeRecap.viralSummary.worstExcuse.roast, 200)}
+                    </p>
+                  </section>
+                ) : null}
+                <section className="life-mode-share-export-block">
+                  <p className="life-mode-share-export-kicker">AI verdict</p>
+                  <p className="life-mode-share-export-verdict">
+                    {lifeModeRecap.viralSummary?.verdict
+                      ? `“${clampShareCardLine(lifeModeRecap.viralSummary.verdict, 220)}”`
+                      : clampShareCardLine(String(lifeModeRecap.verdict || "").trim(), 260)}
+                  </p>
+                  {lifeModeRecap.roast ? (
+                    <p className="life-mode-share-export-roast">{clampShareCardLine(lifeModeRecap.roast, 180)}</p>
+                  ) : null}
+                </section>
+                <div className="life-mode-share-export-spacer" aria-hidden="true" />
+                <footer className="life-mode-share-export-foot">
+                  <p className="life-mode-share-export-url">decideforme.org</p>
+                </footer>
+              </div>
+            </div>
+          </div>
+          <ShareImageToolbar
+            exportRef={lifeMissionShareCardRef}
+            captionText={buildMissionRecapCaption(lifeModeRecap, lifeModeCaption)}
+            filename="decide-for-me-life-mode-mission.png"
+            showCopyCaption
+            onCopyCaption={() => void copyLifeModeCaption()}
+            copyLabel={copiedLifeCaption ? "Copied caption" : "Copy caption"}
+          />
         </article>
       ) : null}
       {renderChatRankStrip(false)}
@@ -3715,9 +4087,47 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       </div>
       {conversation.length ? (
-        <SharePanel
-          text={`Decide For Me: ${[...conversation].reverse().find((m) => m.role === "user" || m.role === "assistant")?.content || ""}`}
-        />
+        <div className="chat-share-pack">
+          <p className="hero-kicker chat-share-pack-kicker">Share</p>
+          <p className="meta life-cc-share-intro">Export your latest exchange as an image for Stories or posts.</p>
+          <div className="life-cc-share-preview-shell">
+            <div ref={chatShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
+              <div className="life-mode-share-export-bg" aria-hidden="true" />
+              <div className="life-mode-share-export-body chat-share-export-inner">
+                <header className="life-mode-share-export-head">
+                  <p className="life-mode-share-export-brand">Decide For Me</p>
+                  <p className="life-mode-share-export-mode">Decision snapshot</p>
+                </header>
+                <div className="chat-share-export-rank-row">
+                  <span className={`chat-share-mini-badge chat-share-mini-badge--${decisionRank.tier}`}>
+                    {decisionRank.emoji} {decisionRank.shortTag}
+                  </span>
+                </div>
+                {chatExportLines.userLine ? (
+                  <section className="chat-share-export-msg chat-share-export-msg--user">
+                    <p className="life-mode-share-export-kicker">You</p>
+                    <p className="chat-share-export-text">{chatExportLines.userLine}</p>
+                  </section>
+                ) : null}
+                {chatExportLines.assistantLine ? (
+                  <section className="chat-share-export-msg chat-share-export-msg--ai">
+                    <p className="life-mode-share-export-kicker">AI</p>
+                    <p className="chat-share-export-text">{chatExportLines.assistantLine}</p>
+                  </section>
+                ) : null}
+                <div className="life-mode-share-export-spacer" aria-hidden="true" />
+                <footer className="life-mode-share-export-foot">
+                  <p className="life-mode-share-export-url">decideforme.org</p>
+                </footer>
+              </div>
+            </div>
+          </div>
+          <ShareImageToolbar
+            exportRef={chatShareCardRef}
+            captionText={chatShareCaption}
+            filename="decide-for-me-chat.png"
+          />
+        </div>
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
@@ -4128,7 +4538,6 @@ function DecisionProfileScreen({ session }) {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const shareCardRef = useRef(null);
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id) return;
@@ -4306,20 +4715,15 @@ function DecisionProfileScreen({ session }) {
                 </div>
               </div>
 
-              <div className="dp-share-actions">
-                <button type="button" className="primary-btn dp-share-btn" disabled={exporting} onClick={exportCard}>
-                  <Download size={18} strokeWidth={2} aria-hidden="true" />
-                  {exporting ? "Preparing…" : "Download PNG"}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-btn dp-share-btn"
-                  onClick={() => copyText(shareCaption)}
-                >
-                  <Copy size={18} strokeWidth={2} aria-hidden="true" />
-                  Copy caption
-                </button>
-              </div>
+              <ShareImageToolbar
+                className="dp-share-toolbar"
+                exportRef={shareCardRef}
+                captionText={shareCaption}
+                filename="decide-for-me-decision-profile.png"
+                showCopyCaption
+                onCopyCaption={() => copyText(shareCaption)}
+                copyLabel="Copy caption"
+              />
             </div>
           </article>
         </>
@@ -4378,6 +4782,7 @@ function HistoryScreen({ session }) {
 function StatsScreen({ session }) {
   const [stats, setStats] = useState(null);
   const [weeklyRecap, setWeeklyRecap] = useState(null);
+  const statsWrappedShareRef = useRef(null);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id) return;
@@ -4420,6 +4825,14 @@ function StatsScreen({ session }) {
   }, [session?.user?.id]);
 
   const statsRank = useMemo(() => (stats ? getDecisionRank(stats.totalDecisions) : null), [stats]);
+
+  const wrappedShareCaption = useMemo(() => {
+    if (!stats) return "Decide For Me Wrapped · decideforme.org";
+    const rankBit = statsRank ? `${statsRank.label}` : "Rank";
+    let t = `My Decide For Me Wrapped · ${stats.totalDecisions} lifetime decisions · ${rankBit} · Top topic: ${stats.mostIndecisive} · Longest streak ${stats.longestStreak} days`;
+    if (weeklyRecap?.length) t += `\n\n${weeklyRecap.join("\n")}`;
+    return `${t}\n\ndecideforme.org`;
+  }, [stats, statsRank, weeklyRecap]);
 
   if (!stats) return <section className="card">Loading your wrapped...</section>;
 
@@ -4474,9 +4887,66 @@ function StatsScreen({ session }) {
               <li key={item}>{item}</li>
             ))}
           </ul>
-          <SharePanel text={`My weekly Decide For Me recap:\n- ${weeklyRecap.join("\n- ")}`} />
         </article>
       ) : null}
+
+      <article className="stats-wrapped-share-section">
+        <p className="hero-kicker">Share your Wrapped</p>
+        <p className="meta life-cc-share-intro">Download or share your snapshot card — includes weekly insights when it&apos;s Monday recap.</p>
+        <div className="life-cc-share-preview-shell">
+          <div
+            ref={statsWrappedShareRef}
+            className={`life-mode-share-export-card life-mode-share-export-card--rank-${statsRank?.tier || "recruit"}`}
+          >
+            <div className="life-mode-share-export-bg" aria-hidden="true" />
+            <div className="life-mode-share-export-body">
+              <header className="life-mode-share-export-head">
+                <p className="life-mode-share-export-brand">Decide For Me</p>
+                <p className="life-mode-share-export-mode">Decision Wrapped</p>
+              </header>
+              {statsRank ? (
+                <div className="life-mode-share-export-identity">
+                  <p className="stats-wrapped-export-rank-title">{statsRank.label}</p>
+                  <div className={`life-mode-share-export-rank life-mode-share-export-rank--${statsRank.tier}`}>
+                    <span className="life-mode-share-export-rank-emoji" aria-hidden="true">
+                      {statsRank.emoji}
+                    </span>
+                    <span className="life-mode-share-export-rank-label">{stats.totalDecisions} decisions</span>
+                  </div>
+                </div>
+              ) : null}
+              <section className="life-mode-share-export-block life-mode-share-export-block--command">
+                <p className="life-mode-share-export-kicker">Signal summary</p>
+                <p className="life-mode-share-export-command">
+                  Most indecisive lane: <strong>{stats.mostIndecisive}</strong>
+                </p>
+                <p className="life-mode-share-export-excuse">
+                  Longest streak 🔥 {stats.longestStreak} days · First decision: {clampShareCardLine(stats.firstDecision, 160)}
+                </p>
+              </section>
+              {weeklyRecap?.length ? (
+                <section className="life-mode-share-export-block">
+                  <p className="life-mode-share-export-kicker">Weekly recap</p>
+                  {weeklyRecap.map((line) => (
+                    <p key={line} className="stats-wrapped-recap-line">
+                      {clampShareCardLine(line, 200)}
+                    </p>
+                  ))}
+                </section>
+              ) : null}
+              <div className="life-mode-share-export-spacer" aria-hidden="true" />
+              <footer className="life-mode-share-export-foot">
+                <p className="life-mode-share-export-url">decideforme.org</p>
+              </footer>
+            </div>
+          </div>
+        </div>
+        <ShareImageToolbar
+          exportRef={statsWrappedShareRef}
+          captionText={wrappedShareCaption}
+          filename="decide-for-me-wrapped.png"
+        />
+      </article>
     </section>
   );
 }
@@ -4814,6 +5284,7 @@ function GroupRoomScreen({ session }) {
 }
 
 function LeaderboardScreen({ session }) {
+  const leaderboardShareCardRef = useRef(null);
   const placeholderUsers = useMemo(
     () => [
       { id: "p1", username: "Mystery Decider", score: 184, current_streak: 7 },
@@ -4891,6 +5362,15 @@ function LeaderboardScreen({ session }) {
   const podium = activeLeaders.slice(0, 3);
   const rest = activeLeaders.slice(3, 20);
 
+  const leaderboardPrestigeRank = useMemo(() => (myRank ? getDecisionRank(myRank.score || 0) : null), [myRank]);
+
+  const leaderboardShareCaption = useMemo(() => {
+    if (!myRank) return "Decide For Me Leaderboard · decideforme.org";
+    const scope = mode === "week" ? "This week" : "All-time";
+    const label = leaderboardPrestigeRank?.label || "Rank";
+    return `#${myRank.rank} on Decide For Me (${scope}) · ${label} · ${myRank.score || 0} decisions\n\ndecideforme.org`;
+  }, [myRank, mode, leaderboardPrestigeRank]);
+
   const podiumSlot = (user, index) => {
     const rank = index + 1;
     const initials = (user?.username || "U").slice(0, 2).toUpperCase();
@@ -4963,6 +5443,54 @@ function LeaderboardScreen({ session }) {
           <p className="answer">Make your first decision to claim your spot on the leaderboard! 🚀</p>
         )}
       </article>
+
+      {session?.user?.id && myRank ? (
+        <article className="leaderboard-share-pack">
+          <p className="hero-kicker">Share your rank</p>
+          <p className="meta life-cc-share-intro">Post your spot on the board — image includes your prestige tier.</p>
+          <div className="life-cc-share-preview-shell">
+            <div
+              ref={leaderboardShareCardRef}
+              className={`life-mode-share-export-card life-mode-share-export-card--rank-${leaderboardPrestigeRank?.tier || "recruit"}`}
+            >
+              <div className="life-mode-share-export-bg" aria-hidden="true" />
+              <div className="life-mode-share-export-body">
+                <header className="life-mode-share-export-head">
+                  <p className="life-mode-share-export-brand">Decide For Me</p>
+                  <p className="life-mode-share-export-mode">
+                    Leaderboard · {mode === "week" ? "This week" : "All-time"}
+                  </p>
+                </header>
+                <div className="life-mode-share-export-identity">
+                  <p className="stats-wrapped-export-rank-title">#{myRank.rank}</p>
+                  {leaderboardPrestigeRank ? (
+                    <div className={`life-mode-share-export-rank life-mode-share-export-rank--${leaderboardPrestigeRank.tier}`}>
+                      <span className="life-mode-share-export-rank-emoji" aria-hidden="true">
+                        {leaderboardPrestigeRank.emoji}
+                      </span>
+                      <span className="life-mode-share-export-rank-label">{leaderboardPrestigeRank.label}</span>
+                    </div>
+                  ) : null}
+                </div>
+                <section className="life-mode-share-export-block life-mode-share-export-block--command">
+                  <p className="life-mode-share-export-kicker">Score</p>
+                  <p className="life-mission-export-hero-pct">{myRank.score ?? 0}</p>
+                  <p className="life-mode-share-export-excuse">decisions in this view</p>
+                </section>
+                <div className="life-mode-share-export-spacer" aria-hidden="true" />
+                <footer className="life-mode-share-export-foot">
+                  <p className="life-mode-share-export-url">decideforme.org</p>
+                </footer>
+              </div>
+            </div>
+          </div>
+          <ShareImageToolbar
+            exportRef={leaderboardShareCardRef}
+            captionText={leaderboardShareCaption}
+            filename="decide-for-me-leaderboard.png"
+          />
+        </article>
+      ) : null}
     </section>
   );
 }
