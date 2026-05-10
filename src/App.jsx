@@ -1598,6 +1598,18 @@ function DailyDilemmaCard({ session }) {
     return /[.!?]$/.test(concise) ? concise : `${concise}.`;
   };
 
+  const dailyShareCaption = useMemo(() => {
+    if (!dilemma || !userVote) return "Daily Dilemma · decideforme.org";
+    const av = dilemma.votes_a || 0;
+    const bv = dilemma.votes_b || 0;
+    const tot = Math.max(av + bv, 1);
+    const ap = Math.round((av / tot) * 100);
+    const bp = Math.round((bv / tot) * 100);
+    const pickLabel = userVote === "A" ? dilemma.option_a : dilemma.option_b;
+    const verdictLine = aiPick ? formatAIVerdict(aiPick) : "";
+    return `Daily Dilemma · ${dilemma.question}\nMy pick ${userVote}: ${pickLabel}\n${verdictLine ? `${verdictLine}\n` : ""}Community split: ${ap}% vs ${bp}%\n\ndecideforme.org`;
+  }, [dilemma, userVote, aiPick]);
+
   if (!dilemma) return null;
   const aVotes = dilemma.votes_a || 0;
   const bVotes = dilemma.votes_b || 0;
@@ -1605,13 +1617,6 @@ function DailyDilemmaCard({ session }) {
   const aPercent = Math.round((aVotes / total) * 100);
   const bPercent = Math.round((bVotes / total) * 100);
   const majority = aVotes === bVotes ? "It's a tie right now." : aVotes > bVotes ? `Majority chose: ${dilemma.option_a}` : `Majority chose: ${dilemma.option_b}`;
-
-  const dailyShareCaption = useMemo(() => {
-    if (!dilemma || !userVote) return "Daily Dilemma · decideforme.org";
-    const pickLabel = userVote === "A" ? dilemma.option_a : dilemma.option_b;
-    const verdictLine = aiPick ? formatAIVerdict(aiPick) : "";
-    return `Daily Dilemma · ${dilemma.question}\nMy pick ${userVote}: ${pickLabel}\n${verdictLine ? `${verdictLine}\n` : ""}Community split: ${aPercent}% vs ${bPercent}%\n\ndecideforme.org`;
-  }, [dilemma, userVote, aiPick, aPercent, bPercent]);
 
   return (
     <section className="card premium daily-card">
