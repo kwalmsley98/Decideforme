@@ -1139,6 +1139,64 @@ function ShareImageToolbar({
   );
 }
 
+/** PNG share card + toolbar; preview stays hidden until the user taps Share. */
+function CollapsibleShareImageBlock({
+  className = "",
+  header,
+  expandedIntro,
+  revealLabel = "Share",
+  collapseLabel = "Hide preview",
+  exportRef,
+  filename,
+  captionText,
+  toolbarClassName = "",
+  showCopyCaption,
+  onCopyCaption,
+  copyLabel,
+  children
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`share-widget share-widget--collapsible ${open ? "share-widget--open" : ""} ${className}`.trim()}>
+      {header}
+      {!open ? (
+        <button
+          type="button"
+          className="share-widget-reveal-btn ghost-btn"
+          aria-expanded="false"
+          onClick={() => setOpen(true)}
+        >
+          {revealLabel}
+        </button>
+      ) : (
+        <>
+          {expandedIntro}
+          <div className="share-widget-expanded">
+            <div className="life-cc-share-preview-shell">{children}</div>
+            <ShareImageToolbar
+              className={toolbarClassName}
+              exportRef={exportRef}
+              filename={filename}
+              captionText={captionText}
+              showCopyCaption={showCopyCaption}
+              onCopyCaption={onCopyCaption}
+              copyLabel={copyLabel}
+            />
+            <button
+              type="button"
+              className="share-widget-collapse-btn ghost-btn"
+              aria-expanded="true"
+              onClick={() => setOpen(false)}
+            >
+              {collapseLabel}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SharePanel({ text, className = "" }) {
   const [copied, setCopied] = useState(false);
   const urls = shareUrls(text);
@@ -1553,9 +1611,13 @@ function DailyDilemmaCard({ session }) {
           {loadingAi && !aiPick ? <p className="meta">AI verdict is loading...</p> : null}
           {aiPick ? <p className="daily-ai-verdict">{formatAIVerdict(aiPick)}</p> : null}
 
-          <div className="daily-dilemma-share-pack share-widget">
-            <p className="hero-kicker daily-dilemma-share-kicker">Share</p>
-            <div className="life-cc-share-preview-shell">
+          <div className="daily-dilemma-share-pack">
+            <CollapsibleShareImageBlock
+              header={<p className="hero-kicker daily-dilemma-share-kicker">Share</p>}
+              exportRef={dailyShareCardRef}
+              captionText={dailyShareCaption}
+              filename="decide-for-me-daily-dilemma.png"
+            >
               <div
                 ref={dailyShareCardRef}
                 className="life-mode-share-export-card life-mode-share-export-card--rank-lieutenant daily-dilemma-share-card"
@@ -1588,18 +1650,12 @@ function DailyDilemmaCard({ session }) {
                       <p className="life-mode-share-export-verdict">{formatAIVerdict(aiPick)}</p>
                     </section>
                   ) : null}
-                  <div className="life-mode-share-export-spacer" aria-hidden="true" />
                   <footer className="life-mode-share-export-foot">
                     <p className="life-mode-share-export-url">decideforme.org</p>
                   </footer>
                 </div>
               </div>
-            </div>
-            <ShareImageToolbar
-              exportRef={dailyShareCardRef}
-              captionText={dailyShareCaption}
-              filename="decide-for-me-daily-dilemma.png"
-            />
+            </CollapsibleShareImageBlock>
           </div>
         </>
       ) : (
@@ -3582,11 +3638,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
-        <article className="life-cc-share-card share-widget">
-          <p className="hero-kicker life-cc-kicker-quiet">Share</p>
-          <p className="meta life-cc-share-intro">Card preview · download or share.</p>
-
-          <div className="life-cc-share-preview-shell">
+        <article className="life-cc-share-card">
+          <CollapsibleShareImageBlock
+            className="share-widget"
+            header={<p className="hero-kicker life-cc-kicker-quiet">Share</p>}
+            expandedIntro={<p className="meta life-cc-share-intro">Card preview · download or share.</p>}
+            toolbarClassName="life-cc-actions life-cc-share-toolbar"
+            exportRef={lifeModeShareCardRef}
+            captionText={missionShareLine}
+            filename="decide-for-me-life-mode.png"
+            showCopyCaption
+            onCopyCaption={() => void copyMissionShare()}
+            copyLabel={lifeModeMissionShareCopied ? "Copied caption" : "Copy caption"}
+          >
             <div ref={lifeModeShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
               <div className="life-mode-share-export-bg" aria-hidden="true" />
               <div className="life-mode-share-export-body">
@@ -3633,24 +3697,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                   <p className="life-mode-share-export-roast">{viralShare.roastLine}</p>
                 </section>
 
-                <div className="life-mode-share-export-spacer" aria-hidden="true" />
-
                 <footer className="life-mode-share-export-foot">
                   <p className="life-mode-share-export-url">decideforme.org</p>
                 </footer>
               </div>
             </div>
-          </div>
-
-          <ShareImageToolbar
-            className="life-cc-actions life-cc-share-toolbar"
-            exportRef={lifeModeShareCardRef}
-            captionText={missionShareLine}
-            filename="decide-for-me-life-mode.png"
-            showCopyCaption
-            onCopyCaption={() => void copyMissionShare()}
-            copyLabel={lifeModeMissionShareCopied ? "Copied caption" : "Copy caption"}
-          />
+          </CollapsibleShareImageBlock>
         </article>
 
         <section className="life-cc-global-feed" aria-label="Community pulse">
@@ -3675,10 +3727,18 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="hero-subtitle">What do you need help deciding?</p>
       </div>
       {!lifeModeSession && lifeModeRecap ? (
-        <article className="life-mission-share-wrap share-widget">
-          <p className="hero-kicker">Mission report · share</p>
-          <p className="meta life-cc-share-intro">Compact card for Stories or posts.</p>
-          <div className="life-cc-share-preview-shell">
+        <article className="life-mission-share-wrap">
+          <CollapsibleShareImageBlock
+            className="share-widget"
+            header={<p className="hero-kicker">Mission report · share</p>}
+            expandedIntro={<p className="meta life-cc-share-intro">Compact card for Stories or posts.</p>}
+            exportRef={lifeMissionShareCardRef}
+            captionText={buildMissionRecapCaption(lifeModeRecap, lifeModeCaption)}
+            filename="decide-for-me-life-mode-mission.png"
+            showCopyCaption
+            onCopyCaption={() => void copyLifeModeCaption()}
+            copyLabel={copiedLifeCaption ? "Copied caption" : "Copy caption"}
+          >
             <div
               ref={lifeMissionShareCardRef}
               className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}
@@ -3726,21 +3786,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                     <p className="life-mode-share-export-roast">{clampShareCardLine(lifeModeRecap.roast, 180)}</p>
                   ) : null}
                 </section>
-                <div className="life-mode-share-export-spacer" aria-hidden="true" />
                 <footer className="life-mode-share-export-foot">
                   <p className="life-mode-share-export-url">decideforme.org</p>
                 </footer>
               </div>
             </div>
-          </div>
-          <ShareImageToolbar
-            exportRef={lifeMissionShareCardRef}
-            captionText={buildMissionRecapCaption(lifeModeRecap, lifeModeCaption)}
-            filename="decide-for-me-life-mode-mission.png"
-            showCopyCaption
-            onCopyCaption={() => void copyLifeModeCaption()}
-            copyLabel={copiedLifeCaption ? "Copied caption" : "Copy caption"}
-          />
+          </CollapsibleShareImageBlock>
         </article>
       ) : null}
       {renderChatRankStrip(false)}
@@ -4087,10 +4138,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         </article>
       </div>
       {conversation.length ? (
-        <div className="chat-share-pack share-widget">
-          <p className="hero-kicker chat-share-pack-kicker">Share</p>
-          <p className="meta life-cc-share-intro">Latest exchange as an image.</p>
-          <div className="life-cc-share-preview-shell">
+        <div className="chat-share-pack">
+          <CollapsibleShareImageBlock
+            className="share-widget"
+            header={<p className="hero-kicker chat-share-pack-kicker">Share</p>}
+            expandedIntro={<p className="meta life-cc-share-intro">Latest exchange as an image.</p>}
+            exportRef={chatShareCardRef}
+            captionText={chatShareCaption}
+            filename="decide-for-me-chat.png"
+          >
             <div ref={chatShareCardRef} className={`life-mode-share-export-card life-mode-share-export-card--rank-${decisionRank.tier}`}>
               <div className="life-mode-share-export-bg" aria-hidden="true" />
               <div className="life-mode-share-export-body chat-share-export-inner">
@@ -4115,18 +4171,12 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                     <p className="chat-share-export-text">{chatExportLines.assistantLine}</p>
                   </section>
                 ) : null}
-                <div className="life-mode-share-export-spacer" aria-hidden="true" />
                 <footer className="life-mode-share-export-foot">
                   <p className="life-mode-share-export-url">decideforme.org</p>
                 </footer>
               </div>
             </div>
-          </div>
-          <ShareImageToolbar
-            exportRef={chatShareCardRef}
-            captionText={chatShareCaption}
-            filename="decide-for-me-chat.png"
-          />
+          </CollapsibleShareImageBlock>
         </div>
       ) : null}
       {error ? <p className="error">{error}</p> : null}
@@ -4572,28 +4622,6 @@ function DecisionProfileScreen({ session }) {
     return `My Decide For Me personality: ${insights.personality.title}\n${insights.personality.tagline}\nMost common lane: ${top}.`;
   }, [insights]);
 
-  const exportCard = async () => {
-    const el = shareCardRef.current;
-    if (!el) return;
-    setExporting(true);
-    try {
-      if (document.fonts?.ready) await document.fonts.ready;
-      const dataUrl = await toPng(el, {
-        pixelRatio: 2,
-        cacheBust: true,
-        backgroundColor: "#070910"
-      });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = "decide-for-me-decision-profile.png";
-      a.click();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setExporting(false);
-    }
-  };
-
   if (!session) return <Navigate to="/login" replace />;
 
   const { personality, topics, pace, decisiveness, sampleSize } = insights;
@@ -4682,49 +4710,46 @@ function DecisionProfileScreen({ session }) {
             </article>
           </div>
 
-          <article className="dp-share-section share-widget">
-            <p className="dp-panel-title">Share your Decision Personality card</p>
-            <p className="meta dp-share-blurb">Preview, download, or share — optional caption copy.</p>
-
-            <div className="dp-share-layout dp-share-widget-stack">
-              <div className="dp-share-preview">
-                <div
-                  ref={shareCardRef}
-                  className={`dp-share-card dp-share-card--${personality.variant}`}
-                >
-                  <div className="dp-share-card-bg" aria-hidden="true" />
-                  <div className="dp-share-card-inner">
-                    <p className="dp-share-brand">Decide For Me</p>
-                    <p className="dp-share-emoji">{personality.emoji}</p>
-                    <h3 className="dp-share-card-title">{personality.title}</h3>
-                    <p className="dp-share-card-line">{personality.tagline}</p>
-                    <div className="dp-share-meta-row">
-                      {topTopic ? (
-                        <span className="dp-share-chip">
-                          {topicEmojiForDecisionProfile(topTopic.topic)} {topTopic.topic} · {topTopic.pct}%
-                        </span>
-                      ) : (
-                        <span className="dp-share-chip">Ready to decide</span>
-                      )}
-                      {decisiveness.score != null ? (
-                        <span className="dp-share-chip">{decisiveness.label}</span>
-                      ) : null}
+          <article className="dp-share-section">
+            <CollapsibleShareImageBlock
+              className="share-widget"
+              header={<p className="dp-panel-title">Share your Decision Personality card</p>}
+              expandedIntro={<p className="meta dp-share-blurb">Preview, download, or share — optional caption copy.</p>}
+              toolbarClassName="dp-share-toolbar"
+              exportRef={shareCardRef}
+              captionText={shareCaption}
+              filename="decide-for-me-decision-profile.png"
+              showCopyCaption
+              onCopyCaption={() => copyText(shareCaption)}
+              copyLabel="Copy caption"
+            >
+              <div className="dp-share-layout dp-share-widget-stack">
+                <div className="dp-share-preview">
+                  <div ref={shareCardRef} className={`dp-share-card dp-share-card--${personality.variant}`}>
+                    <div className="dp-share-card-bg" aria-hidden="true" />
+                    <div className="dp-share-card-inner">
+                      <p className="dp-share-brand">Decide For Me</p>
+                      <p className="dp-share-emoji">{personality.emoji}</p>
+                      <h3 className="dp-share-card-title">{personality.title}</h3>
+                      <p className="dp-share-card-line">{personality.tagline}</p>
+                      <div className="dp-share-meta-row">
+                        {topTopic ? (
+                          <span className="dp-share-chip">
+                            {topicEmojiForDecisionProfile(topTopic.topic)} {topTopic.topic} · {topTopic.pct}%
+                          </span>
+                        ) : (
+                          <span className="dp-share-chip">Ready to decide</span>
+                        )}
+                        {decisiveness.score != null ? (
+                          <span className="dp-share-chip">{decisiveness.label}</span>
+                        ) : null}
+                      </div>
+                      <p className="dp-share-foot">{sampleSize} decision{sampleSize === 1 ? "" : "s"} in this profile</p>
                     </div>
-                    <p className="dp-share-foot">{sampleSize} decision{sampleSize === 1 ? "" : "s"} in this profile</p>
                   </div>
                 </div>
               </div>
-
-              <ShareImageToolbar
-                className="dp-share-toolbar"
-                exportRef={shareCardRef}
-                captionText={shareCaption}
-                filename="decide-for-me-decision-profile.png"
-                showCopyCaption
-                onCopyCaption={() => copyText(shareCaption)}
-                copyLabel="Copy caption"
-              />
-            </div>
+            </CollapsibleShareImageBlock>
           </article>
         </>
       )}
@@ -4890,10 +4915,15 @@ function StatsScreen({ session }) {
         </article>
       ) : null}
 
-      <article className="stats-wrapped-share-section share-widget">
-        <p className="hero-kicker">Share your Wrapped</p>
-        <p className="meta life-cc-share-intro">Includes weekly lines on recap Mondays.</p>
-        <div className="life-cc-share-preview-shell">
+      <article className="stats-wrapped-share-section">
+        <CollapsibleShareImageBlock
+          className="share-widget"
+          header={<p className="hero-kicker">Share your Wrapped</p>}
+          expandedIntro={<p className="meta life-cc-share-intro">Includes weekly lines on recap Mondays.</p>}
+          exportRef={statsWrappedShareRef}
+          captionText={wrappedShareCaption}
+          filename="decide-for-me-wrapped.png"
+        >
           <div
             ref={statsWrappedShareRef}
             className={`life-mode-share-export-card life-mode-share-export-card--rank-${statsRank?.tier || "recruit"}`}
@@ -4934,18 +4964,12 @@ function StatsScreen({ session }) {
                   ))}
                 </section>
               ) : null}
-              <div className="life-mode-share-export-spacer" aria-hidden="true" />
               <footer className="life-mode-share-export-foot">
                 <p className="life-mode-share-export-url">decideforme.org</p>
               </footer>
             </div>
           </div>
-        </div>
-        <ShareImageToolbar
-          exportRef={statsWrappedShareRef}
-          captionText={wrappedShareCaption}
-          filename="decide-for-me-wrapped.png"
-        />
+        </CollapsibleShareImageBlock>
       </article>
     </section>
   );
@@ -5445,10 +5469,15 @@ function LeaderboardScreen({ session }) {
       </article>
 
       {session?.user?.id && myRank ? (
-        <article className="leaderboard-share-pack share-widget">
-          <p className="hero-kicker">Share your rank</p>
-          <p className="meta life-cc-share-intro">Prestige tier on the card.</p>
-          <div className="life-cc-share-preview-shell">
+        <article className="leaderboard-share-pack">
+          <CollapsibleShareImageBlock
+            className="share-widget"
+            header={<p className="hero-kicker">Share your rank</p>}
+            expandedIntro={<p className="meta life-cc-share-intro">Prestige tier on the card.</p>}
+            exportRef={leaderboardShareCardRef}
+            captionText={leaderboardShareCaption}
+            filename="decide-for-me-leaderboard.png"
+          >
             <div
               ref={leaderboardShareCardRef}
               className={`life-mode-share-export-card life-mode-share-export-card--rank-${leaderboardPrestigeRank?.tier || "recruit"}`}
@@ -5477,18 +5506,12 @@ function LeaderboardScreen({ session }) {
                   <p className="life-mission-export-hero-pct">{myRank.score ?? 0}</p>
                   <p className="life-mode-share-export-excuse">decisions in this view</p>
                 </section>
-                <div className="life-mode-share-export-spacer" aria-hidden="true" />
                 <footer className="life-mode-share-export-foot">
                   <p className="life-mode-share-export-url">decideforme.org</p>
                 </footer>
               </div>
             </div>
-          </div>
-          <ShareImageToolbar
-            exportRef={leaderboardShareCardRef}
-            captionText={leaderboardShareCaption}
-            filename="decide-for-me-leaderboard.png"
-          />
+          </CollapsibleShareImageBlock>
         </article>
       ) : null}
     </section>

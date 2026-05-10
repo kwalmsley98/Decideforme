@@ -1721,6 +1721,29 @@ a.nearby-inline-maps:hover {
   margin-bottom: 8px;
 }
 
+.share-widget--collapsible:not(.share-widget--open) {
+  padding-bottom: 12px;
+}
+
+.share-widget-reveal-btn {
+  margin-top: 4px;
+}
+
+.share-widget-expanded {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.share-widget-collapse-btn {
+  margin-top: 2px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  opacity: 0.88;
+}
+
 .share-widget .life-mode-share-export-body {
   padding: 14px 12px 11px;
 }
@@ -2629,12 +2652,14 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.dp-share-section.share-widget {
-  margin-top: 12px;
+.dp-share-section .share-widget {
+  margin-top: 8px;
   margin-left: auto;
   margin-right: auto;
-  max-width: 348px;
-  padding: 14px 14px 16px;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .dp-share-blurb {
@@ -2669,7 +2694,7 @@ a.nearby-inline-maps:hover {
   position: relative;
   width: 100%;
   max-width: 320px;
-  aspect-ratio: 2 / 3;
+  height: auto;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2722,7 +2747,8 @@ a.nearby-inline-maps:hover {
 .dp-share-card-inner {
   position: relative;
   z-index: 1;
-  height: 100%;
+  min-height: 0;
+  height: auto;
   padding: 22px 20px 20px;
   display: flex;
   flex-direction: column;
@@ -2730,25 +2756,25 @@ a.nearby-inline-maps:hover {
   text-align: center;
 }
 
-.dp-share-section.share-widget .dp-share-card-inner {
+.dp-share-section .share-widget .dp-share-card-inner {
   padding: 16px 14px 14px;
 }
 
-.dp-share-section.share-widget .dp-share-emoji {
+.dp-share-section .share-widget .dp-share-emoji {
   font-size: 2.5rem;
 }
 
-.dp-share-section.share-widget .dp-share-card-title {
+.dp-share-section .share-widget .dp-share-card-title {
   font-size: 1.12rem;
   margin-bottom: 8px;
 }
 
-.dp-share-section.share-widget .dp-share-card-line {
+.dp-share-section .share-widget .dp-share-card-line {
   font-size: 0.82rem;
   margin-bottom: 12px;
 }
 
-.dp-share-section.share-widget .dp-share-chip {
+.dp-share-section .share-widget .dp-share-chip {
   font-size: 0.68rem;
   padding: 5px 10px;
 }
@@ -5037,12 +5063,9 @@ a.nearby-inline-maps:hover {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Single compact panel when combined with .share-widget */
-.life-cc-share-card.share-widget {
-  margin-top: 14px;
-  padding: 0;
-  background: transparent;
-  border: none;
+/* Outer article + inner collapsible share-widget */
+.life-cc-share-card .share-widget {
+  margin-top: 0;
 }
 
 .life-cc-share-intro {
@@ -5060,7 +5083,7 @@ a.nearby-inline-maps:hover {
   position: relative;
   width: 100%;
   max-width: 320px;
-  aspect-ratio: 2 / 3;
+  height: auto;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -5109,14 +5132,14 @@ a.nearby-inline-maps:hover {
 .life-mode-share-export-body {
   position: relative;
   z-index: 1;
-  height: 100%;
   min-height: 0;
+  height: auto;
   padding: 20px 18px 16px;
   display: flex;
   flex-direction: column;
   gap: 0;
   box-sizing: border-box;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .life-mode-share-export-head {
@@ -5214,8 +5237,7 @@ a.nearby-inline-maps:hover {
 }
 
 .life-mode-share-export-spacer {
-  flex: 1 1 auto;
-  min-height: 8px;
+  display: none;
 }
 
 .life-mode-share-export-block {
@@ -5296,7 +5318,8 @@ a.nearby-inline-maps:hover {
 
 .life-mode-share-export-foot {
   flex-shrink: 0;
-  padding-top: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
   text-align: center;
 }
 
