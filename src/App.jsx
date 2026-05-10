@@ -2125,6 +2125,8 @@ function ChatScreen({ session }) {
   const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
   const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
+  const [showEmergencyExitModal, setShowEmergencyExitModal] = useState(false);
+  const [emergencyExitWorking, setEmergencyExitWorking] = useState(false);
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
   /** undefined = loading AI orders; null = fallback to built-in library; array = Claude-generated */
@@ -3673,56 +3675,68 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     });
   };
 
-  const confirmEmergencyLifeExit = async () => {
-    if (!lifeModeSession?.id) return;
-    const ok = window.confirm("Are you sure? This will forfeit your Life Mode streak.");
-    if (!ok) return;
-
+  const performEmergencyLifeExit = async () => {
+    if (!lifeModeSession?.id || emergencyExitWorking) return;
+    setEmergencyExitWorking(true);
     const snap = lifeModeSession;
     const sid = snap.id;
 
     try {
-      localStorage.setItem(`dfm_lm_emergency_${sid}`, "1");
-      localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
-    } catch {
-      /* ignore */
-    }
-
-    if (supabase && session?.user?.id) {
-      const { error: streakErr } = await supabase.from("profiles").update({ life_mode_streak_days: 0 }).eq("id", session.user.id);
-      if (streakErr) console.warn("[life mode emergency] profile streak reset:", streakErr.message);
-    }
-
-    const persistedToDb = Boolean(sid && !String(sid).startsWith("local-"));
-    if (supabase && persistedToDb) {
-      await finalizeLifeModeIfNeeded(snap);
-      if (session?.user?.id) {
-        await supabase.from("life_mode_sessions").update({ is_active: false }).eq("id", sid).eq("user_id", session.user.id);
+      try {
+        localStorage.setItem(`dfm_lm_emergency_${sid}`, "1");
+        localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
+      } catch {
+        /* ignore */
       }
+
+      if (supabase && session?.user?.id) {
+        const { error: streakErr } = await supabase.from("profiles").update({ life_mode_streak_days: 0 }).eq("id", session.user.id);
+        if (streakErr) console.warn("[life mode emergency] profile streak reset:", streakErr.message);
+      }
+
+      const persistedToDb = Boolean(sid && !String(sid).startsWith("local-"));
+      if (supabase && persistedToDb) {
+        await finalizeLifeModeIfNeeded(snap);
+        if (session?.user?.id) {
+          await supabase.from("life_mode_sessions").update({ is_active: false }).eq("id", sid).eq("user_id", session.user.id);
+        }
+      }
+
+      try {
+        localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+        localStorage.removeItem(LIFE_SETUP_STORAGE_KEY);
+        localStorage.removeItem(`dfm_lm_pct_${sid}`);
+        localStorage.removeItem(`dfm_lm_emergency_${sid}`);
+        const dayKey = new Date().toISOString().slice(0, 10);
+        localStorage.removeItem(`dfm_lm_cmp_${sid}_${dayKey}`);
+      } catch {
+        /* ignore */
+      }
+
+      setLifeModeComplianceMap({});
+      setLifeModeResponsePicks({});
+      setLifeModeEmergencyShame("");
+      setLifeModeSetup(null);
+      setLifeModeSession(null);
+      setLifeModeRecap(null);
+      await refreshLifeModeGlobalCount();
+
+      setLifeModeExitNotice("Streak forfeited. The machine is disappointed.");
+      window.setTimeout(() => setLifeModeExitNotice(""), 4800);
+    } finally {
+      setEmergencyExitWorking(false);
+      setShowEmergencyExitModal(false);
     }
-
-    try {
-      localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
-      localStorage.removeItem(LIFE_SETUP_STORAGE_KEY);
-      localStorage.removeItem(`dfm_lm_pct_${sid}`);
-      localStorage.removeItem(`dfm_lm_emergency_${sid}`);
-      const dayKey = new Date().toISOString().slice(0, 10);
-      localStorage.removeItem(`dfm_lm_cmp_${sid}_${dayKey}`);
-    } catch {
-      /* ignore */
-    }
-
-    setLifeModeComplianceMap({});
-    setLifeModeResponsePicks({});
-    setLifeModeEmergencyShame("");
-    setLifeModeSetup(null);
-    setLifeModeSession(null);
-    setLifeModeRecap(null);
-    await refreshLifeModeGlobalCount();
-
-    setLifeModeExitNotice("Streak forfeited. The machine is disappointed.");
-    window.setTimeout(() => setLifeModeExitNotice(""), 4800);
   };
+
+  useEffect(() => {
+    if (!showEmergencyExitModal) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape" && !emergencyExitWorking) setShowEmergencyExitModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showEmergencyExitModal, emergencyExitWorking]);
 
   const renderChatRankStrip = (compact) => (
     <div
@@ -4070,7 +4084,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
-        <button type="button" className="life-cc-emergency" onClick={() => void confirmEmergencyLifeExit()}>
+        <button
+          type="button"
+          className="life-cc-emergency"
+          onClick={() => {
+            if (!emergencyExitWorking) setShowEmergencyExitModal(true);
+          }}
+        >
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
@@ -4144,6 +4164,46 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <p className="hero-kicker life-cc-kicker-quiet">Pulse</p>
           <p className="life-cc-feed-line">{pulseLine}</p>
         </section>
+
+        {showEmergencyExitModal ? (
+          <div
+            className="life-emergency-confirm-overlay"
+            role="presentation"
+            onClick={() => {
+              if (!emergencyExitWorking) setShowEmergencyExitModal(false);
+            }}
+          >
+            <div
+              className="life-emergency-confirm-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="life-emergency-confirm-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p id="life-emergency-confirm-title" className="life-emergency-confirm-message">
+                Are you sure? This will forfeit your Life Mode streak.
+              </p>
+              <div className="life-emergency-confirm-actions">
+                <button
+                  type="button"
+                  className="ghost-btn life-emergency-confirm-cancel"
+                  disabled={emergencyExitWorking}
+                  onClick={() => setShowEmergencyExitModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="primary-btn life-emergency-confirm-danger"
+                  disabled={emergencyExitWorking}
+                  onClick={() => void performEmergencyLifeExit()}
+                >
+                  {emergencyExitWorking ? "Ending…" : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}

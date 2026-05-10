@@ -3323,6 +3323,77 @@ a.nearby-inline-maps:hover {
   width: 100%;
 }
 
+/* Life Mode — emergency exit confirmation (replaces browser confirm) */
+.life-emergency-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(0, 0, 0, 0.86);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.life-emergency-confirm-card {
+  width: min(420px, 100%);
+  border-radius: 20px;
+  padding: 24px 22px;
+  border: 1px solid rgba(255, 82, 82, 0.38);
+  background: linear-gradient(155deg, rgba(10, 8, 14, 0.98), rgba(28, 12, 20, 0.96));
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.65), 0 0 36px rgba(180, 40, 60, 0.12);
+  text-align: center;
+}
+
+.life-emergency-confirm-message {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  font-weight: 600;
+  color: rgba(248, 242, 255, 0.96);
+}
+
+.life-emergency-confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+  justify-content: stretch;
+}
+
+.life-emergency-confirm-actions .ghost-btn,
+.life-emergency-confirm-actions .life-emergency-confirm-danger {
+  flex: 1;
+  min-width: 132px;
+}
+
+button.primary-btn.life-emergency-confirm-danger {
+  background: linear-gradient(165deg, #e53935, #9a1818);
+  border: 1px solid rgba(255, 130, 130, 0.42);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(140, 28, 28, 0.42);
+}
+
+button.primary-btn.life-emergency-confirm-danger:hover:not(:disabled) {
+  filter: brightness(1.07);
+  box-shadow: 0 12px 34px rgba(160, 36, 36, 0.5);
+}
+
+button.primary-btn.life-emergency-confirm-danger:focus-visible {
+  outline: 2px solid rgba(255, 120, 120, 0.85);
+  outline-offset: 2px;
+}
+
+button.primary-btn.life-emergency-confirm-danger:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.life-emergency-confirm-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .referral-dashboard-card {
   margin: 16px 0;
 }
