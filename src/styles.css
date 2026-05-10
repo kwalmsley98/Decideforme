@@ -189,6 +189,13 @@ a {
   display: none;
 }
 
+/* Bottom tab bar is mobile-only; top nav covers desktop (see .desktop-only-nav). */
+@media (min-width: 769px) {
+  .mobile-tabbar {
+    display: none !important;
+  }
+}
+
 .card {
   width: 100%;
   max-width: 100%;
@@ -2283,7 +2290,7 @@ a.nearby-inline-maps:hover {
   margin-top: 8px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .content {
     padding-left: 16px;
     padding-right: 16px;
