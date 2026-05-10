@@ -16,6 +16,7 @@ import {
   BadgePercent,
   BarChart2,
   Clock,
+  Copy,
   Compass,
   Flame,
   History,
@@ -3831,6 +3832,16 @@ function GroupRoomScreen({ session }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [finalBookingLinks, setFinalBookingLinks] = useState([]);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const voterCount = useMemo(() => {
+    const keys = new Set();
+    for (const p of prefs) {
+      if (p.user_id) keys.add(`u:${p.user_id}`);
+      else keys.add(`n:${String(p.nickname || "").trim() || "guest"}`);
+    }
+    return keys.size;
+  }, [prefs]);
 
   const loadRoom = async () => {
     if (!supabase) return;
@@ -3911,34 +3922,108 @@ function GroupRoomScreen({ session }) {
   if (!room) return <section className="card">Loading room...</section>;
   const shareLink = `${window.location.origin}/group/${room.share_code}`;
 
+  const copyShareLink = async () => {
+    try {
+      setError("");
+      await copyText(shareLink);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2200);
+    } catch {
+      setError("Could not copy — try selecting the link manually.");
+    }
+  };
+
+  const voterLabel =
+    voterCount === 0
+      ? "No preferences yet — share the link to get started."
+      : voterCount === 1
+        ? "1 person has added a preference"
+        : `${voterCount} people have added preferences`;
+
   return (
-    <section className="card premium">
-      <h1>Group room</h1>
-      <p className="muted">{room.prompt}</p>
-      <p className="meta">Mode: {room.personality}</p>
-      <SharePanel text={shareLink} />
-      <form className="form" onSubmit={submitPreference}>
-        <input
-          value={preference}
-          onChange={(event) => setPreference(event.target.value)}
-          placeholder="Add your preference..."
-        />
-        <button className="ghost-btn">Add preference</button>
-      </form>
-      <div className="history-list">
-        {prefs.map((p) => (
-          <article key={p.id} className="history-item">
-            <p className="meta">{p.nickname}</p>
-            <p>{p.preference}</p>
-          </article>
-        ))}
+    <section className="card premium group-room-page">
+      <header className="group-room-header">
+        <h1 className="group-room-title">Group room</h1>
+        <p className="group-room-lead">
+          Share the link below with your group. Once everyone adds their preference, make the final decision.
+        </p>
+      </header>
+
+      <div className="group-room-share-card">
+        <p className="group-room-share-kicker">Share with friends</p>
+        <p className="group-room-share-label">Copy this link and send it in your group chat</p>
+        <div className="group-room-share-row">
+          <div className="group-room-url-wrap">
+            <span className="group-room-url" title={shareLink}>
+              {shareLink}
+            </span>
+          </div>
+          <button type="button" className="primary-btn group-room-copy-btn" onClick={() => void copyShareLink()}>
+            <Copy size={18} strokeWidth={2} aria-hidden />
+            {linkCopied ? "Copied!" : "Copy link"}
+          </button>
+        </div>
       </div>
-      <button className="primary-btn" onClick={generateFinal} disabled={loading}>
-        {loading ? "Deciding..." : "Make final group decision"}
-      </button>
+
+      <div className="group-room-topic">
+        <p className="group-room-topic-label">What you&apos;re deciding</p>
+        <p className="group-room-prompt">{room.prompt}</p>
+      </div>
+
+      <p className="group-room-voter-count" role="status">
+        <Users size={18} strokeWidth={2} className="group-room-voter-icon" aria-hidden />
+        {voterLabel}
+      </p>
+
+      <form className="form group-room-form" onSubmit={submitPreference}>
+        <label className="group-room-field-label" htmlFor="group-pref-input">
+          Your preference
+        </label>
+        <div className="group-room-form-row">
+          <input
+            id="group-pref-input"
+            value={preference}
+            onChange={(event) => setPreference(event.target.value)}
+            placeholder="e.g. Italian, somewhere quiet…"
+          />
+          <button className="ghost-btn group-room-add-btn" type="submit">
+            Add preference
+          </button>
+        </div>
+      </form>
+
+      <div className="group-room-prefs-wrap">
+        <p className="group-room-prefs-heading">Group preferences</p>
+        {prefs.length === 0 ? (
+          <p className="meta group-room-prefs-empty">Preferences will show up here as people join.</p>
+        ) : (
+          <ul className="group-room-prefs-list">
+            {prefs.map((p) => (
+              <li key={p.id} className="group-room-pref-card">
+                <span className="group-room-pref-name">{p.nickname}</span>
+                <p className="group-room-pref-text">{p.preference}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="group-room-final-wrap">
+        <button
+          type="button"
+          className="primary-btn group-room-final-cta"
+          onClick={generateFinal}
+          disabled={loading || prefs.length === 0}
+        >
+          {loading ? "Deciding…" : "Make final group decision"}
+        </button>
+        {prefs.length === 0 ? <p className="meta group-room-final-hint">Add at least one preference first.</p> : null}
+      </div>
+
       {room.final_answer ? (
-        <>
-          <p className="answer">{room.final_answer}</p>
+        <div className="group-room-result">
+          <p className="group-room-result-label">Final decision</p>
+          <p className="answer group-room-final-answer">{room.final_answer}</p>
           {finalBookingLinks.length ? (
             <div className="booking-pills-row" role="navigation" aria-label="Compare and book">
               {finalBookingLinks.map((link) => (
@@ -3948,8 +4033,9 @@ function GroupRoomScreen({ session }) {
               ))}
             </div>
           ) : null}
-        </>
+        </div>
       ) : null}
+
       {loading ? <LoadingOrb /> : null}
       {error ? <p className="error">{error}</p> : null}
     </section>
