@@ -7132,8 +7132,7 @@ export default function App() {
   };
 
   return (
-    <>
-      <CommerceCurrencyProvider>
+    <CommerceCurrencyProvider>
       <Layout session={session} onSignOut={signOut}>
         {!isSupabaseConfigured ? (
           <section className="card">
@@ -7198,6 +7197,5 @@ export default function App() {
         </Routes>
       </Layout>
     </CommerceCurrencyProvider>
-    </>
   );
 }

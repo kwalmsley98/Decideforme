@@ -146,10 +146,26 @@ export function CommerceCurrencyProvider({ children }) {
   return <CommerceCurrencyContext.Provider value={value}>{children}</CommerceCurrencyContext.Provider>;
 }
 
+function fallbackCommerceContextValue() {
+  const code = "usd";
+  const loc = typeof navigator !== "undefined" ? navigator.language : "en-US";
+  return {
+    currency: code,
+    ready: true,
+    formatMonth: () => formatPlanPrice("month", code, loc),
+    formatYear: () => formatPlanPrice("year", code, loc),
+    minorMonth: COMMERCE_PRICES.usd.month,
+    minorYear: COMMERCE_PRICES.usd.year
+  };
+}
+
 export function useCommerceCurrency() {
   const ctx = useContext(CommerceCurrencyContext);
   if (!ctx) {
-    throw new Error("useCommerceCurrency must be used within CommerceCurrencyProvider");
+    if (typeof console !== "undefined" && console.warn) {
+      console.warn("useCommerceCurrency: missing provider — using USD fallback");
+    }
+    return fallbackCommerceContextValue();
   }
   return ctx;
 }
