@@ -185,6 +185,43 @@ a {
   box-sizing: border-box;
 }
 
+/* Global site footer — visible on all routes (including Life Mode); scroll below main content */
+.site-footer {
+  width: 100%;
+  max-width: 1120px;
+  margin: 28px auto 0;
+  padding: 20px 4px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, transparent, rgba(6, 8, 14, 0.35));
+  box-sizing: border-box;
+}
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.site-footer-nav a {
+  color: rgba(195, 205, 235, 0.94);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.site-footer-nav a:hover {
+  color: #f5e642;
+}
+
+.site-footer-sep {
+  color: rgba(255, 255, 255, 0.38);
+  user-select: none;
+}
+
 .mobile-tabbar {
   display: none;
 }
@@ -3545,6 +3582,12 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
   .content {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .site-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+    margin-top: 22px;
   }
 
   .app-shell {

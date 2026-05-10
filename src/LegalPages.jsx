@@ -57,8 +57,13 @@ export function TermsOfServicePage() {
         </p>
       </section>
       <section className="legal-section">
-        <h2>3. Accounts & eligibility</h2>
+        <h2>3. Accounts, eligibility & your data</h2>
         <p>You must provide accurate registration information and keep your credentials secure. You are responsible for activity under your account.</p>
+        <p>
+          <strong>User data.</strong> Categories of personal data we process (including account, usage, technical, referral and payment-related
+          metadata), purposes, legal bases under UK GDPR, retention, international transfers, subprocessors (including AI and Stripe), and your
+          rights are set out in our <Link to="/privacy">Privacy Policy</Link>, which forms part of your agreement with us.
+        </p>
       </section>
       <section className="legal-section">
         <h2>4. Subscriptions, trials & billing</h2>

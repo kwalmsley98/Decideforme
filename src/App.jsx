@@ -13,6 +13,7 @@ import {
 import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import { DocumentMeta, applyPageMeta } from "./seoMeta.jsx";
+import { TermsOfServicePage, PrivacyPolicyPage, CookiePolicyPage } from "./LegalPages.jsx";
 import {
   ArrowUp,
   BadgePercent,
@@ -1335,6 +1336,19 @@ function Layout({ session, onSignOut, children }) {
         </nav>
       </header>
       <main className="content">{children}</main>
+      <footer className="site-footer" role="contentinfo">
+        <nav className="site-footer-nav" aria-label="Legal and policies">
+          <Link to="/terms">Terms of Service</Link>
+          <span className="site-footer-sep" aria-hidden="true">
+            ·
+          </span>
+          <Link to="/privacy">Privacy Policy</Link>
+          <span className="site-footer-sep" aria-hidden="true">
+            ·
+          </span>
+          <Link to="/cookies">Cookie Policy</Link>
+        </nav>
+      </footer>
       <nav
         className="mobile-tabbar"
         aria-label="Primary tabs"
@@ -6767,6 +6781,9 @@ export default function App() {
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
           <Route path="/plans" element={<PlansScreen session={session} />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/cookies" element={<CookiePolicyPage />} />
           <Route path="/login" element={<AuthScreen mode="login" />} />
           <Route path="/signup" element={<AuthScreen mode="signup" />} />
           <Route path="*" element={<NotFoundPage />} />
