@@ -110,7 +110,9 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  min-height: 56px;
+  box-sizing: border-box;
   border-radius: 16px;
   background: rgba(8, 10, 16, 0.56);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -124,9 +126,13 @@ a {
 .brand {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  align-self: center;
   line-height: 0;
   text-decoration: none;
   flex-shrink: 0;
+  padding: 6px 8px;
+  box-sizing: border-box;
 }
 
 .brand-logo-link:focus-visible {
@@ -137,22 +143,23 @@ a {
 
 .brand-logo {
   display: block;
-  height: auto;
-  width: auto;
-  max-height: 40px;
   object-fit: contain;
 }
 
-/* Desktop / tablet: full horizontal wordmark */
+/* Desktop / tablet: full horizontal wordmark (~120px wide) */
 .brand-logo--horizontal {
   display: block;
-  max-width: min(240px, 42vw);
+  width: 120px;
+  max-width: 120px;
+  height: auto;
 }
 
 .brand-logo--icon {
   display: none;
-  max-height: 42px;
-  max-width: 42px;
+  width: 90px;
+  height: 90px;
+  max-width: 90px;
+  max-height: 90px;
 }
 
 @media (max-width: 768px) {
@@ -162,6 +169,14 @@ a {
 
   .brand-logo--icon {
     display: block;
+  }
+
+  .brand {
+    padding: 8px 10px;
+  }
+
+  .topbar {
+    min-height: 64px;
   }
 }
 
@@ -3508,7 +3523,7 @@ a.nearby-inline-maps:hover {
     padding: 16px 18px calc(104px + env(safe-area-inset-bottom, 0px));
   }
   .topbar {
-    align-items: flex-start;
+    align-items: center;
     flex-direction: column;
     margin-bottom: 8px;
   }
