@@ -12,9 +12,7 @@ import {
 } from "react-router-dom";
 import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
-import { DocumentMeta, applyPageMeta, SITE_CANONICAL } from "./seoMeta.jsx";
-import { TermsOfServicePage, PrivacyPolicyPage, CookiePolicyPage } from "./LegalPages.jsx";
-import { DAILY_FREE_DECISION_LIMIT } from "./constants/freeTier.js";
+import { DocumentMeta, applyPageMeta } from "./seoMeta.jsx";
 import {
   ArrowUp,
   BadgePercent,
@@ -61,14 +59,6 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
-const DFM_INVITE_STORAGE_KEY = "dfm_influencer_invite_code";
-const DFM_ADMIN_TOKEN_KEY = "dfm_admin_token";
-
-function formatGbpFromPence(pence) {
-  const n = Number(pence);
-  if (!Number.isFinite(n)) return "£0.00";
-  return `£${(n / 100).toFixed(2)}`;
-}
 
 function isStripeHostedCheckoutUrl(urlString) {
   try {
@@ -1345,19 +1335,6 @@ function Layout({ session, onSignOut, children }) {
         </nav>
       </header>
       <main className="content">{children}</main>
-      <footer className="site-footer" role="contentinfo">
-        <nav className="site-footer-nav" aria-label="Legal and policies">
-          <Link to="/terms">Terms of Service</Link>
-          <span className="site-footer-sep" aria-hidden="true">
-            ·
-          </span>
-          <Link to="/privacy">Privacy Policy</Link>
-          <span className="site-footer-sep" aria-hidden="true">
-            ·
-          </span>
-          <Link to="/cookies">Cookie Policy</Link>
-        </nav>
-      </footer>
       <nav
         className="mobile-tabbar"
         aria-label="Primary tabs"
@@ -1380,276 +1357,6 @@ function Layout({ session, onSignOut, children }) {
         ))}
       </nav>
     </div>
-  );
-}
-
-function InfluencerInviteLanding() {
-  const { code } = useParams();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const normalized = String(code || "")
-      .trim()
-      .toLowerCase();
-    if (/^[a-z0-9]{6,16}$/.test(normalized)) {
-      try {
-        localStorage.setItem(DFM_INVITE_STORAGE_KEY, normalized);
-      } catch {
-        /* ignore */
-      }
-    }
-    applyPageMeta({
-      title: "You're invited | Decide For Me",
-      description: "Lifetime Pro and your referral code — decideforme.org.",
-      path: pathname
-    });
-  }, [code, pathname]);
-
-  const valid = /^[a-z0-9]{6,16}$/.test(String(code || "").trim().toLowerCase());
-  const inviteUrl = `${SITE_CANONICAL}/invite/${String(code || "").trim().toLowerCase()}`;
-
-  return (
-    <section className="card premium">
-      <p className="hero-kicker">Influencer invite</p>
-      <h1 className="decision-title">You&apos;ve got lifetime Pro</h1>
-      <p className="answer">
-        Sign in or create an account to unlock Pro forever on this device — no card, no trial timer — plus your referral code so you can{" "}
-        <Link to="/affiliates">earn 50% commissions</Link> when you share Decide For Me.
-      </p>
-      {!valid ? (
-        <p className="error">This invite link doesn&apos;t look valid. Ask for a fresh link.</p>
-      ) : (
-        <p className="meta referral-link-break">
-          Link saved for after you sign in: <code className="invite-url-code">{inviteUrl}</code>
-        </p>
-      )}
-      <div className="invite-landing-actions">
-        <Link to="/signup" className="primary-btn">
-          Create account
-        </Link>
-        <Link to="/login" className="secondary-btn">
-          Log in
-        </Link>
-        <button type="button" className="ghost-btn" onClick={() => navigate("/")}>
-          Back to app
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function AdminPage() {
-  const { pathname } = useLocation();
-  const [password, setPassword] = useState("");
-  const [adminToken, setAdminToken] = useState(() => {
-    try {
-      return sessionStorage.getItem(DFM_ADMIN_TOKEN_KEY) || "";
-    } catch {
-      return "";
-    }
-  });
-  const [invites, setInvites] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [newLabel, setNewLabel] = useState("");
-  const [loginError, setLoginError] = useState("");
-
-  const publicSiteOrigin = SITE_CANONICAL.replace(/\/$/, "");
-
-  const loadInvites = async (tok) => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(apiUrl("/api/admin/invites"), {
-        headers: { Authorization: `Bearer ${tok}` }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 401) {
-          try {
-            sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
-          } catch {
-            /* ignore */
-          }
-          setAdminToken("");
-          setError(typeof data?.error === "string" ? data.error : "Session expired. Sign in again.");
-        } else {
-          setError(typeof data?.error === "string" ? data.error : "Could not load invites.");
-        }
-        setInvites([]);
-        return;
-      }
-      setInvites(Array.isArray(data.invites) ? data.invites : []);
-    } catch {
-      setError("Could not reach the server.");
-      setInvites([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    applyPageMeta({
-      title: "Admin | Decide For Me",
-      description: "Invite administration.",
-      path: pathname
-    });
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!adminToken) return;
-    loadInvites(adminToken);
-  }, [adminToken]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoginError("");
-    try {
-      const res = await fetch(apiUrl("/api/admin/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setLoginError(typeof data?.error === "string" ? data.error : "Login failed.");
-        return;
-      }
-      const tok = typeof data?.token === "string" ? data.token : "";
-      if (!tok) {
-        setLoginError("Invalid response from server.");
-        return;
-      }
-      try {
-        sessionStorage.setItem(DFM_ADMIN_TOKEN_KEY, tok);
-      } catch {
-        /* ignore */
-      }
-      setAdminToken(tok);
-      setPassword("");
-    } catch {
-      setLoginError("Could not reach the server.");
-    }
-  };
-
-  const handleCreateInvite = async () => {
-    if (!adminToken) return;
-    setError("");
-    try {
-      const res = await fetch(apiUrl("/api/admin/invites"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`
-        },
-        body: JSON.stringify({ label: newLabel.trim() || null })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Could not create invite.");
-        return;
-      }
-      setNewLabel("");
-      await loadInvites(adminToken);
-    } catch {
-      setError("Could not reach the server.");
-    }
-  };
-
-  const handleLogout = () => {
-    try {
-      sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
-    } catch {
-      /* ignore */
-    }
-    setAdminToken("");
-    setInvites([]);
-  };
-
-  if (!adminToken) {
-    return (
-      <section className="card premium admin-gate">
-        <p className="hero-kicker">Admin</p>
-        <h1 className="decision-title">Sign in</h1>
-        <form onSubmit={handleLogin} className="form admin-login-form">
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Admin password"
-          />
-          {loginError ? <p className="error">{loginError}</p> : null}
-          <button type="submit" className="primary-btn">
-            Continue
-          </button>
-        </form>
-      </section>
-    );
-  }
-
-  return (
-    <section className="card premium admin-dashboard">
-      <div className="admin-dashboard-head">
-        <div>
-          <p className="hero-kicker">Admin</p>
-          <h1 className="decision-title">Influencer invites</h1>
-          <p className="meta">One-time links in the form {publicSiteOrigin}/invite/[code]</p>
-        </div>
-        <button type="button" className="ghost-btn" onClick={handleLogout}>
-          Sign out
-        </button>
-      </div>
-
-      <div className="admin-create-row">
-        <input
-          type="text"
-          value={newLabel}
-          onChange={(e) => setNewLabel(e.target.value)}
-          placeholder="Label (optional), e.g. TikTok — @creator"
-          className="admin-label-input"
-        />
-        <button type="button" className="primary-btn" onClick={handleCreateInvite} disabled={loading}>
-          Generate invite link
-        </button>
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-      {loading ? <p className="meta">Loading…</p> : null}
-
-      <div className="admin-invites-table-wrap">
-        <table className="admin-invites-table">
-          <thead>
-            <tr>
-              <th>Invite link</th>
-              <th>Label</th>
-              <th>Used at</th>
-              <th>User</th>
-              <th>Decisions</th>
-              <th>Referral commissions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invites.map((row) => {
-              const link = `${publicSiteOrigin}/invite/${row.code}`;
-              return (
-                <tr key={row.id}>
-                  <td>
-                    <code className="admin-code">{link}</code>
-                  </td>
-                  <td>{row.label || "—"}</td>
-                  <td>{row.used_at ? new Date(row.used_at).toLocaleString() : "—"}</td>
-                  <td>{row.user_email || (row.used_by_user_id ? row.used_by_user_id.slice(0, 8) + "…" : "—")}</td>
-                  <td>{row.used_by_user_id != null ? row.total_decisions ?? 0 : "—"}</td>
-                  <td>{row.used_by_user_id != null ? formatGbpFromPence(row.referral_commission_pence) : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!loading && invites.length === 0 ? <p className="meta">No invites yet. Generate one above.</p> : null}
-      </div>
-    </section>
   );
 }
 
@@ -2007,8 +1714,8 @@ function DailyDilemmaCard({ session }) {
 
 function ChatScreen({ session }) {
   const { currency, formatMonth, formatYear } = useCommerceCurrency();
-  const DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
-  const GUEST_DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
+  const DAILY_FREE_LIMIT = 100;
+  const GUEST_DAILY_FREE_LIMIT = 100;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const LIFE_SETUP_STORAGE_KEY = "dfm_lm_setup_v2";
   const LIFE_STREAK_STORAGE_KEY = "dfm_lm_consecutive_days";
@@ -2102,8 +1809,6 @@ function ChatScreen({ session }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [checkoutNotice, setCheckoutNotice] = useState("");
-  const [lifeModeExitNotice, setLifeModeExitNotice] = useState("");
-  const [syncProAfterCheckout, setSyncProAfterCheckout] = useState(false);
   const [promptRef, setPromptRef] = useState(null);
   const [replyRef, setReplyRef] = useState(null);
   const [lifeModeWizardOpen, setLifeModeWizardOpen] = useState(false);
@@ -2125,8 +1830,6 @@ function ChatScreen({ session }) {
   const [lifeModeComplianceMap, setLifeModeComplianceMap] = useState({});
   const [lifeModeResponsePicks, setLifeModeResponsePicks] = useState({});
   const [lifeModeEmergencyShame, setLifeModeEmergencyShame] = useState("");
-  const [showEmergencyExitModal, setShowEmergencyExitModal] = useState(false);
-  const [emergencyExitWorking, setEmergencyExitWorking] = useState(false);
   const [lifeModeFreePreviewOpen, setLifeModeFreePreviewOpen] = useState(false);
   const [lifeModeMissionShareCopied, setLifeModeMissionShareCopied] = useState(false);
   /** undefined = loading AI orders; null = fallback to built-in library; array = Claude-generated */
@@ -2174,8 +1877,7 @@ function ChatScreen({ session }) {
     const checkout = searchParams.get("checkout");
     if (!checkout) return;
     if (checkout === "success") {
-      setCheckoutNotice("Welcome to Pro — unlimited decisions and full Life Mode are unlocked.");
-      setSyncProAfterCheckout(true);
+      setCheckoutNotice("Payment successful. Pro is now active on your account.");
     } else if (checkout === "cancelled") {
       setCheckoutNotice("Checkout was cancelled. No charge was made.");
     }
@@ -2188,33 +1890,6 @@ function ChatScreen({ session }) {
       { replace: true }
     );
   }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (!syncProAfterCheckout) return undefined;
-    if (!supabase || !session?.user?.id) {
-      setSyncProAfterCheckout(false);
-      return undefined;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        for (let i = 0; i < 15 && !cancelled; i++) {
-          const { data } = await supabase.from("profiles").select("is_pro").eq("id", session.user.id).maybeSingle();
-          if (data?.is_pro) {
-            setIsProUser(true);
-            setShowUpgradePrompt(false);
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 450));
-        }
-      } finally {
-        if (!cancelled) setSyncProAfterCheckout(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [syncProAfterCheckout, session?.user?.id, supabase]);
 
   useEffect(() => {
     const raw = searchParams.get("lifeMode") ?? searchParams.get("lifemode");
@@ -2433,28 +2108,6 @@ function ChatScreen({ session }) {
   }, [session?.user?.id, todayKey]);
 
   useEffect(() => {
-    if (!supabase || !session?.user?.id) return undefined;
-    const uid = session.user.id;
-    const channel = supabase
-      .channel(`profiles-pro-${uid}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles", filter: `id=eq.${uid}` },
-        (payload) => {
-          const row = payload.new;
-          if (row && typeof row.is_pro === "boolean") {
-            setIsProUser(Boolean(row.is_pro));
-            if (row.is_pro) setShowUpgradePrompt(false);
-          }
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session?.user?.id, supabase]);
-
-  useEffect(() => {
     if (session?.user?.id) return;
     setIsProUser(false);
   }, [session?.user?.id]);
@@ -2653,21 +2306,14 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       streakPrev = 0;
     }
     let streakNext = streakPrev;
-    if (emergencyOverride) {
-      streakNext = 0;
-    } else if (complianceScore != null && Number.isFinite(complianceScore)) {
-      if (complianceScore >= 50) streakNext = streakPrev + 1;
+    if (complianceScore != null && Number.isFinite(complianceScore)) {
+      if (complianceScore >= 50 && !emergencyOverride) streakNext = streakPrev + 1;
       else streakNext = 0;
     }
     try {
       localStorage.setItem(LIFE_STREAK_STORAGE_KEY, String(streakNext));
     } catch {
       /* ignore */
-    }
-
-    const profileUserId = sessionRow.user_id;
-    if (supabase && profileUserId) {
-      await supabase.from("profiles").update({ life_mode_streak_days: streakNext }).eq("id", profileUserId);
     }
 
     let viralSummary = null;
@@ -3675,68 +3321,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     });
   };
 
-  const performEmergencyLifeExit = async () => {
-    if (!lifeModeSession?.id || emergencyExitWorking) return;
-    setEmergencyExitWorking(true);
-    const snap = lifeModeSession;
-    const sid = snap.id;
-
+  const triggerLifeEmergencyOverride = () => {
+    if (!lifeModeSession?.id) return;
     try {
-      try {
-        localStorage.setItem(`dfm_lm_emergency_${sid}`, "1");
-        localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
-      } catch {
-        /* ignore */
-      }
-
-      if (supabase && session?.user?.id) {
-        const { error: streakErr } = await supabase.from("profiles").update({ life_mode_streak_days: 0 }).eq("id", session.user.id);
-        if (streakErr) console.warn("[life mode emergency] profile streak reset:", streakErr.message);
-      }
-
-      const persistedToDb = Boolean(sid && !String(sid).startsWith("local-"));
-      if (supabase && persistedToDb) {
-        await finalizeLifeModeIfNeeded(snap);
-        if (session?.user?.id) {
-          await supabase.from("life_mode_sessions").update({ is_active: false }).eq("id", sid).eq("user_id", session.user.id);
-        }
-      }
-
-      try {
-        localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
-        localStorage.removeItem(LIFE_SETUP_STORAGE_KEY);
-        localStorage.removeItem(`dfm_lm_pct_${sid}`);
-        localStorage.removeItem(`dfm_lm_emergency_${sid}`);
-        const dayKey = new Date().toISOString().slice(0, 10);
-        localStorage.removeItem(`dfm_lm_cmp_${sid}_${dayKey}`);
-      } catch {
-        /* ignore */
-      }
-
-      setLifeModeComplianceMap({});
-      setLifeModeResponsePicks({});
-      setLifeModeEmergencyShame("");
-      setLifeModeSetup(null);
-      setLifeModeSession(null);
-      setLifeModeRecap(null);
-      await refreshLifeModeGlobalCount();
-
-      setLifeModeExitNotice("Streak forfeited. The machine is disappointed.");
-      window.setTimeout(() => setLifeModeExitNotice(""), 4800);
-    } finally {
-      setEmergencyExitWorking(false);
-      setShowEmergencyExitModal(false);
+      localStorage.setItem(`dfm_lm_emergency_${lifeModeSession.id}`, "1");
+      localStorage.setItem(LIFE_STREAK_STORAGE_KEY, "0");
+    } catch {
+      /* ignore */
     }
+    setLifeModeComplianceMap({});
+    setLifeModeResponsePicks({});
+    persistLifeEngagementToDay({}, {});
+    setLifeModeEmergencyShame("Weakness detected 😤");
   };
-
-  useEffect(() => {
-    if (!showEmergencyExitModal) return undefined;
-    const onKey = (e) => {
-      if (e.key === "Escape" && !emergencyExitWorking) setShowEmergencyExitModal(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showEmergencyExitModal, emergencyExitWorking]);
 
   const renderChatRankStrip = (compact) => (
     <div
@@ -4084,13 +3681,7 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
         <p className="life-cc-check-in">{checkInLine}</p>
 
-        <button
-          type="button"
-          className="life-cc-emergency"
-          onClick={() => {
-            if (!emergencyExitWorking) setShowEmergencyExitModal(true);
-          }}
-        >
+        <button type="button" className="life-cc-emergency" onClick={triggerLifeEmergencyOverride}>
           <ShieldAlert size={18} strokeWidth={2} /> Emergency override — forfeits streak
         </button>
 
@@ -4164,46 +3755,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           <p className="hero-kicker life-cc-kicker-quiet">Pulse</p>
           <p className="life-cc-feed-line">{pulseLine}</p>
         </section>
-
-        {showEmergencyExitModal ? (
-          <div
-            className="life-emergency-confirm-overlay"
-            role="presentation"
-            onClick={() => {
-              if (!emergencyExitWorking) setShowEmergencyExitModal(false);
-            }}
-          >
-            <div
-              className="life-emergency-confirm-card"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="life-emergency-confirm-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p id="life-emergency-confirm-title" className="life-emergency-confirm-message">
-                Are you sure? This will forfeit your Life Mode streak.
-              </p>
-              <div className="life-emergency-confirm-actions">
-                <button
-                  type="button"
-                  className="ghost-btn life-emergency-confirm-cancel"
-                  disabled={emergencyExitWorking}
-                  onClick={() => setShowEmergencyExitModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="primary-btn life-emergency-confirm-danger"
-                  disabled={emergencyExitWorking}
-                  onClick={() => void performEmergencyLifeExit()}
-                >
-                  {emergencyExitWorking ? "Ending…" : "Confirm"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {error ? <p className="error">{error}</p> : null}
         {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
@@ -4570,22 +4121,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 share-ready mission reports.
               </p>
             ) : null}
-            {upgradePromptReason === "limit" ? (
-              <p className="muted upgrade-limit-copy">
-                {session?.user?.id ? (
-                  <>
-                    You&apos;ve used all {DAILY_FREE_LIMIT} free decisions for today on the free plan. Upgrade to Pro for{" "}
-                    <strong>unlimited decisions</strong>, Life Mode, chat history, and the full experience — starting with a{" "}
-                    <strong>3-day free trial</strong> when you subscribe.
-                  </>
-                ) : (
-                  <>
-                    You&apos;ve used all {GUEST_DAILY_FREE_LIMIT} free guest decisions for today. Create an account and go Pro for unlimited
-                    decisions and full features — or come back after midnight.
-                  </>
-                )}
-              </p>
-            ) : null}
             <p className="plan-price">
               {formatMonth()}/mo · {formatYear()}/yr
             </p>
@@ -4690,7 +4225,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       ) : null}
       {error ? <p className="error">{error}</p> : null}
       {checkoutNotice ? <p className="answer chat-checkout-notice">{checkoutNotice}</p> : null}
-      {lifeModeExitNotice ? <p className="answer chat-checkout-notice">{lifeModeExitNotice}</p> : null}
       {lifeModeWizardOpen ? (
         <div className="life-mode-modal life-cc-wizard-overlay" role="dialog" aria-modal="true" aria-label="Life Mode setup">
           <div className="life-mode-modal-card life-cc-wizard-card">
@@ -6600,11 +6134,6 @@ function ProfileScreen({ session }) {
           Contact support
         </a>
       </div>
-      <nav className="profile-legal-links" aria-label="Legal">
-        <Link to="/terms">Terms of Service</Link>
-        <Link to="/privacy">Privacy Policy</Link>
-        <Link to="/cookies">Cookie Policy</Link>
-      </nav>
       <article className={`prestige-rank-card prestige-rank-card--${profileRank.tier}`}>
         <div className="prestige-rank-card-bg" aria-hidden="true" />
         <div className="prestige-rank-main">
@@ -7019,7 +6548,7 @@ function PlansScreen({ session }) {
         </p>
       </article>
       <h2 className="plans-upgrade-heading">Upgrade to Pro</h2>
-      <p className="muted">3-day free trial, then monthly or yearly billing. Cancel anytime.</p>
+      <p className="muted">7-day trial, then choose monthly or yearly billing.</p>
       <div className="plans-grid plans-grid--two">
         <article className="plan-card">
           <h3>Pro · Monthly</h3>
@@ -7054,8 +6583,30 @@ function PlansScreen({ session }) {
   );
 }
 
+const DFM_SPLASH_SESSION_KEY = "dfm_branded_splash_seen";
+
 export default function App() {
   const [session, setSession] = useState(null);
+  const [showSplash, setShowSplash] = useState(() => {
+    try {
+      return !sessionStorage.getItem(DFM_SPLASH_SESSION_KEY);
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    if (!showSplash) return undefined;
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem(DFM_SPLASH_SESSION_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setShowSplash(false);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [showSplash]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -7087,52 +6638,14 @@ export default function App() {
     };
   }, [session?.user?.id, session?.access_token]);
 
-  useEffect(() => {
-    if (!session?.access_token || !supabase) return undefined;
-    let cancelled = false;
-    let code = "";
-    try {
-      code = localStorage.getItem(DFM_INVITE_STORAGE_KEY) || "";
-    } catch {
-      return undefined;
-    }
-    const trimmed = code.trim().toLowerCase();
-    if (!trimmed || !/^[a-z0-9]{6,16}$/.test(trimmed)) return undefined;
-
-    (async () => {
-      try {
-        const res = await fetch(apiUrl("/api/invite/redeem"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ code: trimmed })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelled || !res.ok || !data?.ok) return;
-        try {
-          localStorage.removeItem(DFM_INVITE_STORAGE_KEY);
-        } catch {
-          /* ignore */
-        }
-      } catch {
-        /* network — retry on next mount */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.access_token]);
-
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
   };
 
   return (
-    <CommerceCurrencyProvider>
+    <>
+      <CommerceCurrencyProvider>
       <Layout session={session} onSignOut={signOut}>
         {!isSupabaseConfigured ? (
           <section className="card">
@@ -7186,16 +6699,20 @@ export default function App() {
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
           <Route path="/plans" element={<PlansScreen session={session} />} />
-          <Route path="/terms" element={<TermsOfServicePage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/cookies" element={<CookiePolicyPage />} />
-          <Route path="/invite/:code" element={<InfluencerInviteLanding />} />
-          <Route path="/admin" element={<AdminPage />} />
           <Route path="/login" element={<AuthScreen mode="login" />} />
           <Route path="/signup" element={<AuthScreen mode="signup" />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Layout>
     </CommerceCurrencyProvider>
+      {showSplash ? (
+        <div className="splash-overlay" aria-hidden="true">
+          <div className="splash-inner">
+            <Zap className="splash-bolt" size={52} strokeWidth={2} aria-hidden="true" />
+            <p className="splash-title">Decide For Me</p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
