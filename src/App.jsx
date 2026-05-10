@@ -1514,6 +1514,15 @@ function ChatScreen({ session }) {
   const activeChatSessionIdRef = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const [lifeModeHydrated, setLifeModeHydrated] = useState(() => !session?.user?.id);
+  const [pendingLifeModeDeepLink, setPendingLifeModeDeepLink] = useState(false);
+  const lifeModeDeepLinkConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (session?.user?.id) setLifeModeHydrated(false);
+    else setLifeModeHydrated(true);
+  }, [session?.user?.id]);
+
   useEffect(() => {
     const raw = searchParams.get("q");
     if (!raw) return;
@@ -1551,6 +1560,47 @@ function ChatScreen({ session }) {
       { replace: true }
     );
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const raw = searchParams.get("lifeMode") ?? searchParams.get("lifemode");
+    if (raw == null || raw === "" || raw === "0" || raw === "false") return;
+    lifeModeDeepLinkConsumedRef.current = false;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("lifeMode");
+        next.delete("lifemode");
+        return next;
+      },
+      { replace: true }
+    );
+    setPendingLifeModeDeepLink(true);
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!pendingLifeModeDeepLink) return;
+    if (!session?.user?.id) {
+      setUpgradePromptReason("feature");
+      setShowUpgradePrompt(true);
+      setPendingLifeModeDeepLink(false);
+      return;
+    }
+    if (!lifeModeHydrated) return;
+    const active =
+      lifeModeSession?.ends_at && new Date(lifeModeSession.ends_at).getTime() > Date.now();
+    if (active) {
+      setPendingLifeModeDeepLink(false);
+      return;
+    }
+    if (lifeModeDeepLinkConsumedRef.current) {
+      setPendingLifeModeDeepLink(false);
+      return;
+    }
+    lifeModeDeepLinkConsumedRef.current = true;
+    setLifeModeWizardStep(0);
+    setLifeModeWizardOpen(true);
+    setPendingLifeModeDeepLink(false);
+  }, [pendingLifeModeDeepLink, session?.user?.id, lifeModeHydrated, lifeModeSession]);
 
   useEffect(() => {
     activeChatSessionIdRef.current = null;
@@ -2012,40 +2062,45 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         setLifeModeSession(null);
         setLifeModeRecap(null);
       }
+      setLifeModeHydrated(true);
       return;
     }
 
     const loadLifeMode = async () => {
-      const { data: activeSession } = await supabase
-        .from("life_mode_sessions")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .eq("is_active", true)
-        .gt("ends_at", new Date().toISOString())
-        .order("started_at", { ascending: false })
-        .limit(1)
-        .single();
-      if (activeSession) {
-        setLifeModeSession(activeSession);
-        setLifeModeRecap(null);
-      } else {
-        const persisted = loadLifeModeFromStorage();
-        setLifeModeSession(persisted || null);
-        const { data: lastSession } = await supabase
+      try {
+        const { data: activeSession } = await supabase
           .from("life_mode_sessions")
           .select("*")
           .eq("user_id", session.user.id)
+          .eq("is_active", true)
+          .gt("ends_at", new Date().toISOString())
           .order("started_at", { ascending: false })
           .limit(1)
           .single();
-        if (lastSession && !lastSession.is_active && lastSession.recap_json) {
-          setLifeModeRecap(lastSession.recap_json);
-        } else if (lastSession && lastSession.is_active && new Date(lastSession.ends_at).getTime() <= Date.now()) {
-          const recap = await finalizeLifeModeIfNeeded(lastSession);
-          setLifeModeRecap(recap);
+        if (activeSession) {
+          setLifeModeSession(activeSession);
+          setLifeModeRecap(null);
+        } else {
+          const persisted = loadLifeModeFromStorage();
+          setLifeModeSession(persisted || null);
+          const { data: lastSession } = await supabase
+            .from("life_mode_sessions")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .order("started_at", { ascending: false })
+            .limit(1)
+            .single();
+          if (lastSession && !lastSession.is_active && lastSession.recap_json) {
+            setLifeModeRecap(lastSession.recap_json);
+          } else if (lastSession && lastSession.is_active && new Date(lastSession.ends_at).getTime() <= Date.now()) {
+            const recap = await finalizeLifeModeIfNeeded(lastSession);
+            setLifeModeRecap(recap);
+          }
         }
+        refreshLifeModeGlobalCount();
+      } finally {
+        setLifeModeHydrated(true);
       }
-      refreshLifeModeGlobalCount();
     };
 
     loadLifeMode();
@@ -4478,12 +4533,12 @@ function ExploreScreen({ session }) {
               <span className="explore-tile-title">Decision Profile</span>
               <span className="explore-tile-desc">Personality, categories &amp; share card</span>
             </Link>
-            <Link to="/profile" className="explore-tile">
+            <Link to="/?lifeMode=1" className="explore-tile">
               <span className="explore-tile-icon" aria-hidden="true">
                 <Compass size={22} strokeWidth={1.75} />
               </span>
               <span className="explore-tile-title">Let AI Run My Life</span>
-              <span className="explore-tile-desc">Start or manage Life Mode</span>
+              <span className="explore-tile-desc">Open Life Mode setup on home</span>
             </Link>
           </>
         ) : (
