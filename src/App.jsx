@@ -4536,7 +4536,6 @@ function ProfileScreen({ session }) {
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [referralCodeFromReferrals, setReferralCodeFromReferrals] = useState("");
-  const [preferences, setPreferences] = useState([]);
   const [referralDash, setReferralDash] = useState(EMPTY_REFERRAL_DASH);
   const [referralDashError, setReferralDashError] = useState("");
   const [connectLoading, setConnectLoading] = useState(false);
@@ -4570,12 +4569,6 @@ function ProfileScreen({ session }) {
     setReferrals(refData ?? []);
     const tableCode = String((refData || []).find((row) => row?.referral_code)?.referral_code || "").trim().toLowerCase();
     if (tableCode) setReferralCodeFromReferrals(tableCode);
-    const { data: preferenceRows } = await supabase
-      .from("user_preferences")
-      .select("id, preference")
-      .eq("user_id", session.user.id)
-      .order("updated_at", { ascending: false });
-    setPreferences(preferenceRows ?? []);
 
     try {
       const {
@@ -4671,12 +4664,6 @@ function ProfileScreen({ session }) {
     : "";
   const prettyRefLink = canonicalCode && origin ? `${origin}/ref/${canonicalCode}` : "";
 
-  const removePreference = async (id) => {
-    if (!supabase || !id) return;
-    await supabase.from("user_preferences").delete().eq("id", id).eq("user_id", session.user.id);
-    setPreferences((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const handleLogout = async () => {
     if (!supabase) {
       navigate("/", { replace: true });
@@ -4685,36 +4672,6 @@ function ProfileScreen({ session }) {
     await supabase.auth.signOut();
     navigate("/", { replace: true });
   };
-
-  const renderedPreferences = useMemo(() => {
-    const output = [];
-    for (const item of preferences) {
-      const text = String(item?.preference || "");
-      const clean = text.replace(/```json|```/gi, "").trim();
-      if (!clean) continue;
-      try {
-        const parsed = JSON.parse(clean);
-        if (Array.isArray(parsed)) {
-          parsed
-            .map((entry) => String(entry || "").trim())
-            .filter(Boolean)
-            .forEach((entry, idx) => output.push({ key: `${item.id}-${idx}`, sourceId: item.id, label: entry }));
-          continue;
-        }
-        if (Array.isArray(parsed?.preferences)) {
-          parsed.preferences
-            .map((entry) => String(entry || "").trim())
-            .filter(Boolean)
-            .forEach((entry, idx) => output.push({ key: `${item.id}-${idx}`, sourceId: item.id, label: entry }));
-          continue;
-        }
-      } catch {
-        // Fall through to raw cleaned text when JSON parsing fails.
-      }
-      output.push({ key: String(item.id), sourceId: item.id, label: clean });
-    }
-    return output;
-  }, [preferences]);
 
   const profileRank = useMemo(() => getDecisionRank(profile?.total_decisions ?? 0), [profile?.total_decisions]);
   const lifetimeDecisions = profile?.total_decisions ?? 0;
@@ -4767,7 +4724,6 @@ function ProfileScreen({ session }) {
       <button type="button" className="ghost-btn" onClick={handleLogout}>
         Log out
       </button>
-      <p>Bonus decisions: {profile?.bonus_decisions || 0}</p>
       <p>Total decisions: {profile?.total_decisions || 0}</p>
       <p className="answer">🔥 Streak: {profile?.current_streak || 0} days</p>
       <p className="meta">Longest streak: {profile?.longest_streak || 0} days</p>
@@ -4830,30 +4786,6 @@ function ProfileScreen({ session }) {
       </article>
 
       <p className="muted">Referrals recorded: {referrals.length}</p>
-
-      <article className="history-item ai-profile-card">
-        <p className="hero-kicker">Your AI knows you</p>
-        <p className="muted">Everything your assistant has learned from your decisions, so future advice is instantly personal.</p>
-        {renderedPreferences.length ? (
-          <div className="learned-preferences">
-            {renderedPreferences.map((item) => (
-              <div key={item.key} className="learned-preference-item">
-                <p>{item.label}</p>
-                <button
-                  type="button"
-                  className="pref-remove-btn"
-                  aria-label={`Remove preference ${item.label}`}
-                  onClick={() => removePreference(item.sourceId)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="meta">Your AI is still learning. Start with one decision and your profile will begin to fill in.</p>
-        )}
-      </article>
     </section>
   );
 }
