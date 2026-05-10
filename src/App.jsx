@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   NavLink,
@@ -57,9 +57,13 @@ import {
   roastFromCompliance,
   summarizeLifeDayVirality
 } from "./lifeModeV2.js";
+import { DAILY_FREE_DECISION_LIMIT } from "./constants/freeTier.js";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
+const DFM_INVITE_STORAGE_KEY = "dfm_influencer_invite_code";
+const DFM_ADMIN_TOKEN_KEY = "dfm_admin_token";
 
 function isStripeHostedCheckoutUrl(urlString) {
   try {
@@ -1733,8 +1737,8 @@ function DailyDilemmaCard({ session }) {
 
 function ChatScreen({ session }) {
   const { currency, formatMonth, formatYear } = useCommerceCurrency();
-  const DAILY_FREE_LIMIT = 100;
-  const GUEST_DAILY_FREE_LIMIT = 100;
+  const DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
+  const GUEST_DAILY_FREE_LIMIT = DAILY_FREE_DECISION_LIMIT;
   const LIFE_MODE_STORAGE_KEY = "decide_for_me_life_mode_session";
   const LIFE_SETUP_STORAGE_KEY = "dfm_lm_setup_v2";
   const LIFE_STREAK_STORAGE_KEY = "dfm_lm_consecutive_days";
@@ -1824,6 +1828,7 @@ function ChatScreen({ session }) {
   const [profileDecisionCount, setProfileDecisionCount] = useState(0);
   const [isProUser, setIsProUser] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [inviteRedeemTick, setInviteRedeemTick] = useState(0);
   const [upgradePromptReason, setUpgradePromptReason] = useState("limit");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
@@ -2145,7 +2150,13 @@ function ChatScreen({ session }) {
     };
 
     loadPersonalization();
-  }, [session?.user?.id, todayKey]);
+  }, [session?.user?.id, todayKey, inviteRedeemTick]);
+
+  useEffect(() => {
+    const onInvite = () => setInviteRedeemTick((t) => t + 1);
+    window.addEventListener("dfm-invite-redeemed", onInvite);
+    return () => window.removeEventListener("dfm-invite-redeemed", onInvite);
+  }, []);
 
   useEffect(() => {
     if (session?.user?.id) return;
@@ -6665,6 +6676,338 @@ function PlansScreen({ session }) {
   );
 }
 
+function AdminPage() {
+  const [password, setPassword] = useState("");
+  const [adminToken, setAdminToken] = useState(() => {
+    try {
+      return sessionStorage.getItem(DFM_ADMIN_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [invites, setInvites] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [copiedCode, setCopiedCode] = useState("");
+
+  const loadInvites = async (tok) => {
+    if (!tok) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(apiUrl("/api/admin/invites"), {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Could not load invites.");
+        if (res.status === 401) {
+          try {
+            sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
+          } catch {
+            /* ignore */
+          }
+          setAdminToken("");
+        }
+        return;
+      }
+      setInvites(Array.isArray(data?.invites) ? data.invites : []);
+    } catch {
+      setError("Network error loading invites.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminToken) loadInvites(adminToken);
+  }, [adminToken]);
+
+  const login = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    try {
+      const res = await fetch(apiUrl("/api/admin/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.token) {
+        setLoginError(typeof data?.error === "string" ? data.error : "Login failed.");
+        return;
+      }
+      try {
+        sessionStorage.setItem(DFM_ADMIN_TOKEN_KEY, data.token);
+      } catch {
+        /* ignore */
+      }
+      setAdminToken(data.token);
+      setPassword("");
+    } catch {
+      setLoginError("Network error.");
+    }
+  };
+
+  const logout = () => {
+    try {
+      sessionStorage.removeItem(DFM_ADMIN_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+    setAdminToken("");
+    setInvites([]);
+  };
+
+  const createInvite = async () => {
+    if (!adminToken) return;
+    setCreating(true);
+    setError("");
+    try {
+      const label = newLabel.trim();
+      const res = await fetch(apiUrl("/api/admin/invites"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`
+        },
+        body: JSON.stringify(label ? { label } : {})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Could not create invite.");
+        return;
+      }
+      setNewLabel("");
+      await loadInvites(adminToken);
+    } catch {
+      setError("Network error creating invite.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const copyInviteLink = async (code) => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(""), 2000);
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  if (!adminToken) {
+    return (
+      <section className="card premium">
+        <h1>Admin — Influencer invites</h1>
+        <p className="muted">Enter the server admin password (ADMIN_SECRET).</p>
+        <form className="form" onSubmit={login}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Admin password"
+            autoComplete="current-password"
+            className="admin-label-input"
+          />
+          <button type="submit" className="primary-btn">
+            Unlock
+          </button>
+        </form>
+        {loginError ? <p className="error">{loginError}</p> : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="card premium">
+      <div className="admin-dashboard-head">
+        <div>
+          <h1>Influencer invites</h1>
+          <p className="muted">
+            One-time links: <span className="invite-url-code">{origin}/invite/[code]</span> — lifetime Pro and a referral code on redeem.
+          </p>
+        </div>
+        <button type="button" className="ghost-btn" onClick={logout}>
+          Log out
+        </button>
+      </div>
+
+      <div className="admin-create-row">
+        <input
+          type="text"
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          placeholder="Optional label (e.g. creator name)"
+          className="admin-label-input"
+        />
+        <button type="button" className="primary-btn" onClick={createInvite} disabled={creating}>
+          {creating ? "Creating…" : "Generate invite"}
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+
+      <div className="admin-invites-table-wrap">
+        <table className="admin-invites-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Label</th>
+              <th>Created</th>
+              <th>Status</th>
+              <th>Redeemed by</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  Loading…
+                </td>
+              </tr>
+            ) : invites.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  No invites yet.
+                </td>
+              </tr>
+            ) : (
+              invites.map((row) => {
+                const used = Boolean(row.used_at);
+                return (
+                  <tr key={row.id || row.code}>
+                    <td className="admin-code">{row.code}</td>
+                    <td>{row.label || "—"}</td>
+                    <td>{row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</td>
+                    <td>{used ? "Used" : "Available"}</td>
+                    <td>{used ? row.user_email || row.used_by_user_id || "—" : "—"}</td>
+                    <td>
+                      <button type="button" className="ghost-btn" onClick={() => copyInviteLink(row.code)}>
+                        {copiedCode === row.code ? "Copied" : "Copy link"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function InfluencerInviteLanding({ session }) {
+  const { code: rawCode } = useParams();
+  const navigate = useNavigate();
+  const normalized = useMemo(() => {
+    const c = String(rawCode || "")
+      .trim()
+      .toLowerCase();
+    return /^[a-z0-9]{6,16}$/.test(c) ? c : "";
+  }, [rawCode]);
+
+  useLayoutEffect(() => {
+    if (!normalized) return;
+    try {
+      localStorage.setItem(DFM_INVITE_STORAGE_KEY, normalized);
+    } catch {
+      /* ignore */
+    }
+  }, [normalized]);
+
+  const [banner, setBanner] = useState({ kind: "idle", text: "" });
+
+  useEffect(() => {
+    const onOk = (ev) => {
+      const d = ev.detail;
+      const msg =
+        d?.already === true
+          ? "This invite is already applied to your account."
+          : typeof d?.message === "string"
+            ? d.message
+            : "Lifetime Pro is unlocked on this account.";
+      setBanner({ kind: "ok", text: msg });
+      navigate("/", { replace: true });
+    };
+    const onFail = (ev) => {
+      const d = ev.detail?.data;
+      const err =
+        typeof d?.error === "string"
+          ? d.error
+          : ev.detail?.status === 410
+            ? "This invite has already been used."
+            : "Could not redeem this invite.";
+      setBanner({ kind: "err", text: err });
+    };
+    window.addEventListener("dfm-invite-redeemed", onOk);
+    window.addEventListener("dfm-invite-redeem-failed", onFail);
+    return () => {
+      window.removeEventListener("dfm-invite-redeemed", onOk);
+      window.removeEventListener("dfm-invite-redeem-failed", onFail);
+    };
+  }, [navigate]);
+
+  if (!normalized) {
+    return (
+      <section className="card premium">
+        <h1>Invalid invite link</h1>
+        <p className="muted">This URL does not match a valid invite code.</p>
+        <p className="invite-landing-actions">
+          <Link to="/" className="primary-btn">
+            Home
+          </Link>
+        </p>
+      </section>
+    );
+  }
+
+  const signedIn = Boolean(session?.access_token);
+
+  return (
+    <section className="card premium">
+      <h1>Influencer invite</h1>
+      <p className="muted">
+        Code <span className="invite-url-code">{normalized}</span>
+      </p>
+      {!signedIn ? (
+        <>
+          <p>Sign in or create an account to redeem this one-time link. You will receive lifetime Pro access and a referral code.</p>
+          <div className="invite-landing-actions">
+            <Link to="/login" className="primary-btn">
+              Log in
+            </Link>
+            <Link to="/signup" className="ghost-btn">
+              Sign up
+            </Link>
+            <Link to="/" className="answer">
+              Home
+            </Link>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>{banner.kind === "ok" ? banner.text : "Applying your invite…"}</p>
+          {banner.kind === "err" ? <p className="error">{banner.text}</p> : null}
+          <div className="invite-landing-actions">
+            <Link to="/" className="primary-btn">
+              Chat
+            </Link>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 const DFM_SPLASH_SESSION_KEY = "dfm_branded_splash_seen";
 
 export default function App() {
@@ -6719,6 +7062,66 @@ export default function App() {
       cancelled = true;
     };
   }, [session?.user?.id, session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let code = "";
+    try {
+      code = localStorage.getItem(DFM_INVITE_STORAGE_KEY) || "";
+    } catch {
+      return;
+    }
+    code = String(code).trim().toLowerCase();
+    if (!/^[a-z0-9]{6,16}$/.test(code)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/invite/redeem"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+
+        if (res.ok && data?.ok === true) {
+          try {
+            localStorage.removeItem(DFM_INVITE_STORAGE_KEY);
+          } catch {
+            /* ignore */
+          }
+          window.dispatchEvent(new CustomEvent("dfm-invite-redeemed", { detail: data }));
+          return;
+        }
+
+        if (res.status === 400 || res.status === 404 || res.status === 410) {
+          try {
+            localStorage.removeItem(DFM_INVITE_STORAGE_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        window.dispatchEvent(
+          new CustomEvent("dfm-invite-redeem-failed", {
+            detail: { status: res.status, data }
+          })
+        );
+      } catch {
+        if (!cancelled) {
+          window.dispatchEvent(new CustomEvent("dfm-invite-redeem-failed", { detail: {} }));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.access_token]);
 
   const signOut = async () => {
     if (!supabase) return;
@@ -6781,6 +7184,8 @@ export default function App() {
           <Route path="/ref/:username" element={<RefLandingCapture />} />
           <Route path="/profile" element={<ProfileScreen session={session} />} />
           <Route path="/plans" element={<PlansScreen session={session} />} />
+          <Route path="/invite/:code" element={<InfluencerInviteLanding session={session} />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/cookies" element={<CookiePolicyPage />} />

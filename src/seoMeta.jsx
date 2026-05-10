@@ -161,6 +161,14 @@ export function metaForPath(pathname) {
     };
   }
 
+  if (pathname.startsWith("/invite/") && pathname.length > "/invite/".length) {
+    return {
+      title: "Invite | Decide For Me",
+      description: "Redeem your influencer invite for lifetime Pro — decideforme.org.",
+      path: pathname
+    };
+  }
+
   return {
     title: "Decide For Me",
     description: DEFAULT_DESCRIPTION,
