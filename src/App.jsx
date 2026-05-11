@@ -14,6 +14,7 @@ import { toPng } from "html-to-image";
 import { SeoLandingPage, SEO_LANDING_ROUTES } from "./SeoLandingPage.jsx";
 import { DocumentMeta, applyPageMeta } from "./seoMeta.jsx";
 import { TermsOfServicePage, PrivacyPolicyPage, CookiePolicyPage } from "./LegalPages.jsx";
+import { ReferralEarningsDashboard } from "./ReferralEarningsDashboard.jsx";
 import {
   ArrowUp,
   BadgePercent,
@@ -5915,9 +5916,13 @@ function RefLandingCapture() {
 }
 
 function ReferralLeaderboardScreen({ session }) {
+  const { currency } = useCommerceCurrency();
   const [rows, setRows] = useState([]);
   const [proGateLoading, setProGateLoading] = useState(true);
   const [canEarnCommissions, setCanEarnCommissions] = useState(false);
+  const [dashLoading, setDashLoading] = useState(false);
+  const [dashError, setDashError] = useState("");
+  const [dashData, setDashData] = useState(null);
 
   useEffect(() => {
     const parseLeaderboardPayload = (raw) => {
@@ -5973,19 +5978,69 @@ function ReferralLeaderboardScreen({ session }) {
     };
   }, [session?.user?.id]);
 
+  useEffect(() => {
+    if (!canEarnCommissions || !session?.access_token) {
+      setDashData(null);
+      setDashError("");
+      setDashLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setDashLoading(true);
+      setDashError("");
+      try {
+        const res = await fetch(apiUrl("/api/referrals/dashboard"), {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        const text = await res.text();
+        let json = {};
+        try {
+          json = text ? JSON.parse(text) : {};
+        } catch {
+          json = {};
+        }
+        if (cancelled) return;
+        if (!res.ok) {
+          setDashData(null);
+          setDashError(typeof json?.error === "string" ? json.error : "Could not load earnings dashboard.");
+        } else {
+          setDashData(json);
+        }
+      } catch {
+        if (!cancelled) setDashError("Could not load earnings dashboard.");
+      } finally {
+        if (!cancelled) setDashLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canEarnCommissions, session?.access_token]);
+
   return (
-    <section className="card premium leaderboard-card referrals-page-safe">
-      <div className="leaderboard-head">
-        <h1 className="leaderboard-title">🏅 Referral leaderboard</h1>
+    <section className="card premium leaderboard-card referrals-page-safe referral-page-root">
+      <div className="leaderboard-head referral-page-head">
+        <h1 className="leaderboard-title">Referrals</h1>
       </div>
-      <p className="muted">Ranked by total affiliate earnings, then paying referrals.</p>
+      <p className="muted referral-page-lead">
+        Track your affiliate performance and see how you rank against other creators.
+      </p>
       {proGateLoading ? (
         <p className="meta">Checking Pro status…</p>
       ) : canEarnCommissions ? (
-        <p className="answer">You are Pro — referral commissions are enabled.</p>
+        <ReferralEarningsDashboard loading={dashLoading} error={dashError} data={dashData} currency={currency} />
       ) : (
-        <p className="error">Only Pro users can earn referral commissions. Upgrade to Pro to unlock affiliate earnings.</p>
+        <p className="error referral-page-gate">
+          Only Pro users can earn referral commissions.{" "}
+          <Link to="/plans" className="answer">
+            Upgrade to Pro
+          </Link>{" "}
+          to unlock your earnings dashboard.
+        </p>
       )}
+      <h2 className="referral-lb-section-title">Leaderboard</h2>
+      <p className="muted">Ranked by total affiliate earnings, then paying referrals.</p>
       <div className="leader-list">
         {rows.length ? (
           rows.map((r, i) => (

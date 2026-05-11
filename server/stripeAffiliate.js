@@ -418,7 +418,10 @@ export async function getAffiliateDashboardHandler(req, res, getUser) {
     clicks: out.clicks ?? 0,
     signups: out.signups ?? 0,
     paying_users: out.paying_users ?? 0,
-    total_earnings_pence: out.total_earnings_pence ?? 0
+    total_earnings_pence: out.total_earnings_pence ?? 0,
+    pending_payout_pence: out.pending_payout_pence ?? 0,
+    series: Array.isArray(out.series) ? out.series : [],
+    next_payout_date: out.next_payout_date ?? null
   });
 }
 
@@ -699,10 +702,39 @@ export async function fetchReferralLeaderboard(limit = 50) {
   return { rows: enriched.slice(0, limit) };
 }
 
+const DASHBOARD_SERIES_DAYS = 56;
+
+function utcCalendarDateKey(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/** Inclusive UTC calendar days from `startKey` through `endKey` (YYYY-MM-DD). */
+function eachUtcDayKey(startKey, endKey) {
+  const out = [];
+  const cur = new Date(`${startKey}T12:00:00.000Z`);
+  const end = new Date(`${endKey}T12:00:00.000Z`);
+  while (cur <= end) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
 export async function fetchReferralDashboard(userId) {
+  const empty = {
+    clicks: 0,
+    signups: 0,
+    paying_users: 0,
+    total_earnings_pence: 0,
+    pending_payout_pence: 0,
+    series: [],
+    next_payout_date: null
+  };
   const service = getServiceClient();
   if (!service) {
-    return { clicks: 0, signups: 0, paying_users: 0, total_earnings_pence: 0 };
+    return empty;
   }
 
   const { count: clickCount } = await service
@@ -710,21 +742,67 @@ export async function fetchReferralDashboard(userId) {
     .select("*", { count: "exact", head: true })
     .eq("referrer_id", userId);
 
-  const { data: refRows } = await service.from("referrals").select("referred_id").eq("referrer_id", userId);
+  const { data: refRows } = await service.from("referrals").select("referred_id, created_at").eq("referrer_id", userId);
 
   const { data: commissions } = await service
     .from("referral_commissions")
-    .select("referred_user_id, commission_pence")
+    .select("referred_user_id, commission_pence, created_at, stripe_transfer_id")
     .eq("referrer_id", userId);
 
   const payingIds = new Set((commissions || []).map((c) => c.referred_user_id));
   const totalEarnings = (commissions || []).reduce((s, c) => s + (c.commission_pence || 0), 0);
+  const pendingPayoutPence = (commissions || [])
+    .filter((c) => !c.stripe_transfer_id)
+    .reduce((s, c) => s + Number(c.commission_pence || 0), 0);
+
+  const endDay = new Date();
+  const endKey = endDay.toISOString().slice(0, 10);
+  const startAnchor = new Date(Date.UTC(endDay.getUTCFullYear(), endDay.getUTCMonth(), endDay.getUTCDate()));
+  startAnchor.setUTCDate(startAnchor.getUTCDate() - DASHBOARD_SERIES_DAYS);
+  const startKey = startAnchor.toISOString().slice(0, 10);
+  const startIso = `${startKey}T00:00:00.000Z`;
+
+  const bucket = new Map();
+  for (const d of eachUtcDayKey(startKey, endKey)) {
+    bucket.set(d, { date: d, clicks: 0, signups: 0, earnings_pence: 0 });
+  }
+
+  const { data: clickRows } = await service
+    .from("referral_link_clicks")
+    .select("created_at")
+    .eq("referrer_id", userId)
+    .gte("created_at", startIso);
+
+  for (const r of clickRows || []) {
+    const k = utcCalendarDateKey(r.created_at);
+    if (k && bucket.has(k)) bucket.get(k).clicks += 1;
+  }
+
+  for (const r of refRows || []) {
+    const k = utcCalendarDateKey(r.created_at);
+    if (k && bucket.has(k)) bucket.get(k).signups += 1;
+  }
+
+  for (const r of commissions || []) {
+    const k = utcCalendarDateKey(r.created_at);
+    if (k && bucket.has(k)) bucket.get(k).earnings_pence += Number(r.commission_pence || 0);
+  }
+
+  const series = Array.from(bucket.keys())
+    .sort()
+    .map((k) => bucket.get(k));
+
+  const now = new Date();
+  const nextPayout = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
   return {
     clicks: clickCount || 0,
     signups: refRows?.length || 0,
     paying_users: payingIds.size,
-    total_earnings_pence: totalEarnings
+    total_earnings_pence: totalEarnings,
+    pending_payout_pence: pendingPayoutPence,
+    series,
+    next_payout_date: nextPayout.toISOString().slice(0, 10)
   };
 }
 

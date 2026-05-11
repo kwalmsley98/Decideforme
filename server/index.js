@@ -1186,7 +1186,10 @@ app.get("/api/referrals/dashboard", async (req, res) => {
     clicks: out.clicks ?? 0,
     signups: out.signups ?? 0,
     paying_users: out.paying_users ?? 0,
-    total_earnings_pence: out.total_earnings_pence ?? 0
+    total_earnings_pence: out.total_earnings_pence ?? 0,
+    pending_payout_pence: out.pending_payout_pence ?? 0,
+    series: Array.isArray(out.series) ? out.series : [],
+    next_payout_date: out.next_payout_date ?? null
   });
 });
 
