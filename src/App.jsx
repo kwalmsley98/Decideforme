@@ -6053,10 +6053,7 @@ function AffiliatesPage() {
                 </button>
               </div>
             </div>
-            <div className="seo-landing-cta-row">
-              <button type="button" className="primary-btn seo-landing-cta" onClick={ensureReferralLink} disabled={linkLoading}>
-                {linkLoading ? "Checking account…" : "Refresh referral link"}
-              </button>
+            <div className="seo-landing-cta-row affiliates-leaderboard-row">
               <Link to="/referrals" className="ghost-btn seo-landing-secondary">
                 View leaderboard
               </Link>

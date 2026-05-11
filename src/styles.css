@@ -1715,11 +1715,16 @@ a.nearby-inline-maps:hover {
 /* Affiliate share row: brand-forward icon tiles (WhatsApp / X / copy) */
 .share-stack--affiliate-premium {
   margin-top: 4px;
+  width: 100%;
 }
 
 .share-stack--affiliate-premium .share-icon-row {
-  gap: 12px;
-  flex-wrap: wrap;
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-evenly;
+  align-items: center;
+  gap: clamp(8px, 4vw, 24px);
 }
 
 .share-stack--affiliate-premium .share-icon-btn {
@@ -3682,6 +3687,10 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
   margin: 0;
   width: 100%;
   justify-content: center;
+}
+
+.affiliates-leaderboard-row {
+  align-items: center;
 }
 
 .small-print {
