@@ -12,6 +12,64 @@ const STRIPE_UNIT_AMOUNTS = {
 
 const ALLOWED_CHECKOUT_CURRENCIES = new Set(["gbp", "eur", "usd"]);
 
+/**
+ * Stripe Connect Express account id:
+ * - Denormalized on `referrals.stripe_account_id` (each row for that referrer).
+ * - Fallback on `profiles.stripe_account_id` when the user has no referral rows as referrer yet (run supabase.sql to add the column).
+ */
+async function getReferrerStripeConnectAccountId(service, referrerId) {
+  const { data: refRow, error: refErr } = await service
+    .from("referrals")
+    .select("stripe_account_id")
+    .eq("referrer_id", referrerId)
+    .not("stripe_account_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (refErr) console.error("[getReferrerStripeConnectAccountId] referrals", refErr);
+  const fromRef = String(refRow?.stripe_account_id ?? "").trim();
+  if (fromRef) return fromRef;
+
+  const { data: prof, error: profErr } = await service
+    .from("profiles")
+    .select("stripe_account_id")
+    .eq("id", referrerId)
+    .maybeSingle();
+  if (profErr) console.error("[getReferrerStripeConnectAccountId] profiles", profErr);
+  return String(prof?.stripe_account_id ?? "").trim() || null;
+}
+
+async function persistReferrerStripeConnectAccountId(service, referrerId, stripeAccountId) {
+  const { error: profErr } = await service
+    .from("profiles")
+    .update({ stripe_account_id: stripeAccountId })
+    .eq("id", referrerId);
+  if (profErr) {
+    const msg = String(profErr.message || profErr.details || "");
+    if (/stripe_account_id|column.*does not exist|schema cache|PGRST204/i.test(msg)) {
+      console.warn("[persistReferrerStripeConnectAccountId] profiles update skipped:", msg);
+    } else {
+      console.error("[persistReferrerStripeConnectAccountId] profiles", profErr);
+      throw new Error(profErr.message);
+    }
+  }
+
+  const { error: refErr } = await service
+    .from("referrals")
+    .update({ stripe_account_id: stripeAccountId })
+    .eq("referrer_id", referrerId);
+  if (refErr) {
+    console.error("[persistReferrerStripeConnectAccountId] referrals", refErr);
+    throw new Error(refErr.message);
+  }
+
+  const stored = await getReferrerStripeConnectAccountId(service, referrerId);
+  if (stored !== stripeAccountId) {
+    throw new Error(
+      "Could not persist Stripe Connect account id. Add profiles.stripe_account_id (see supabase.sql) or ensure at least one referrals row exists where this user is the referrer."
+    );
+  }
+}
+
 function normalizeEnvValue(value) {
   if (typeof value !== "string") return "";
   let normalized = value.trim();
@@ -118,14 +176,7 @@ export async function createConnectAccountLinkHandler(stripe, req, res, appBaseU
   if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
 
   try {
-    const { data: profile, error: pErr } = await service
-      .from("profiles")
-      .select("stripe_connect_account_id")
-      .eq("id", userId)
-      .single();
-    if (pErr) return res.status(400).json({ error: pErr.message });
-
-    let accountId = profile?.stripe_connect_account_id;
+    let accountId = await getReferrerStripeConnectAccountId(service, userId);
 
     if (!accountId) {
       const account = await stripe.accounts.create({
@@ -139,7 +190,7 @@ export async function createConnectAccountLinkHandler(stripe, req, res, appBaseU
         }
       });
       accountId = account.id;
-      await service.from("profiles").update({ stripe_connect_account_id: accountId }).eq("id", userId);
+      await persistReferrerStripeConnectAccountId(service, userId, accountId);
     }
 
     const link = await stripe.accountLinks.create({
@@ -168,14 +219,7 @@ export async function createAffiliateConnectHandler(stripe, req, res, appBaseUrl
   if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
 
   try {
-    const { data: profile, error: pErr } = await service
-      .from("profiles")
-      .select("stripe_connect_account_id")
-      .eq("id", userId)
-      .single();
-    if (pErr) return res.status(400).json({ error: pErr.message });
-
-    let accountId = profile?.stripe_connect_account_id;
+    let accountId = await getReferrerStripeConnectAccountId(service, userId);
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
@@ -188,11 +232,8 @@ export async function createAffiliateConnectHandler(stripe, req, res, appBaseUrl
         }
       });
       accountId = account.id;
-      await service.from("profiles").update({ stripe_connect_account_id: accountId }).eq("id", userId);
+      await persistReferrerStripeConnectAccountId(service, userId, accountId);
     }
-
-    // Keep referrals table in sync for affiliate-specific queries.
-    await service.from("referrals").update({ stripe_account_id: accountId }).eq("referrer_id", userId);
 
     const link = await stripe.accountLinks.create({
       account: accountId,
@@ -221,14 +262,7 @@ export async function getAffiliateConnectStatusHandler(stripe, req, res, getUser
   if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
 
   try {
-    const { data: profile, error: pErr } = await service
-      .from("profiles")
-      .select("stripe_connect_account_id")
-      .eq("id", userId)
-      .maybeSingle();
-    if (pErr) return res.status(400).json({ error: pErr.message });
-
-    const accountId = profile?.stripe_connect_account_id || null;
+    const accountId = await getReferrerStripeConnectAccountId(service, userId);
     if (!accountId) {
       return res.json({ connected: false, onboarded: false });
     }
@@ -274,12 +308,7 @@ export async function runAffiliatePayoutHandler(stripe, req, res) {
         continue;
       }
 
-      const { data: profile } = await service
-        .from("profiles")
-        .select("stripe_connect_account_id")
-        .eq("id", referrerId)
-        .maybeSingle();
-      const accountId = profile?.stripe_connect_account_id;
+      const accountId = await getReferrerStripeConnectAccountId(service, referrerId);
       if (!accountId) {
         skipped += 1;
         continue;

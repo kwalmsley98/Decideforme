@@ -610,7 +610,10 @@ grant execute on function public.users_needing_streak_reminder(text) to service_
 alter table public.profiles add column if not exists public_ref_slug text unique;
 alter table public.profiles add column if not exists stripe_customer_id text;
 alter table public.profiles add column if not exists stripe_subscription_id text;
-alter table public.profiles add column if not exists stripe_connect_account_id text;
+-- Stripe Connect Express account id (fallback when user has no rows as referrer in referrals; mirrored onto referrals.stripe_account_id when rows exist).
+alter table public.profiles add column if not exists stripe_account_id text;
+-- One-time backfill if an older DB used profiles.stripe_connect_account_id:
+-- update public.profiles set stripe_account_id = stripe_connect_account_id where stripe_account_id is null and stripe_connect_account_id is not null;
 alter table public.profiles add column if not exists lifetime_pro_granted boolean not null default false;
 alter table public.profiles add column if not exists influencer_invite_code text;
 alter table public.profiles add column if not exists life_mode_streak_days int not null default 0;
