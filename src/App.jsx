@@ -3935,15 +3935,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       {renderChatRankStrip(false)}
       <p className="social-proof">{liveCount.toLocaleString()} decisions made today</p>
       <p className="meta life-global-count">{lifeModeGlobalCount} people currently living AI-controlled lives 🎲</p>
-      {session?.user?.id ? (
-        <p className="meta usage-meter">
-          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} · {freeDecisionsPerDayLabel(DAILY_FREE_LIMIT)}
-        </p>
-      ) : (
+      {!session?.user?.id ? (
         <p className="meta usage-meter">
           Guest mode: {displayedGuestDailyUsage}/{GUEST_DAILY_FREE_LIMIT} · {freeDecisionsPerDayLabel(GUEST_DAILY_FREE_LIMIT)}
         </p>
-      )}
+      ) : !isProUser ? (
+        <p className="meta usage-meter">
+          Free plan: {dailyUsage}/{DAILY_FREE_LIMIT} · {freeDecisionsPerDayLabel(DAILY_FREE_LIMIT)}
+        </p>
+      ) : null}
       {showFirstTimeNote ? (
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
       ) : null}
