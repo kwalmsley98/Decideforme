@@ -757,3 +757,46 @@ $$;
 
 revoke all on function public.record_affiliate_conversion(uuid, int) from public;
 grant execute on function public.record_affiliate_conversion(uuid, int) to service_role;
+
+-- ------------------------------------------------------------------
+-- Auto-create public.profiles when a new auth.users row is inserted.
+-- SECURITY DEFINER + search_path = public so the insert succeeds under RLS.
+-- Client code (ensureProfileAndReferral) still backfills referral_code / public_ref_slug.
+-- ------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_username text;
+  v_meta jsonb;
+begin
+  v_meta := coalesce(new.raw_user_meta_data, '{}'::jsonb);
+  v_username := coalesce(
+    nullif(trim(split_part(coalesce(new.email, ''), '@', 1)), ''),
+    nullif(trim(split_part(coalesce(v_meta->>'full_name', ''), ' ', 1)), ''),
+    nullif(trim(split_part(coalesce(v_meta->>'name', ''), ' ', 1)), ''),
+    'user'
+  );
+  if length(v_username) > 80 then
+    v_username := left(v_username, 80);
+  end if;
+
+  insert into public.profiles (id, username)
+  values (new.id, v_username)
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.handle_new_user() from public;
+grant execute on function public.handle_new_user() to service_role;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row
+  execute procedure public.handle_new_user();

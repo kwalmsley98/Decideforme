@@ -6428,9 +6428,22 @@ async function ensureProfileAndReferral(user) {
       public_ref_slug: publicRefSlug,
       referral_code: referralCode
     });
-  } else if (!existing.public_ref_slug) {
-    const publicRefSlug = await generateUniquePublicRefSlug(supabase, username);
-    await supabase.from("profiles").update({ public_ref_slug: publicRefSlug }).eq("id", user.id);
+  } else {
+    const updates = {};
+    let newReferralCode = null;
+    if (!String(existing.referral_code || "").trim()) {
+      newReferralCode = await reserveRandomReferralCode(user.id);
+      updates.referral_code = newReferralCode;
+    }
+    if (!existing.public_ref_slug) {
+      updates.public_ref_slug = await generateUniquePublicRefSlug(supabase, username);
+    }
+    if (Object.keys(updates).length) {
+      await supabase.from("profiles").update(updates).eq("id", user.id);
+      if (newReferralCode) {
+        await supabase.from("referrals").update({ referral_code: newReferralCode }).eq("referrer_id", user.id);
+      }
+    }
   }
 
   const pendingSlug = localStorage.getItem("pending_ref_slug");
