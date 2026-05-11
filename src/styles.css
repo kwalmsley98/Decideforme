@@ -1706,6 +1706,110 @@ a.nearby-inline-maps:hover {
   display: block;
 }
 
+.share-brand-svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* Affiliate share row: brand-forward icon tiles (WhatsApp / X / copy) */
+.share-stack--affiliate-premium {
+  margin-top: 4px;
+}
+
+.share-stack--affiliate-premium .share-icon-row {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.share-stack--affiliate-premium .share-icon-btn {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 14px;
+  border-width: 1px;
+  border-style: solid;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.22s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.share-stack--affiliate-premium .share-icon-btn:hover {
+  transform: translateY(-2px);
+}
+
+.share-stack--affiliate-premium .share-icon-btn:active {
+  transform: translateY(0);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--whatsapp {
+  background: linear-gradient(155deg, #2fe676 0%, #25d366 38%, #128c7e 100%);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  box-shadow:
+    0 6px 22px rgba(18, 140, 126, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--whatsapp:hover {
+  border-color: rgba(255, 255, 255, 0.48);
+  box-shadow:
+    0 8px 28px rgba(37, 211, 102, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--facebook {
+  background: linear-gradient(165deg, #2b4d9e 0%, #1a356e 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(30, 60, 140, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--facebook:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 26px rgba(59, 89, 200, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--x {
+  background: linear-gradient(180deg, #141414 0%, #050505 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--x:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+  box-shadow:
+    0 8px 28px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--copy {
+  background: linear-gradient(165deg, rgba(42, 48, 68, 0.98) 0%, rgba(18, 20, 32, 0.98) 100%);
+  border-color: rgba(150, 165, 220, 0.45);
+  color: #f0f3ff;
+  box-shadow:
+    0 6px 20px rgba(80, 100, 180, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--copy:hover {
+  border-color: rgba(180, 195, 255, 0.55);
+  box-shadow:
+    0 8px 26px rgba(120, 140, 220, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.share-stack--affiliate-premium .share-icon-btn--copy:disabled {
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
 .share-native-btn {
   width: 100%;
   min-height: 42px;
@@ -3536,6 +3640,23 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
   font-weight: 600;
 }
 
+/* Affiliates / referral program copy: no yellow on values (global .answer is yellow) */
+.affiliates-program-content .answer,
+.affiliates-program-content .affiliates-link-placeholder {
+  color: #ffffff !important;
+}
+
+.affiliates-program-content .answer a {
+  color: #ffffff !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.profile-screen-card .referral-dashboard-card .answer,
+.profile-screen-card .referral-dashboard-card .affiliates-link-placeholder {
+  color: #ffffff !important;
+}
+
 .affiliates-link-actions {
   margin-top: 10px;
   display: flex;
@@ -3546,18 +3667,6 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
 .affiliates-link-actions .primary-btn,
 .affiliates-link-actions .ghost-btn {
   flex: 1 1 160px;
-}
-
-.affiliates-share-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.affiliates-share-btn {
-  text-align: center;
-  justify-content: center;
 }
 
 .seo-landing-cta-row {

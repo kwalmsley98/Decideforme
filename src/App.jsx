@@ -18,6 +18,7 @@ import {
   ArrowUp,
   BadgePercent,
   BarChart2,
+  Check,
   Clock,
   Copy,
   Compass,
@@ -1203,9 +1204,17 @@ function CollapsibleShareImageBlock({
   );
 }
 
-function SharePanel({ text, className = "" }) {
+function SharePanel({ text, className = "", channels = null, variant = "default", copyDisabled = false }) {
   const [copied, setCopied] = useState(false);
   const urls = shareUrls(text);
+  const defaultOrder = ["whatsapp", "facebook", "x", "copy"];
+  const order = Array.isArray(channels) && channels.length ? channels : defaultOrder;
+  const isAffiliatePremium = variant === "affiliate";
+  const stackClass = isAffiliatePremium
+    ? `share-stack share-stack--affiliate-premium ${className}`.trim()
+    : `share-stack ${className}`.trim();
+  const btn = (modifier) => (isAffiliatePremium ? `share-icon-btn ${modifier}` : "share-icon-btn");
+
   const nativeShare = async () => {
     if (!navigator.share) return;
     try {
@@ -1214,48 +1223,68 @@ function SharePanel({ text, className = "" }) {
       // Ignore canceled share
     }
   };
+
   return (
-    <div className={`share-stack ${className}`.trim()}>
+    <div className={stackClass}>
       <div className="share-icon-row" role="group" aria-label="Share options">
-        <a className="share-icon-btn" href={urls.whatsapp} target="_blank" rel="noreferrer" aria-label="Share on WhatsApp">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3a9 9 0 0 0-7.7 13.7L3 21l4.5-1.2A9 9 0 1 0 12 3Z" fill="none" stroke="currentColor" strokeWidth="1.6"/>
-            <path d="M8.8 9.2c.2-.5.5-.5.7-.5h.6c.2 0 .4.1.4.3l.7 1.7c.1.2 0 .4-.1.5l-.5.6c-.1.1-.1.3 0 .4.3.6.9 1.2 1.6 1.6.1.1.3.1.4 0l.6-.5c.1-.1.3-.1.5-.1l1.7.7c.2.1.3.2.3.4v.6c0 .2 0 .5-.5.7-.4.2-.9.3-1.4.2-1.1-.2-2.2-.8-3.2-1.8S8.5 11.7 8.3 10.6c-.1-.5 0-1 .2-1.4Z" fill="currentColor"/>
-          </svg>
-        </a>
-        <a className="share-icon-btn" href={urls.facebook} target="_blank" rel="noreferrer" aria-label="Share on Facebook">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 8h2V5h-2c-2.2 0-4 1.8-4 4v2H8v3h2v5h3v-5h2.1l.4-3H13V9c0-.6.4-1 1-1Z" fill="currentColor"/>
-          </svg>
-        </a>
-        <a className="share-icon-btn" href={urls.x} target="_blank" rel="noreferrer" aria-label="Share on X">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m5 4 5.6 7.4L5.3 20h2.4l4-6 4.6 6H20l-5.8-7.6L19.2 4h-2.4l-3.8 5.7L8.8 4H5Z" fill="currentColor"/>
-          </svg>
-        </a>
-        <button
-          className="share-icon-btn"
-          aria-label="Copy referral link"
-          onClick={async () => {
-            await copyText(text);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          }}
-        >
-          {copied ? (
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        {order.includes("whatsapp") ? (
+          <a
+            className={btn("share-icon-btn--whatsapp")}
+            href={urls.whatsapp}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Share on WhatsApp"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="share-brand-svg">
+              <path
+                d="M12 3a9 9 0 0 0-7.7 13.7L3 21l4.5-1.2A9 9 0 1 0 12 3Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+              <path
+                d="M8.8 9.2c.2-.5.5-.5.7-.5h.6c.2 0 .4.1.4.3l.7 1.7c.1.2 0 .4-.1.5l-.5.6c-.1.1-.1.3 0 .4.3.6.9 1.2 1.6 1.6.1.1.3.1.4 0l.6-.5c.1-.1.3-.1.5-.1l1.7.7c.2.1.3.2.3.4v.6c0 .2 0 .5-.5.7-.4.2-.9.3-1.4.2-1.1-.2-2.2-.8-3.2-1.8S8.5 11.7 8.3 10.6c-.1-.5 0-1 .2-1.4Z"
+                fill="currentColor"
+              />
             </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8"/>
-              <rect x="5" y="5" width="10" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8"/>
+          </a>
+        ) : null}
+        {order.includes("facebook") ? (
+          <a className={btn("share-icon-btn--facebook")} href={urls.facebook} target="_blank" rel="noreferrer" aria-label="Share on Facebook">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="share-brand-svg">
+              <path d="M14 8h2V5h-2c-2.2 0-4 1.8-4 4v2H8v3h2v5h3v-5h2.1l.4-3H13V9c0-.6.4-1 1-1Z" fill="currentColor" />
             </svg>
-          )}
-        </button>
+          </a>
+        ) : null}
+        {order.includes("x") ? (
+          <a className={btn("share-icon-btn--x")} href={urls.x} target="_blank" rel="noreferrer" aria-label="Share on X">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="share-brand-svg share-brand-svg--x">
+              <path d="m5 4 5.6 7.4L5.3 20h2.4l4-6 4.6 6H20l-5.8-7.6L19.2 4h-2.4l-3.8 5.7L8.8 4H5Z" fill="currentColor" />
+            </svg>
+          </a>
+        ) : null}
+        {order.includes("copy") ? (
+          <button
+            type="button"
+            className={btn("share-icon-btn--copy")}
+            aria-label="Copy link"
+            disabled={copyDisabled}
+            onClick={async () => {
+              await copyText(text);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            }}
+          >
+            {copied ? (
+              <Check size={22} strokeWidth={2.4} aria-hidden="true" />
+            ) : (
+              <Copy size={22} strokeWidth={2.1} aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
       </div>
-      {navigator.share ? (
-        <button className="share-native-btn" onClick={nativeShare}>
+      {!isAffiliatePremium && navigator.share ? (
+        <button type="button" className="share-native-btn" onClick={nativeShare}>
           Share via…
         </button>
       ) : null}
@@ -6034,17 +6063,7 @@ function AffiliatesPage() {
             </div>
             <div className="history-item affiliates-share-card">
               <p className="meta">Share your link</p>
-              <div className="affiliates-share-actions" role="group" aria-label="Share referral link">
-                <a className="ghost-btn affiliates-share-btn" href={shareLinks.whatsapp} target="_blank" rel="noreferrer">
-                  WhatsApp
-                </a>
-                <a className="ghost-btn affiliates-share-btn" href={shareLinks.x} target="_blank" rel="noreferrer">
-                  X
-                </a>
-                <button type="button" className="ghost-btn affiliates-share-btn" onClick={copyRefLink} disabled={!refLink}>
-                  Copy link
-                </button>
-              </div>
+              <SharePanel text={refLink} channels={["whatsapp", "x", "copy"]} variant="affiliate" copyDisabled={!refLink} />
             </div>
             <div className="history-item">
               {connectStatus.onboarded ? (
