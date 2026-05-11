@@ -3948,25 +3948,30 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
         <p className="personalization-note">The more you use Decide For Me, the better it knows you.</p>
       ) : null}
       {profileDecisionCount >= 5 ? (
-        <article className="history-item decision-profile-card">
-          <p className="hero-kicker">Your Decision Profile</p>
+        <article className="decision-profile-card">
+          <header className="decision-profile-card-head">
+            <p className="decision-profile-card-kicker">Your Decision Profile</p>
+          </header>
           {isProUser ? (
-            <div className="history-list">
+            <ul className="decision-profile-insight-list" aria-label="Decision profile insights">
               {profileInsights.map((insight) => (
-                <p key={insight} className="answer">
-                  {insight}
-                </p>
+                <li key={insight} className="decision-profile-insight-item">
+                  <span className="decision-profile-insight-icon" aria-hidden="true">
+                    <Sparkles size={15} strokeWidth={2.1} />
+                  </span>
+                  <span className="decision-profile-insight-body">{insight}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           ) : (
-            <>
+            <div className="decision-profile-card-cta">
               <p className="muted">
                 Your full decision style revealed — see what drives every choice you make.
               </p>
               <button className="ghost-btn" type="button" onClick={() => setShowUpgradePrompt(true)}>
                 Unlock full Decision Profile
               </button>
-            </>
+            </div>
           )}
         </article>
       ) : null}

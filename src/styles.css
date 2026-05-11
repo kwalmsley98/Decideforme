@@ -2946,6 +2946,8 @@ a.nearby-inline-maps:hover {
 
 .referrals-page-safe {
   padding-bottom: 200px;
+  --ref-label: #a0a0b0;
+  --ref-value: #ffffff;
 }
 
 .affiliates-program-content {
@@ -5771,6 +5773,203 @@ button.primary-btn.life-emergency-confirm-danger:disabled {
 
 .profile-contact-support:hover {
   color: #f5e642;
+}
+
+/* ----- Profile & Referrals: typography (no yellow text; white values, grey labels; buttons keep global yellow) ----- */
+.profile-screen-card {
+  --profile-label: #a0a0b0;
+  --profile-value: #ffffff;
+}
+
+.profile-screen-card h1 {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .hero-kicker {
+  color: var(--profile-label);
+}
+
+.profile-screen-card .meta,
+.profile-screen-card .muted,
+.profile-screen-card .small-print {
+  color: var(--profile-label);
+}
+
+.profile-screen-card p:not([class]) {
+  color: var(--profile-label);
+}
+
+.profile-screen-card .muted strong {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .answer {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .answer a,
+.profile-screen-card .muted a {
+  color: var(--profile-value);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.profile-screen-card .referral-dash-grid .meta {
+  color: var(--profile-label);
+}
+
+.profile-screen-card .referral-dash-grid .answer {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .prestige-rank-card-bg {
+  background: radial-gradient(ellipse 80% 60% at 80% 0%, rgba(120, 140, 255, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(59, 130, 246, 0.1), transparent 50%);
+}
+
+.profile-screen-card .prestige-rank-card--prestige .prestige-rank-card-bg {
+  background: radial-gradient(ellipse 80% 60% at 70% 0%, rgba(167, 139, 250, 0.18), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 10% 100%, rgba(96, 165, 250, 0.12), transparent 50%);
+}
+
+.profile-screen-card .prestige-rank-meta strong {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .prestige-next-num {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .prestige-progress-fill {
+  background: linear-gradient(90deg, #2a3448, #5b6a9a 50%, #9ab0e8 100%);
+  box-shadow: 0 0 16px rgba(120, 150, 255, 0.22);
+}
+
+.profile-screen-card .prestige-rank-card--prestige .prestige-progress-fill {
+  background: linear-gradient(90deg, #3d3555, #7c6aa8 45%, #c4b8ff 100%);
+  box-shadow: 0 0 18px rgba(167, 139, 250, 0.25);
+}
+
+.profile-screen-card .prestige-rank-emblem--sergeant {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.profile-screen-card .prestige-rank-emblem--prestige {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: linear-gradient(160deg, rgba(45, 42, 58, 0.95), rgba(24, 24, 34, 0.98));
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.2);
+}
+
+.profile-screen-card .profile-contact-support:hover {
+  color: #e8eaf8;
+}
+
+.profile-screen-card .whats-new-list strong {
+  color: var(--profile-value);
+}
+
+.profile-screen-card .whats-new-list span {
+  color: var(--profile-label);
+}
+
+.profile-screen-card .whats-new-modal-head h2 {
+  color: var(--profile-value);
+}
+
+.referrals-page-safe .leaderboard-title {
+  color: var(--ref-value);
+}
+
+.referrals-page-safe .muted,
+.referrals-page-safe .meta {
+  color: var(--ref-label);
+}
+
+.referrals-page-safe .answer {
+  color: var(--ref-value);
+}
+
+.referrals-page-safe .referral-lb-main > p:first-of-type {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--ref-value);
+}
+
+.referrals-page-safe .referral-lb-main .meta {
+  color: var(--ref-label);
+}
+
+.referrals-page-safe .rank-num {
+  color: var(--ref-value);
+}
+
+/* Chat / home: Decision Profile card (premium) */
+.decision-profile-card {
+  margin-top: 14px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, rgba(18, 20, 32, 0.96) 0%, rgba(10, 12, 20, 0.98) 100%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.decision-profile-card-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.decision-profile-card-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a0a0b0;
+}
+
+.decision-profile-insight-list {
+  margin: 0;
+  padding: 4px 0 6px;
+  list-style: none;
+}
+
+.decision-profile-insight-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.decision-profile-insight-item:last-child {
+  border-bottom: none;
+}
+
+.decision-profile-insight-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: rgba(168, 180, 220, 0.85);
+  display: grid;
+  place-items: center;
+}
+
+.decision-profile-insight-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.92rem;
+  line-height: 1.52;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.decision-profile-card-cta {
+  padding: 14px 16px 16px;
+}
+
+.decision-profile-card-cta .muted {
+  margin: 0 0 14px;
+  color: #a0a0b0;
 }
 
 /* ----- What's new modal ----- */
