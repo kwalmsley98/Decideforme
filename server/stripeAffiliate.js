@@ -162,6 +162,51 @@ export async function createCheckoutSessionHandler(stripe, req, res, appBaseUrl,
 }
 
 /**
+ * Stripe Customer Portal — cancel subscription, update payment method, invoices.
+ * @param {import("stripe").Stripe} stripe
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @param {string} appBaseUrl
+ * @param {() => Promise<{ userId: string | null, error: string | null }>} getUser
+ */
+export async function createCustomerPortalSessionHandler(stripe, req, res, appBaseUrl, getUser) {
+  const { userId, error: authError } = await getUser();
+  if (!userId) {
+    return res.status(401).json({ error: authError || "Sign in required." });
+  }
+  const service = getServiceClient();
+  if (!service) return res.status(503).json({ error: "Server missing Supabase service role." });
+
+  try {
+    const { data: profile, error: profErr } = await service
+      .from("profiles")
+      .select("stripe_customer_id, is_pro")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profErr) return res.status(500).json({ error: profErr.message || "Could not load profile." });
+    if (!profile?.is_pro) {
+      return res.status(403).json({ error: "Billing portal is available for Pro members." });
+    }
+    const customerId = String(profile?.stripe_customer_id || "").trim();
+    if (!customerId) {
+      return res.status(400).json({
+        error:
+          "No Stripe customer on file. If you have complimentary Pro, there is no subscription to cancel in the portal."
+      });
+    }
+    const returnOrigin = checkoutReturnOrigin(appBaseUrl);
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${returnOrigin}/profile`
+    });
+    return res.json({ url: portalSession.url });
+  } catch (error) {
+    console.error("[stripe portal]", error);
+    return res.status(500).json({ error: error.message || "Billing portal failed." });
+  }
+}
+
+/**
  * @param {import("stripe").Stripe} stripe
  * @param {import("express").Request} req
  * @param {import("express").Response} res

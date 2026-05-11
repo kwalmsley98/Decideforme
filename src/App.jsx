@@ -65,6 +65,7 @@ const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 const DFM_INVITE_STORAGE_KEY = "dfm_influencer_invite_code";
 const DFM_ADMIN_TOKEN_KEY = "dfm_admin_token";
+const DFM_PRO_PUSH_BANNER_KEY = "dfm_pro_push_banner_dismissed_v1";
 
 function isStripeHostedCheckoutUrl(urlString) {
   try {
@@ -119,6 +120,50 @@ async function fetchStripeCheckoutSessionUrl(accessToken, body) {
     throw new Error(
       "Checkout did not return a valid Stripe payment link. Check server logs and that STRIPE_SECRET_KEY is set on the API host."
     );
+  }
+  return url;
+}
+
+/** POST /api/create-customer-portal-session — returns Stripe Customer Portal URL. */
+async function fetchStripeCustomerPortalUrl(accessToken) {
+  let response;
+  try {
+    response = await fetch(apiUrl("/api/create-customer-portal-session"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({})
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e ?? "");
+    const looksNetwork =
+      e instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(msg.toLowerCase());
+    throw new Error(
+      looksNetwork
+        ? "Could not reach the payment server. Check your connection or VITE_API_BASE_URL."
+        : msg || "Could not open billing portal."
+    );
+  }
+  const rawText = await response.text();
+  let data;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    const looksLikeHtml = /^\s*</.test(rawText) || /<!DOCTYPE/i.test(rawText);
+    const hint = looksLikeHtml
+      ? "Wrong server returned HTML instead of JSON. Set VITE_API_BASE_URL to your API host."
+      : `Unexpected response: ${rawText.slice(0, 120).replace(/\s+/g, " ")}`;
+    throw new Error(`Billing portal failed. ${hint}`);
+  }
+  if (!response.ok) {
+    const msg = typeof data?.error === "string" ? data.error : "";
+    throw new Error(msg || `Portal request failed (HTTP ${response.status}).`);
+  }
+  const url = data?.url;
+  if (typeof url !== "string" || !isStripeHostedCheckoutUrl(url)) {
+    throw new Error("Portal did not return a valid Stripe URL.");
   }
   return url;
 }
@@ -1294,6 +1339,43 @@ function SharePanel({ text, className = "", channels = null, variant = "default"
 
 function Layout({ session, onSignOut, children }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProPushBanner, setShowProPushBanner] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (localStorage.getItem(DFM_PRO_PUSH_BANNER_KEY) === "1") {
+          if (!cancelled) setShowProPushBanner(false);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!session?.user?.id) {
+        if (!cancelled) setShowProPushBanner(true);
+        return;
+      }
+      if (!supabase) {
+        if (!cancelled) setShowProPushBanner(false);
+        return;
+      }
+      const { data } = await supabase.from("profiles").select("is_pro").eq("id", session.user.id).maybeSingle();
+      if (!cancelled) setShowProPushBanner(!data?.is_pro);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  const dismissProPushBanner = () => {
+    try {
+      localStorage.setItem(DFM_PRO_PUSH_BANNER_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setShowProPushBanner(false);
+  };
 
   useEffect(() => {
     try {
@@ -1332,9 +1414,6 @@ function Layout({ session, onSignOut, children }) {
     { to: "/profile", label: "Profile", icon: User }
   ];
 
-  const loginItem = { to: "/login", label: "Login", icon: LogIn };
-  const LoginIcon = loginItem.icon;
-
   return (
     <div className="app-shell page-enter">
       <DocumentMeta />
@@ -1344,6 +1423,16 @@ function Layout({ session, onSignOut, children }) {
         <Link to="/" className="brand">
           Decide For Me
         </Link>
+        {!session ? (
+          <div className="topbar-mobile-auth" aria-label="Account">
+            <Link to="/login" className="ghost-btn topbar-mobile-auth-btn">
+              Log in
+            </Link>
+            <Link to="/signup" className="primary-btn topbar-mobile-auth-btn">
+              Sign up
+            </Link>
+          </div>
+        ) : null}
         <nav className="nav-links desktop-only-nav">
           {desktopNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -1361,13 +1450,44 @@ function Layout({ session, onSignOut, children }) {
               Logout
             </button>
           ) : (
-            <NavLink to={loginItem.to} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-              <LoginIcon size={16} />
-              <span className="nav-label">{loginItem.label}</span>
-            </NavLink>
+            <div className="topbar-auth-cluster">
+              <NavLink to="/login" className={({ isActive }) => `nav-item topbar-auth-btn ${isActive ? "active" : ""}`}>
+                <LogIn size={16} />
+                <span className="nav-label">Log in</span>
+              </NavLink>
+              <NavLink to="/signup" className={({ isActive }) => `nav-item topbar-auth-btn topbar-auth-btn--signup ${isActive ? "active" : ""}`}>
+                <User size={16} />
+                <span className="nav-label">Sign up</span>
+              </NavLink>
+            </div>
           )}
         </nav>
       </header>
+      {showProPushBanner ? (
+        <div className="pro-upgrade-push-banner" role="region" aria-label="Upgrade to Pro">
+          <div className="pro-upgrade-push-banner-inner">
+            <p className="pro-upgrade-push-banner-text">
+              <strong>Go Pro</strong> for unlimited decisions and full Life Mode.{" "}
+              <span className="pro-upgrade-push-banner-highlight">
+                Upgrade to Pro and earn 50% recurring commission on every person you refer — monthly, forever.
+              </span>
+            </p>
+            <div className="pro-upgrade-push-banner-actions">
+              {!session?.user?.id ? (
+                <Link to="/signup" className="ghost-btn pro-upgrade-push-secondary">
+                  Sign up free
+                </Link>
+              ) : null}
+              <Link to="/plans" className="primary-btn pro-upgrade-push-cta">
+                View plans
+              </Link>
+              <button type="button" className="ghost-btn pro-upgrade-push-dismiss" onClick={dismissProPushBanner}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <main className="content">{children}</main>
       <footer className="site-footer" role="contentinfo">
         <nav className="site-footer-nav" aria-label="Legal and policies">
@@ -1982,10 +2102,32 @@ function ChatScreen({ session }) {
       setPendingLifeModeDeepLink(false);
       return;
     }
-    lifeModeDeepLinkConsumedRef.current = true;
-    setLifeModeWizardStep(0);
-    setLifeModeWizardOpen(true);
-    setPendingLifeModeDeepLink(false);
+    let cancelled = false;
+    (async () => {
+      if (!supabase) {
+        if (!cancelled) setPendingLifeModeDeepLink(false);
+        return;
+      }
+      const { data: prof } = await supabase.from("profiles").select("is_pro").eq("id", session.user.id).maybeSingle();
+      if (cancelled) return;
+      if (!prof?.is_pro) {
+        setUpgradePromptReason("lifemode");
+        setLifeModeFreePreviewOpen(true);
+        setPendingLifeModeDeepLink(false);
+        return;
+      }
+      if (lifeModeDeepLinkConsumedRef.current) {
+        setPendingLifeModeDeepLink(false);
+        return;
+      }
+      lifeModeDeepLinkConsumedRef.current = true;
+      setLifeModeWizardStep(0);
+      setLifeModeWizardOpen(true);
+      setPendingLifeModeDeepLink(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [pendingLifeModeDeepLink, session?.user?.id, lifeModeHydrated, lifeModeSession]);
 
   useEffect(() => {
@@ -2692,10 +2834,15 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
 
   const activateLifeMode = async (setupPayload = null) => {
     if (activatingLifeMode) return;
-    setActivatingLifeMode(true);
-    const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
     const authSession = supabase ? (await supabase.auth.getSession()).data.session : null;
     const resolvedUserId = session?.user?.id || authSession?.user?.id || null;
+    if (resolvedUserId && !isProUser) {
+      setUpgradePromptReason("lifemode");
+      setLifeModeFreePreviewOpen(true);
+      return;
+    }
+    setActivatingLifeMode(true);
+    const endsAt = new Date(Date.now() + 24 * 3600000).toISOString();
     const optimisticSession = {
       id: `local-${Date.now()}`,
       user_id: resolvedUserId,
@@ -2746,7 +2893,37 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
     }
   };
 
+  /** End an active session from the Pro paywall / downgrade path (no recap). */
+  const abandonLifeModeForNonProUi = async () => {
+    const sid = lifeModeSession?.id;
+    if (sid && supabase && !String(sid).startsWith("local-")) {
+      try {
+        await supabase.from("life_mode_sessions").update({ is_active: false }).eq("id", sid);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      localStorage.removeItem(LIFE_MODE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    setLifeModeSetup(null);
+    setLifeModeComplianceMap({});
+    setLifeModeResponsePicks({});
+    setLifeModeEmergencyShame("");
+    setLifeModeSession(null);
+    setLifeModeRecap(null);
+    setShowMissionReportShare(false);
+    await refreshLifeModeGlobalCount();
+  };
+
   const beginLifeModeActivationFlow = () => {
+    if (!isProUser) {
+      setUpgradePromptReason("lifemode");
+      setLifeModeFreePreviewOpen(true);
+      return;
+    }
     const codename = pickCodename();
     const setup = {
       wakeHour: lifeModeDraftWake,
@@ -2767,12 +2944,11 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setShowUpgradePrompt(true);
       return;
     }
-    /* TEMP (Life Mode QA): Pro gate disabled — restore after testing:
     if (!isProUser) {
+      setUpgradePromptReason("lifemode");
       setLifeModeFreePreviewOpen(true);
       return;
     }
-    */
     setLifeModeWizardStep(0);
     setLifeModeWizardOpen(true);
   };
@@ -3622,7 +3798,6 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       setTimeout(() => setLifeModeMissionShareCopied(false), 1600);
     };
 
-    /* TEMP (Life Mode QA): locked Command Centre disabled — uncomment block below after testing:
     if (!isProUser) {
       const teaserOrders = buildLifeOrders({
         setup: {
@@ -3662,11 +3837,13 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
           >
             Unlock full Life Mode (Pro)
           </button>
+          <button type="button" className="ghost-btn life-cc-exit-paywall" onClick={() => void abandonLifeModeForNonProUi()}>
+            Return to chat
+          </button>
           {error ? <p className="error">{error}</p> : null}
         </section>
       );
     }
-    */
 
     return (
       <section
@@ -4254,6 +4431,9 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
                 share-ready mission reports.
               </p>
             ) : null}
+            <p className="muted upgrade-referral-blurb">
+              Upgrade to Pro and earn 50% recurring commission on every person you refer — monthly, forever.
+            </p>
             <p className="plan-price">
               {formatMonth()}/mo · {formatYear()}/yr
             </p>
@@ -4475,8 +4655,19 @@ ${highlights.map((item, idx) => `${idx + 1}. ${item.prompt} -> ${item.answer}`).
       {lifeModeFreePreviewOpen ? (
         <div className="life-mode-modal" role="dialog" aria-modal="true" aria-label="Life Mode preview">
           <div className="life-mode-modal-card life-cc-preview-card">
-            <p className="hero-kicker">Life Mode preview</p>
-            <h2>One directive. Then silence until you upgrade.</h2>
+            <button
+              type="button"
+              className="upgrade-modal-close"
+              onClick={() => setLifeModeFreePreviewOpen(false)}
+              aria-label="Close"
+            >
+              <X size={20} strokeWidth={2.25} />
+            </button>
+            <p className="hero-kicker">Life Mode · Pro</p>
+            <h2>Unlock the full Command Centre</h2>
+            <p className="muted upgrade-referral-blurb">
+              Upgrade to Pro and earn 50% recurring commission on every person you refer — monthly, forever.
+            </p>
             <article className="life-cc-order life-cc-order--single">
               <p className="life-cc-time">0900</p>
               <p className="life-cc-text">
@@ -6089,6 +6280,8 @@ function AffiliatesPage() {
 function ProfileScreen({ session }) {
   const navigate = useNavigate();
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState("");
   const [profile, setProfile] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [referralCodeFromReferrals, setReferralCodeFromReferrals] = useState("");
@@ -6294,6 +6487,19 @@ function ProfileScreen({ session }) {
         </p>
       </article>
       <p className="meta">{session.user.email}</p>
+      {profile?.is_pro && String(profile?.stripe_customer_id || "").trim() ? (
+        <p className="profile-billing-actions">
+          <button type="button" className="ghost-btn" disabled={portalLoading} onClick={() => void openStripeCustomerPortal()}>
+            {portalLoading ? "Opening Stripe…" : "Cancel or manage subscription"}
+          </button>
+        </p>
+      ) : profile?.is_pro ? (
+        <p className="meta profile-billing-note">
+          Subscription billing is managed in Stripe when you subscribe via checkout. Complimentary Pro accounts have no
+          self-serve cancel link here — contact support if you need help.
+        </p>
+      ) : null}
+      {portalError ? <p className="error">{portalError}</p> : null}
       <button type="button" className="ghost-btn" onClick={handleLogout}>
         Log out
       </button>

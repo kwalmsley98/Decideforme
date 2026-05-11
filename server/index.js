@@ -15,6 +15,7 @@ import {
   createAffiliateConnectHandler,
   getAffiliateDashboardHandler,
   createCheckoutSessionHandler,
+  createCustomerPortalSessionHandler,
   createConnectAccountLinkHandler,
   fetchReferralDashboard,
   fetchReferralLeaderboard,
@@ -1149,6 +1150,10 @@ app.post("/api/emails/welcome", async (req, res) => {
 
 app.post("/api/create-checkout-session", (req, res) =>
   createCheckoutSessionHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
+);
+
+app.post("/api/create-customer-portal-session", (req, res) =>
+  createCustomerPortalSessionHandler(stripe, req, res, config.appBaseUrl, () => getBearerUser(req))
 );
 
 app.post("/api/stripe/connect-onboarding", (req, res) =>
