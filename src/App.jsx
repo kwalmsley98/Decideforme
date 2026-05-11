@@ -5923,6 +5923,9 @@ function ReferralLeaderboardScreen({ session }) {
   const [dashLoading, setDashLoading] = useState(false);
   const [dashError, setDashError] = useState("");
   const [dashData, setDashData] = useState(null);
+  const [referralLinkLoading, setReferralLinkLoading] = useState(false);
+  const [referralCanonicalCode, setReferralCanonicalCode] = useState("");
+  const [referralLinkCopied, setReferralLinkCopied] = useState(false);
 
   useEffect(() => {
     const parseLeaderboardPayload = (raw) => {
@@ -5979,6 +5982,43 @@ function ReferralLeaderboardScreen({ session }) {
   }, [session?.user?.id]);
 
   useEffect(() => {
+    if (!supabase || !session?.user?.id || !canEarnCommissions) {
+      setReferralCanonicalCode("");
+      setReferralLinkLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setReferralLinkLoading(true);
+      try {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("referral_code")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        let code = String(profileData?.referral_code || "").trim().toLowerCase();
+        if (!code) {
+          const generatedCode = await reserveRandomReferralCode(session.user.id);
+          await supabase.from("profiles").update({ referral_code: generatedCode }).eq("id", session.user.id);
+          await supabase.from("referrals").update({ referral_code: generatedCode }).eq("referrer_id", session.user.id);
+          code = generatedCode;
+        }
+        const { data: refData } = await supabase.from("referrals").select("referral_code").eq("referrer_id", session.user.id);
+        const tableCode = String((refData || []).find((row) => row?.referral_code)?.referral_code || "").trim().toLowerCase();
+        const canonical = tableCode || code;
+        if (!cancelled) setReferralCanonicalCode(canonical);
+      } catch {
+        if (!cancelled) setReferralCanonicalCode("");
+      } finally {
+        if (!cancelled) setReferralLinkLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, canEarnCommissions]);
+
+  useEffect(() => {
     if (!canEarnCommissions || !session?.access_token) {
       setDashData(null);
       setDashError("");
@@ -6018,6 +6058,17 @@ function ReferralLeaderboardScreen({ session }) {
     };
   }, [canEarnCommissions, session?.access_token]);
 
+  const referralPageOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const referralsPrettyLink =
+    referralCanonicalCode && referralPageOrigin ? `${referralPageOrigin}/ref/${referralCanonicalCode}` : "";
+
+  const copyReferralsPageLink = async () => {
+    if (!referralsPrettyLink) return;
+    await copyText(referralsPrettyLink);
+    setReferralLinkCopied(true);
+    setTimeout(() => setReferralLinkCopied(false), 1400);
+  };
+
   return (
     <section className="card premium leaderboard-card referrals-page-safe referral-page-root">
       <div className="leaderboard-head referral-page-head">
@@ -6029,7 +6080,39 @@ function ReferralLeaderboardScreen({ session }) {
       {proGateLoading ? (
         <p className="meta">Checking Pro status…</p>
       ) : canEarnCommissions ? (
-        <ReferralEarningsDashboard loading={dashLoading} error={dashError} data={dashData} currency={currency} />
+        <>
+          <article className="referral-page-link-card" aria-label="Your referral link">
+            <p className="hero-kicker referral-page-link-kicker">Share &amp; earn</p>
+            <p className="muted referral-page-link-desc">
+              Send this link anywhere — you earn when people subscribe to Pro through it.
+            </p>
+            {referralLinkLoading ? (
+              <p className="meta">Loading your link…</p>
+            ) : referralsPrettyLink ? (
+              <>
+                <p className="muted referral-page-url-label">Your link</p>
+                <p className="answer referral-link-break referral-page-url">{referralsPrettyLink}</p>
+                <div className="referral-page-link-actions">
+                  <button type="button" className="ghost-btn referral-page-copy-btn" onClick={() => void copyReferralsPageLink()}>
+                    {referralLinkCopied ? (
+                      <>
+                        <Check size={18} strokeWidth={2.25} aria-hidden="true" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={18} strokeWidth={2.1} aria-hidden="true" /> Copy link
+                      </>
+                    )}
+                  </button>
+                  <SharePanel text={referralsPrettyLink} className="referral-page-share-panel" />
+                </div>
+              </>
+            ) : (
+              <p className="meta">Could not load your referral link — refresh or open Profile to generate one.</p>
+            )}
+          </article>
+          <ReferralEarningsDashboard loading={dashLoading} error={dashError} data={dashData} currency={currency} />
+        </>
       ) : (
         <p className="error referral-page-gate">
           Only Pro users can earn referral commissions.{" "}
